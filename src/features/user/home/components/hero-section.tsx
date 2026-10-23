@@ -34,7 +34,7 @@ export function HeroSection() {
       <div className="w-full px-5 pt-28 pb-16 sm:px-10 sm:pt-32 sm:pb-[min(6rem,12svh)] lg:px-24 lg:pt-[8.75rem] lg:pb-[min(7.5rem,14svh)]">
         <h1
           id="hero-heading"
-          className="text-[clamp(3.25rem,14.5vw,4rem)] leading-[0.86] font-normal tracking-[-0.035em] sm:text-[clamp(3rem,min(9vw,15svh),115px)]"
+          className="text-[clamp(2.5rem,12.5vw,4rem)] leading-[0.86] font-normal tracking-[-0.035em] sm:text-[clamp(3rem,min(9vw,15svh),115px)]"
         >
           Sail into the
           <br />
@@ -53,7 +53,7 @@ export function HeroSection() {
             <ArrowRight aria-hidden="true" strokeWidth={1.5} className="size-3.5" />
           </Link>
           <Link
-            href={userRoutes.contact}
+            href={userRoutes.planCharter}
             className={cx(
               buttonBase,
               "border border-white/45 text-white/90 hover:border-white hover:bg-white/10 hover:text-white active:bg-white/15",

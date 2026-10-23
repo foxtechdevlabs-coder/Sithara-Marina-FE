@@ -1,6 +1,7 @@
 import { ArrowRight } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import type { Route } from "next";
 import type { CSSProperties } from "react";
 
 import logo from "@/components/assets/Frame 1.svg";
@@ -18,7 +19,15 @@ export const SANS: CSSProperties = {
 };
 export const SERIF: CSSProperties = { fontFamily: "'Instrument Serif', Georgia, serif" };
 
-const exploreLinks = ["Our yachts", "Life on board", "Our story", "The journal", "Get in touch"];
+// Footer items link only where a page exists; the rest render as plain text
+// (same styling) until their destinations are published.
+const exploreLinks: { label: string; href?: Route }[] = [
+  { label: "Our yachts", href: userRoutes.yachts },
+  { label: "Life on board" },
+  { label: "Our story" },
+  { label: "The journal" },
+  { label: "Get in touch", href: userRoutes.planCharter },
+];
 const placeLinks = [
   "Kerala Backwaters",
   "Lakshadweep Islands",
@@ -107,11 +116,15 @@ export function MarinaFooter() {
           <nav aria-label="Explore" className="order-2 w-[200px] lg:order-1">
             <p className="text-[13px] leading-[18px]">Explore Astra</p>
             <ul className="mt-[28px] space-y-[16.5px] text-[14px] leading-[20px] text-white/75">
-              {exploreLinks.map((label) => (
+              {exploreLinks.map(({ label, href }) => (
                 <li key={label}>
-                  <a href="#" className="hover:text-white">
-                    {label}
-                  </a>
+                  {href ? (
+                    <Link href={href} className="hover:text-white">
+                      {label}
+                    </Link>
+                  ) : (
+                    label
+                  )}
                 </li>
               ))}
             </ul>
@@ -128,7 +141,7 @@ export function MarinaFooter() {
               differently.
             </p>
             <Link
-              href={userRoutes.contact}
+              href={userRoutes.planCharter}
               className="mt-[52px] inline-flex h-[50px] w-[278px] items-center justify-center gap-[18px] text-[12px] tracking-[0.18em] uppercase transition-colors hover:bg-[#1d4470]"
               style={{ backgroundColor: "#15345a" }}
             >
@@ -141,11 +154,7 @@ export function MarinaFooter() {
             <p className="text-[13px] leading-[18px]">Find your place</p>
             <ul className="mt-[28px] space-y-[16.5px] text-[14px] leading-[20px] text-white/75">
               {placeLinks.map((label) => (
-                <li key={label}>
-                  <a href="#" className="hover:text-white">
-                    {label}
-                  </a>
-                </li>
+                <li key={label}>{label}</li>
               ))}
             </ul>
           </nav>
@@ -161,22 +170,18 @@ export function MarinaFooter() {
           </a>
         </div>
         <div className="mt-[46px] flex justify-center gap-[35px] text-[14px] leading-[20px] text-white/80">
+          {/* Plain text until the social and press URLs are provided. */}
           {["Instagram", "Youtube", "Press"].map((label) => (
-            <a key={label} href="#" className="hover:text-white">
-              {label}
-            </a>
+            <span key={label}>{label}</span>
           ))}
         </div>
 
         <div className="mt-[60px] flex flex-col gap-3 border-t border-white/10 pt-[31px] pb-[30px] text-[13px] leading-[18px] text-white/75 sm:flex-row sm:justify-between">
           <p>© 2026 Sithara Marina. All rights reserved.</p>
+          {/* Plain text until the policy pages are published again. */}
           <div className="flex gap-[19px]">
-            <Link href={userRoutes.privacy} className="hover:text-white">
-              Privacy policy
-            </Link>
-            <Link href={userRoutes.terms} className="hover:text-white">
-              Terms &amp; conditions
-            </Link>
+            <span>Privacy policy</span>
+            <span>Terms &amp; conditions</span>
           </div>
         </div>
       </div>

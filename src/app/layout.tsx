@@ -1,7 +1,7 @@
 import "./globals.css";
 
 import type { Metadata } from "next";
-import { Instrument_Serif, Inter } from "next/font/google";
+import { Instrument_Serif, Inter, Manrope } from "next/font/google";
 import type { ReactNode } from "react";
 
 import { getPublicEnv } from "@/config/env";
@@ -30,6 +30,13 @@ const instrumentSerif = Instrument_Serif({
   variable: "--font-instrument-serif",
 });
 
+/** Guest attribution text (`font-attribution`). */
+const manrope = Manrope({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-manrope",
+});
+
 /** The only root layout. Area-specific chrome lives in the `(user)` and `admin` layouts. */
 export default function RootLayout({ children }: { children: ReactNode }) {
   // Fails `next build` (this layout is prerendered) when required public
@@ -37,7 +44,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   getPublicEnv();
 
   return (
-    <html lang="en" className={`${inter.variable} ${instrumentSerif.variable}`}>
+    <html lang="en" className={`${inter.variable} ${instrumentSerif.variable} ${manrope.variable}`}>
       <body className="flex min-h-dvh flex-col">{children}</body>
     </html>
   );

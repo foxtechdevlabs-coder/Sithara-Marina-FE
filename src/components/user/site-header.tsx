@@ -114,7 +114,7 @@ export function SiteHeader() {
           href={bookingNav.href}
           onClick={closeMenu}
           className={cx(
-            "bg-surface text-brand-950 inline-flex h-10 items-center gap-6 px-3.5 text-[0.625rem] font-normal tracking-[0.16em] uppercase transition-colors duration-300 hover:bg-pearl active:bg-pearl/90 sm:h-[3.3125rem] sm:px-[1.875rem] sm:text-[0.6875rem] sm:tracking-[0.2em]",
+            "bg-surface text-brand-950 inline-flex h-10 items-center gap-6 px-2.5 text-[0.625rem] font-normal tracking-[0.1em] uppercase min-[380px]:px-3.5 min-[380px]:tracking-[0.16em] transition-colors duration-300 hover:bg-pearl active:bg-pearl/90 sm:h-[3.3125rem] sm:px-[1.875rem] sm:text-[0.6875rem] sm:tracking-[0.2em]",
             focusRing,
           )}
         >
@@ -127,9 +127,10 @@ export function SiteHeader() {
         id={menuId}
         aria-label="Main"
         hidden={!isMenuOpen}
-        className="bg-brand-950 absolute top-0 left-0 -z-10 w-full px-4 pt-28 pb-10 shadow-2xl sm:w-[26rem] sm:px-7 sm:pt-36 lg:pt-40 lg:pl-10"
+        // Compact dropdown just below the Menu button, aligned with its left edge.
+        className="bg-brand-950 absolute top-[4.25rem] left-4 w-[min(17rem,calc(100vw-2rem))] px-6 py-3 shadow-2xl sm:top-[3.75rem] sm:left-7 lg:left-10"
       >
-        <ul className="flex flex-col">
+        <ul className="flex flex-col divide-y divide-white/10">
           {primaryNav.map((item) => (
             <li key={item.href}>
               <Link
@@ -137,7 +138,7 @@ export function SiteHeader() {
                 onClick={closeMenu}
                 aria-current={isCurrent(item.href) ? "page" : undefined}
                 className={cx(
-                  "font-serif block py-2 text-[2.25rem] leading-tight opacity-90 transition-opacity duration-300 hover:opacity-100 aria-[current=page]:italic",
+                  "font-serif block py-3 text-[1.625rem] leading-tight opacity-90 transition-opacity duration-300 hover:opacity-100 aria-[current=page]:italic",
                   focusRing,
                 )}
               >
@@ -146,19 +147,6 @@ export function SiteHeader() {
             </li>
           ))}
         </ul>
-        <div className="mt-8 border-t border-white/15 pt-6">
-          <Link
-            href={userRoutes.account}
-            onClick={closeMenu}
-            aria-current={isCurrent(userRoutes.account) ? "page" : undefined}
-            className={cx(
-              "text-xs font-medium tracking-[0.18em] uppercase opacity-75 transition-opacity duration-300 hover:opacity-100",
-              focusRing,
-            )}
-          >
-            Account
-          </Link>
-        </div>
       </nav>
     </header>
   );

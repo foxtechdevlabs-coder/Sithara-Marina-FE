@@ -12,7 +12,7 @@ Sithara-Marina-FE/
 │   ├── components/
 │   │   ├── ui/                   generic primitives usable anywhere (Spinner, …)
 │   │   ├── shared/               generic composites used by both areas (RoutePlaceholder)
-│   │   ├── user/                 customer chrome (SiteHeader, SiteFooter)
+│   │   ├── user/                 customer chrome (SiteHeader, marina-chrome)
 │   │   └── admin/                admin chrome (DashboardShell, SidebarNav)
 │   ├── services/
 │   │   ├── http/                 the HTTP client, ApiError, URL builder, request types

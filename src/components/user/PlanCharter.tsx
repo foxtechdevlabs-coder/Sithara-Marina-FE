@@ -376,11 +376,7 @@ function EnquiryForm() {
               className="size-[13px] shrink-0 cursor-pointer accent-[#0d1b2a]"
             />
             <span>
-              I agree to the{" "}
-              <Link href={userRoutes.privacy} className="underline underline-offset-2">
-                privacy policy
-              </Link>{" "}
-              and consent to being contacted about my enquiry.
+              I agree to the privacy policy and consent to being contacted about my enquiry.
             </span>
           </label>
 

@@ -21,19 +21,7 @@ export const userRoutes = {
   login: "/login",
   register: "/register",
 
-  account: "/account",
-  accountBookings: "/account/bookings",
-  accountBooking: (bookingId: string) => `/account/bookings/${id(bookingId)}` as Route,
-  accountBookingInvoice: (bookingId: string) =>
-    `/account/bookings/${id(bookingId)}/invoice` as Route,
-  accountBookingCancel: (bookingId: string) => `/account/bookings/${id(bookingId)}/cancel` as Route,
-
-  about: "/about",
-  contact: "/contact",
   planCharter: "/plan-your-charter",
-  terms: "/terms",
-  privacy: "/privacy",
-  cancellationPolicy: "/cancellation-policy",
 } as const satisfies Record<string, Route | ((...args: string[]) => Route)>;
 
 /** Admin dashboard routes (`src/app/admin`). */

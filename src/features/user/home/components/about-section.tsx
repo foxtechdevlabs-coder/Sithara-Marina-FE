@@ -1,8 +1,5 @@
 import { ArrowRight } from "lucide-react";
 import Image from "next/image";
-import Link from "next/link";
-
-import { userRoutes } from "@/constants/routes";
 
 /**
  * "Welcome to Sithara Marina" introduction with the Heritage / Mission gallery.
@@ -29,13 +26,11 @@ export function AboutSection() {
           From the historic shores of Kochi to the tranquil waters of Kumarakom, Sithara Marina
           brings a new perspective to Kerala.
         </p>
-        <Link
-          href={userRoutes.about}
-          className="text-brand-950 border-brand-950 mt-10 inline-flex items-center gap-4 border-b pb-2 text-xs tracking-[0.2em] uppercase transition-opacity duration-300 hover:opacity-70 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-current"
-        >
+        {/* Plain text: the About page was removed. Restore a link when it returns. */}
+        <p className="text-brand-950 border-brand-950 mt-10 inline-flex items-center gap-4 border-b pb-2 text-xs tracking-[0.2em] uppercase">
           A little about us
           <ArrowRight aria-hidden="true" strokeWidth={1.5} className="size-3.5" />
-        </Link>
+        </p>
       </div>
 
       <div className="mt-16 grid gap-14 px-5 sm:px-10 md:grid-cols-2 md:gap-x-10 xl:grid-cols-[1fr_28.7vw_1fr] xl:gap-0 xl:px-[5.9vw]">

@@ -1,22 +1,61 @@
+"use client";
+
 import { ArrowLeft, ArrowRight, ArrowUpRight } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRef, useState, type CSSProperties, type TouchEvent } from "react";
 
+import { dummyFleet } from "@/components/user/OurYachts";
 import { userRoutes } from "@/constants/routes";
 import { cx } from "@/lib/cx";
 
-// Content from the design reference. Add yachts here; the slide controls
-// below are disabled until there is more than one.
-const FEATURED_YACHTS = [
-  {
-    name: "Astra One",
-    specs: ["46 metres", "12 guests", "6 suites"],
-    description:
-      "Our flagship superyacht. Spacious suites, open-air living, and the freedom to venture further.",
+// Carousel photos that show the fleet at different times of day. `focusX` is
+// the horizontal crop point. Yachts without an entry here use their photo
+// from /yachts.
+const SLIDE_PHOTOS: Record<string, { image: string; imageAlt: string; focusX: string }> = {
+  // Early morning: sunrise over still Kerala backwaters.
+  "astra-one": {
     image: "/images/home/featured-yacht-astra-one.png",
-    imageAlt: "Astra One, a white motor yacht, on still water at sunrise with palms behind",
+    imageAlt: "Astra One, a white motor cruiser, on still backwaters at sunrise with palms behind",
+    focusX: "50%",
   },
-] as const;
+  // Night: moonlit harbour, underwater lights glowing red on the water.
+  malabar: {
+    image: "/images/home/featured-malabar-night.png",
+    imageAlt:
+      "Malabar, a red-hulled motor cruiser, lit up at night beneath a full moon off a glowing hillside town",
+    focusX: "50%",
+  },
+  // Golden hour. Carousel visual chosen by the client; not a photo of the
+  // yacht itself, so the alt text describes the scene only.
+  neelam: {
+    image: "/images/home/featured-neelam-golden-hour.png",
+    imageAlt: "A grey-hulled motor cruiser anchored in a turquoise bay at golden hour",
+    focusX: "48%",
+  },
+  // Evening sunset. Carousel visual chosen by the client (see note above).
+  ananta: {
+    image: "/images/home/featured-ananta-sunset.png",
+    imageAlt: "A navy-hulled motor cruiser on calm water at sunset below a hillside town",
+    focusX: "50%",
+  },
+};
+
+// Slides come from the fleet shown on /yachts (replace with API data together).
+const FEATURED_YACHTS = dummyFleet.map((yacht) => ({
+  id: yacht.id,
+  name: yacht.name,
+  specs: [`${yacht.lengthMetres} metres`, `${yacht.guests} guests`, `${yacht.suites} suites`],
+  description: yacht.description,
+  ...(SLIDE_PHOTOS[yacht.id] ?? {
+    image: yacht.image.src,
+    imageAlt: yacht.image.alt,
+    focusX: "50%",
+  }),
+}));
+
+/** Minimum horizontal travel (px) for a touch swipe to change slides. */
+const SWIPE_THRESHOLD = 50;
 
 /** Brand gradient for the round card button, exactly as specified by design. */
 export const ROUND_BUTTON_GRADIENT =
@@ -39,23 +78,68 @@ const roundControl =
  * Small text and round buttons have readable / tappable minimum sizes.
  */
 export function FeaturedYachtSection() {
-  const activeIndex = 0;
-  const yacht = FEATURED_YACHTS[activeIndex];
-  const hasMultiple = FEATURED_YACHTS.length > 1;
+  const [activeIndex, setActiveIndex] = useState(0);
+  const touchStartX = useRef<number | null>(null);
+  const count = FEATURED_YACHTS.length;
+  const yacht = FEATURED_YACHTS[activeIndex] ?? FEATURED_YACHTS[0];
+  const hasMultiple = count > 1;
+
+  // Loops: next on the last yacht returns to the first, and vice versa.
+  const go = (step: 1 | -1) => setActiveIndex((index) => (index + step + count) % count);
+
+  const onTouchStart = (event: TouchEvent) => {
+    touchStartX.current = event.touches[0]?.clientX ?? null;
+  };
+  const onTouchEnd = (event: TouchEvent) => {
+    const start = touchStartX.current;
+    const end = event.changedTouches[0]?.clientX;
+    touchStartX.current = null;
+    if (start === null || end === undefined || !hasMultiple) return;
+    const distance = end - start;
+    if (Math.abs(distance) >= SWIPE_THRESHOLD) go(distance < 0 ? 1 : -1);
+  };
+
+  if (!yacht) return null;
 
   return (
     <section
       aria-labelledby="featured-heading"
       className="bg-surface font-brand pt-16 pb-5 lg:pt-[calc(var(--r)*66)] lg:pb-[calc(var(--r)*20)] lg:[--rw:calc(100vw/1728)] lg:[--r:min(var(--rw),calc((100svh-2.375rem)/1042))]"
     >
-      <div className="relative min-h-[44rem] overflow-hidden text-white md:mx-4 md:min-h-[48rem] lg:mx-auto lg:h-[calc(var(--r)*1042)] lg:min-h-0 lg:w-[calc(var(--rw)*1691)]">
-        <Image
-          src={yacht.image}
-          alt={yacht.imageAlt}
-          fill
-          sizes="(min-width: 1024px) 98vw, 100vw"
-          className="object-cover object-[50%_40%] lg:object-[50%_calc((var(--r)-var(--rw))*500)]"
+      <div
+        role="region"
+        aria-roledescription="carousel"
+        aria-label="Featured yachts"
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+        className="relative min-h-[47rem] overflow-hidden min-[360px]:min-h-[44rem] text-white md:mx-4 md:min-h-[48rem] lg:mx-auto lg:h-[calc(var(--r)*1042)] lg:min-h-0 lg:w-[calc(var(--rw)*1691)]"
+      >
+        {/* All photos are stacked; the active one fades in over the others. */}
+        {FEATURED_YACHTS.map((item, index) => (
+          <Image
+            key={item.id}
+            src={item.image}
+            alt={index === activeIndex ? item.imageAlt : ""}
+            aria-hidden={index === activeIndex ? undefined : true}
+            fill
+            priority={index === 0}
+            unoptimized={item.image.startsWith("http")}
+            sizes="(min-width: 1024px) 98vw, 100vw"
+            style={{ "--focus-x": item.focusX } as CSSProperties}
+            className={cx(
+              "object-cover object-[var(--focus-x)_40%] transition-opacity duration-700 ease-out motion-reduce:transition-none lg:object-[var(--focus-x)_calc((var(--r)-var(--rw))*500)]",
+              index === activeIndex ? "opacity-100" : "opacity-0",
+            )}
+          />
+        ))}
+        {/* Light top shade keeps the white heading readable on bright-sky photos. */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-x-0 top-0 h-[45%] bg-gradient-to-b from-black/30 to-transparent"
         />
+        <p aria-live="polite" className="sr-only">
+          {`Yacht ${activeIndex + 1} of ${count}: ${yacht.name}`}
+        </p>
 
         <div className="absolute inset-x-0 top-0 flex flex-col items-center px-5 pt-12 text-center lg:top-[calc(var(--r)*70)] lg:pt-0">
           <p className="text-[0.6875rem] tracking-[0.2em] uppercase lg:text-[max(calc(var(--r)*11),10px)]">
@@ -76,7 +160,7 @@ export function FeaturedYachtSection() {
             width={1114}
             height={561}
             sizes="(min-width: 1024px) 62vw, 92vw"
-            className="absolute top-[9.5rem] left-1/2 w-[min(92vw,40rem)] max-w-none -translate-x-1/2 lg:top-[calc(var(--r)*222)] lg:w-[calc(var(--r)*1065)]"
+            className="absolute top-[9.5rem] left-1/2 w-[min(92vw,40rem)] max-w-none -translate-x-1/2 lg:top-[calc(var(--r)*222)] lg:w-[calc(var(--rw)*1065)]"
           />
           <div className="absolute top-[9.75rem] left-1/2 flex -translate-x-1/2 flex-col items-center lg:top-[calc(var(--r)*230)]">
             <span className="h-4 w-px bg-white lg:h-[calc(var(--r)*17)]" />
@@ -90,6 +174,7 @@ export function FeaturedYachtSection() {
           type="button"
           aria-label="Previous yacht"
           disabled={!hasMultiple}
+          onClick={() => go(-1)}
           className={cx(
             roundControl,
             "top-[19rem] left-4 lg:top-[calc(var(--r)*508)] lg:left-[calc(var(--r)*110)]",
@@ -105,6 +190,7 @@ export function FeaturedYachtSection() {
           type="button"
           aria-label="Next yacht"
           disabled={!hasMultiple}
+          onClick={() => go(1)}
           className={cx(
             roundControl,
             "top-[19rem] right-4 lg:top-[calc(var(--r)*508)] lg:right-[calc(var(--r)*110)]",
@@ -118,25 +204,31 @@ export function FeaturedYachtSection() {
         </button>
 
         <div className="absolute inset-x-4 bottom-4 flex flex-col items-center gap-[1.375rem] md:inset-x-8 md:bottom-8 lg:inset-x-auto lg:bottom-[calc(var(--r)*107)] lg:left-1/2 lg:w-[max(calc(var(--r)*810),40rem)] lg:-translate-x-1/2 lg:gap-[calc(var(--r)*22)]">
-          <ol
-            aria-label="Featured yachts"
-            className="flex gap-[1.1875rem] lg:gap-[calc(var(--r)*19)]"
-          >
+          <div className="flex">
             {FEATURED_YACHTS.map((item, index) => (
-              <li
-                key={item.name}
+              // Small visible dot inside a larger, tappable button.
+              <button
+                key={item.id}
+                type="button"
+                aria-label={`Show ${item.name}`}
                 aria-current={index === activeIndex ? "true" : undefined}
-                className={cx(
-                  "size-[0.4375rem] lg:size-[max(calc(var(--r)*7),5px)]",
-                  index === activeIndex ? "bg-white" : "bg-white/45",
-                )}
+                onClick={() => setActiveIndex(index)}
+                className="group flex size-6 items-center justify-center focus-visible:outline-2 focus-visible:outline-white lg:size-[max(calc(var(--r)*26),1.5rem)]"
               >
-                <span className="sr-only">{item.name}</span>
-              </li>
+                <span
+                  className={cx(
+                    "size-[0.4375rem] transition-colors duration-300 lg:size-[max(calc(var(--r)*7),5px)]",
+                    index === activeIndex ? "bg-white" : "bg-white/45 group-hover:bg-white/75",
+                  )}
+                />
+              </button>
             ))}
-          </ol>
+          </div>
 
-          <article className="bg-surface grid w-full grid-cols-[1fr_3.5rem] items-center gap-x-6 gap-y-5 p-6 lg:grid-cols-[1fr_max(calc(var(--r)*300),14.375rem)_max(calc(var(--r)*56),2.75rem)] lg:gap-x-[calc(var(--r)*19)] lg:gap-y-0 lg:py-[calc(var(--r)*28)] lg:pr-[calc(var(--r)*39)] lg:pl-[calc(var(--r)*49)]">
+          <article
+            key={yacht.id}
+            className="bg-surface grid transition-opacity duration-500 starting:opacity-0 motion-reduce:transition-none w-full grid-cols-[1fr_3.5rem] items-center gap-x-6 gap-y-5 p-6 lg:grid-cols-[1fr_max(calc(var(--r)*300),14.375rem)_max(calc(var(--r)*56),2.75rem)] lg:gap-x-[calc(var(--r)*19)] lg:gap-y-0 lg:py-[calc(var(--r)*28)] lg:pr-[calc(var(--r)*39)] lg:pl-[calc(var(--r)*49)]"
+          >
             <div className="col-span-2 lg:col-span-1">
               <h3 className="text-onyx text-[2.5rem] leading-none font-normal tracking-[-0.02em] lg:text-[calc(var(--r)*42.8)]">
                 {yacht.name}
@@ -157,7 +249,7 @@ export function FeaturedYachtSection() {
             </div>
 
             <Link
-              href={userRoutes.yachts}
+              href={userRoutes.yacht(yacht.id)}
               aria-label={`View ${yacht.name}`}
               className={cx(
                 "order-last flex size-14 items-center justify-center self-end rounded-full text-white transition-transform duration-300 hover:scale-105 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0C2269] motion-reduce:transition-none lg:size-[max(calc(var(--r)*56),2.75rem)] lg:self-center",

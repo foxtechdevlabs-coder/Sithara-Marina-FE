@@ -271,7 +271,7 @@ function Stats({ yacht }: { yacht: YachtDetailsData }) {
         {yacht.stats.map((stat, i) => (
           <li
             key={stat.label}
-            className={`relative flex items-center justify-center gap-[17px] ${
+            className={`relative flex flex-col items-center justify-center gap-2 text-center min-[400px]:flex-row min-[400px]:gap-[17px] min-[400px]:text-left ${
               i < yacht.stats.length - 1
                 ? "lg:after:absolute lg:after:top-1/2 lg:after:right-[10%] lg:after:h-[47px] lg:after:w-px lg:after:-translate-y-1/2 lg:after:bg-[#dcdfe2]"
                 : ""
@@ -329,8 +329,8 @@ function CharterCard({ yacht }: { yacht: YachtDetailsData }) {
         ))}
       </dl>
 
-      <a
-        href="#"
+      <Link
+        href={userRoutes.planCharter}
         className="mt-[24px] flex h-[50px] items-center justify-between px-[16px] text-[12px] tracking-[0.18em] uppercase transition-opacity hover:opacity-90"
         style={{
           color: INK,
@@ -339,7 +339,7 @@ function CharterCard({ yacht }: { yacht: YachtDetailsData }) {
       >
         Enquire about {yacht.name}
         <ArrowRight className="size-[13px]" strokeWidth={1.5} aria-hidden="true" />
-      </a>
+      </Link>
 
       <p className="mt-[20px] text-[12px] leading-[20px] text-white/80">
         Rates are indicative. Your personal proposal will confirm availability, itinerary, taxes,
@@ -543,7 +543,7 @@ function JourneyCta() {
         </p>
         <div className="mt-[51px] flex flex-wrap gap-[14px]">
           <Link
-            href={userRoutes.contact}
+            href={userRoutes.planCharter}
             className="inline-flex h-[54px] w-[241px] items-center justify-center gap-[20px] bg-white text-[12px] tracking-[0.18em] uppercase transition-opacity hover:opacity-90"
             style={{ color: INK }}
           >

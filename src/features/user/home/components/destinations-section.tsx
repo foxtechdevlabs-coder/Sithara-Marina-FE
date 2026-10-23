@@ -23,8 +23,10 @@ const DESTINATIONS = [
 /**
  * "Follow a different horizon." destinations feature: photo with a white
  * detail card on the left, introduction on the right. From `lg` every size is
- * in 1728px-reference pixels times `--r` (viewport width / 1728), matching
- * the reference exactly at that width; small text has a readable minimum.
+ * in 1728px-reference pixels times `--r`: viewport width / 1728, capped so
+ * the 935px-tall photo fits one screen (with a 19px margin above and below).
+ * On tall screens this is the reference exactly; small text has a readable
+ * minimum and the card grows upward if that needs more room.
  */
 export function DestinationsSection() {
   const activeIndex = 0;
@@ -33,7 +35,7 @@ export function DestinationsSection() {
   return (
     <section
       aria-labelledby="destinations-heading"
-      className="bg-surface font-brand py-16 lg:grid lg:grid-cols-[calc(var(--r)*834)_1fr] lg:gap-x-[calc(var(--r)*129)] lg:py-0 lg:pl-[calc(var(--r)*20)] lg:[--r:calc(100vw/1728)]"
+      className="bg-surface font-brand py-16 lg:grid lg:grid-cols-[calc(var(--r)*834)_1fr] lg:gap-x-[calc(var(--r)*129)] lg:py-0 lg:pl-[calc(var(--r)*20)] lg:[--r:min(calc(100vw/1728),calc((100svh-2.375rem)/935))]"
     >
       <div className="px-5 sm:px-10 lg:px-0 lg:pt-[calc(var(--r)*100)]">
         <p className="text-onyx text-[0.6875rem] tracking-[0.2em] uppercase lg:text-[max(calc(var(--r)*11),10px)]">
@@ -52,7 +54,7 @@ export function DestinationsSection() {
           world that feels like it was waiting for you.
         </p>
         <Link
-          href={userRoutes.contact}
+          href={userRoutes.planCharter}
           className="border-brand-950 text-brand-950 hover:bg-brand-950 hover:text-pearl mt-8 inline-flex h-[3.3125rem] items-center gap-5 border px-[1.875rem] text-[0.6875rem] tracking-[0.2em] uppercase transition-colors duration-300 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-current lg:mt-[calc(var(--r)*43)] lg:h-[max(calc(var(--r)*53),2.75rem)] lg:w-[max(calc(var(--r)*265),13rem)] lg:justify-center lg:gap-[calc(var(--r)*20)] lg:px-0 lg:text-[max(calc(var(--r)*11),10px)]"
         >
           Explore destinations
@@ -90,29 +92,29 @@ export function DestinationsSection() {
           ))}
         </ol>
 
-        <article className="bg-surface relative mx-3 -mt-12 grid grid-cols-[1fr_auto] gap-x-4 p-5 sm:p-6 md:absolute md:inset-x-6 md:bottom-6 md:mx-0 md:mt-0 lg:inset-x-[calc(var(--r)*24)] lg:bottom-[calc(var(--r)*26)] lg:h-[calc(var(--r)*200)] lg:pt-[calc(var(--r)*36)] lg:pr-[calc(var(--r)*24)] lg:pb-0 lg:pl-[calc(var(--r)*24)]">
-          <div>
-            <h3 className="text-onyx text-[1.625rem] leading-tight font-normal tracking-[-0.01em] lg:text-[max(calc(var(--r)*29.5),20px)]">
+        <article className="bg-surface relative mx-3 -mt-12 grid grid-cols-[1fr_auto] gap-x-4 p-5 sm:p-6 md:absolute md:inset-x-6 md:bottom-6 md:mx-0 md:mt-0 lg:inset-x-[calc(var(--r)*24)] lg:bottom-[calc(var(--r)*26)] lg:min-h-[calc(var(--r)*200)] lg:pt-[calc(var(--r)*36)] lg:pr-[calc(var(--r)*24)] lg:pb-[calc(var(--r)*20)] lg:pl-[calc(var(--r)*24)]">
+          <div className="col-span-2 md:col-span-1">
+            <h3 className="text-onyx pr-14 text-[1.625rem] md:pr-0 leading-tight font-normal tracking-[-0.01em] lg:text-[max(calc(var(--r)*29.5),20px)]">
               {destination.name}
             </h3>
             <p className="text-onyx mt-3 max-w-[22rem] text-[0.9375rem] leading-[1.65] lg:mt-[calc(var(--r)*12)] lg:max-w-[calc(var(--r)*345)] lg:text-[max(calc(var(--r)*15),12px)]">
               {destination.description}
             </p>
             <ul className="mt-4 flex flex-wrap gap-2 text-[0.75rem] tracking-[0.12em] uppercase lg:mt-[calc(var(--r)*20)] lg:gap-[calc(var(--r)*9)] lg:text-[max(calc(var(--r)*13),10px)]">
-              <li className="bg-black px-2.5 py-1 leading-tight text-white lg:px-[calc(var(--r)*10)] lg:py-[calc(var(--r)*5)]">
+              <li className="bg-black px-2.5 py-1 leading-tight whitespace-nowrap text-white lg:px-[calc(var(--r)*10)] lg:py-[calc(var(--r)*5)]">
                 {destination.duration}
               </li>
-              <li className="text-onyx bg-[#eaeaea] px-2.5 py-1 leading-tight lg:px-[calc(var(--r)*10)] lg:py-[calc(var(--r)*5)]">
+              <li className="text-onyx bg-[#eaeaea] px-2.5 py-1 leading-tight whitespace-nowrap lg:px-[calc(var(--r)*10)] lg:py-[calc(var(--r)*5)]">
                 {destination.season}
               </li>
             </ul>
           </div>
 
           <Link
-            href={userRoutes.contact}
+            href={userRoutes.planCharter}
             aria-label={`Explore ${destination.name}`}
             className={cx(
-              "flex size-11 items-center justify-center self-start rounded-full text-white transition-transform duration-300 hover:scale-105 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0C2269] motion-reduce:transition-none lg:-mt-[calc(var(--r)*12)] lg:size-[max(calc(var(--r)*45),2.75rem)]",
+              "absolute top-5 right-5 flex size-11 items-center justify-center self-start rounded-full sm:top-6 sm:right-6 md:static text-white transition-transform duration-300 hover:scale-105 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0C2269] motion-reduce:transition-none lg:-mt-[calc(var(--r)*12)] lg:size-[max(calc(var(--r)*45),2.75rem)]",
               ROUND_BUTTON_GRADIENT,
             )}
           >
