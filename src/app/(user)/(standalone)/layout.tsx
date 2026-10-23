@@ -1,13 +1,18 @@
 import type { ReactNode } from "react";
 
+import { SiteHeader } from "@/components/user/site-header";
+
 /**
- * Full-bleed pages that ship their own header and footer (e.g. yacht details),
- * so they skip the shared site header/footer from the `(site)` layout.
+ * Figma pages (yacht details, our yachts, plan your charter): the shared site
+ * header in its light variant, with each page rendering its own Figma footer.
  */
 export default function StandaloneLayout({ children }: { children: ReactNode }) {
   return (
-    <main id="main" className="flex-1">
-      {children}
-    </main>
+    <>
+      <SiteHeader />
+      <main id="main" className="flex-1">
+        {children}
+      </main>
+    </>
   );
 }

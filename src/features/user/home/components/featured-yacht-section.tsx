@@ -8,6 +8,7 @@ import { useRef, useState, type CSSProperties, type TouchEvent } from "react";
 import { dummyFleet } from "@/components/user/OurYachts";
 import { userRoutes } from "@/constants/routes";
 import { cx } from "@/lib/cx";
+import { ROUND_BUTTON_GRADIENT } from "./round-button";
 
 // Carousel photos that show the fleet at different times of day. `focusX` is
 // the horizontal crop point. Yachts without an entry here use their photo
@@ -56,10 +57,6 @@ const FEATURED_YACHTS = dummyFleet.map((yacht) => ({
 
 /** Minimum horizontal travel (px) for a touch swipe to change slides. */
 const SWIPE_THRESHOLD = 50;
-
-/** Brand gradient for the round card button, exactly as specified by design. */
-export const ROUND_BUTTON_GRADIENT =
-  "bg-[linear-gradient(315.28deg,#0C2269_7.29%,#61B0F2_68.38%,#FFFFFF_115.11%)]";
 
 const roundControl =
   "absolute flex size-12 -translate-y-1/2 items-center justify-center rounded-full bg-white text-brand-950 disabled:cursor-default lg:size-[max(calc(var(--r)*80),2.75rem)]";
@@ -112,31 +109,43 @@ export function FeaturedYachtSection() {
         aria-label="Featured yachts"
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
-        className="relative min-h-[47rem] overflow-hidden min-[360px]:min-h-[44rem] text-white md:mx-4 md:min-h-[48rem] lg:mx-auto lg:h-[calc(var(--r)*1042)] lg:min-h-0 lg:w-[calc(var(--rw)*1691)]"
+        className="bg-brand-950 relative overflow-hidden text-white md:mx-4 md:min-h-[48rem] md:bg-transparent lg:mx-auto lg:h-[calc(var(--r)*1042)] lg:min-h-0 lg:w-[calc(var(--rw)*1691)]"
       >
-        {/* All photos are stacked; the active one fades in over the others. */}
-        {FEATURED_YACHTS.map((item, index) => (
-          <Image
-            key={item.id}
-            src={item.image}
-            alt={index === activeIndex ? item.imageAlt : ""}
-            aria-hidden={index === activeIndex ? undefined : true}
-            fill
-            priority={index === 0}
-            unoptimized={item.image.startsWith("http")}
-            sizes="(min-width: 1024px) 98vw, 100vw"
-            style={{ "--focus-x": item.focusX } as CSSProperties}
-            className={cx(
-              "object-cover object-[var(--focus-x)_40%] transition-opacity duration-700 ease-out motion-reduce:transition-none lg:object-[var(--focus-x)_calc((var(--r)-var(--rw))*500)]",
-              index === activeIndex ? "opacity-100" : "opacity-0",
-            )}
+        {/* Phones: a 27rem photo band below the heading, with the card under it. From `md` the photo fills the panel. */}
+        <div className="absolute inset-x-0 top-[3.5rem] h-[27rem] md:inset-0 md:h-auto">
+          {/* All photos are stacked; the active one fades in over the others. */}
+          {FEATURED_YACHTS.map((item, index) => (
+            <Image
+              key={item.id}
+              src={item.image}
+              alt={index === activeIndex ? item.imageAlt : ""}
+              aria-hidden={index === activeIndex ? undefined : true}
+              fill
+              priority={index === 0}
+              unoptimized={item.image.startsWith("http")}
+              sizes="(min-width: 1024px) 98vw, 100vw"
+              style={{ "--focus-x": item.focusX } as CSSProperties}
+              className={cx(
+                "object-cover object-[var(--focus-x)_55%] transition-opacity md:object-[var(--focus-x)_40%] duration-700 ease-out motion-reduce:transition-none lg:object-[var(--focus-x)_calc((var(--r)-var(--rw))*500)]",
+                index === activeIndex ? "opacity-100" : "opacity-0",
+              )}
+            />
+          ))}
+          {/* Light top shade keeps the white heading readable on bright-sky photos. */}
+          <div
+            aria-hidden="true"
+            className="absolute inset-x-0 top-0 h-[45%] bg-gradient-to-b from-black/30 to-transparent"
           />
-        ))}
-        {/* Light top shade keeps the white heading readable on bright-sky photos. */}
-        <div
-          aria-hidden="true"
-          className="absolute inset-x-0 top-0 h-[45%] bg-gradient-to-b from-black/30 to-transparent"
-        />
+          {/* Phones: blend the photo band into the navy above and below it. */}
+          <div
+            aria-hidden="true"
+            className="from-brand-950 absolute inset-x-0 top-0 h-16 bg-gradient-to-b to-transparent md:hidden"
+          />
+          <div
+            aria-hidden="true"
+            className="from-brand-950 absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t to-transparent md:hidden"
+          />
+        </div>
         <p aria-live="polite" className="sr-only">
           {`Yacht ${activeIndex + 1} of ${count}: ${yacht.name}`}
         </p>
@@ -177,7 +186,7 @@ export function FeaturedYachtSection() {
           onClick={() => go(-1)}
           className={cx(
             roundControl,
-            "top-[19rem] left-4 lg:top-[calc(var(--r)*508)] lg:left-[calc(var(--r)*110)]",
+            "top-[24.75rem] left-4 md:top-[19rem] lg:top-[calc(var(--r)*508)] lg:left-[calc(var(--r)*110)]",
           )}
         >
           <ArrowLeft
@@ -193,7 +202,7 @@ export function FeaturedYachtSection() {
           onClick={() => go(1)}
           className={cx(
             roundControl,
-            "top-[19rem] right-4 lg:top-[calc(var(--r)*508)] lg:right-[calc(var(--r)*110)]",
+            "top-[24.75rem] right-4 md:top-[19rem] lg:top-[calc(var(--r)*508)] lg:right-[calc(var(--r)*110)]",
           )}
         >
           <ArrowRight
@@ -203,7 +212,7 @@ export function FeaturedYachtSection() {
           />
         </button>
 
-        <div className="absolute inset-x-4 bottom-4 flex flex-col items-center gap-[1.375rem] md:inset-x-8 md:bottom-8 lg:inset-x-auto lg:bottom-[calc(var(--r)*107)] lg:left-1/2 lg:w-[max(calc(var(--r)*810),40rem)] lg:-translate-x-1/2 lg:gap-[calc(var(--r)*22)]">
+        <div className="pointer-events-none relative flex flex-col items-center gap-4 px-4 pt-[24rem] pb-4 *:pointer-events-auto md:absolute md:inset-x-8 md:bottom-8 md:gap-[1.375rem] md:p-0 lg:inset-x-auto lg:bottom-[calc(var(--r)*107)] lg:left-1/2 lg:w-[max(calc(var(--r)*810),40rem)] lg:-translate-x-1/2 lg:gap-[calc(var(--r)*22)]">
           <div className="flex">
             {FEATURED_YACHTS.map((item, index) => (
               // Small visible dot inside a larger, tappable button.
@@ -227,13 +236,13 @@ export function FeaturedYachtSection() {
 
           <article
             key={yacht.id}
-            className="bg-surface grid transition-opacity duration-500 starting:opacity-0 motion-reduce:transition-none w-full grid-cols-[1fr_3.5rem] items-center gap-x-6 gap-y-5 p-6 lg:grid-cols-[1fr_max(calc(var(--r)*300),14.375rem)_max(calc(var(--r)*56),2.75rem)] lg:gap-x-[calc(var(--r)*19)] lg:gap-y-0 lg:py-[calc(var(--r)*28)] lg:pr-[calc(var(--r)*39)] lg:pl-[calc(var(--r)*49)]"
+            className="bg-surface grid transition-opacity duration-500 starting:opacity-0 motion-reduce:transition-none w-full grid-cols-[1fr_3.5rem] items-center gap-x-4 gap-y-4 p-5 min-[400px]:p-6 md:gap-x-6 md:gap-y-5 lg:grid-cols-[1fr_max(calc(var(--r)*300),14.375rem)_max(calc(var(--r)*56),2.75rem)] lg:gap-x-[calc(var(--r)*19)] lg:gap-y-0 lg:py-[calc(var(--r)*28)] lg:pr-[calc(var(--r)*39)] lg:pl-[calc(var(--r)*49)]"
           >
             <div className="col-span-2 lg:col-span-1">
-              <h3 className="text-onyx text-[2.5rem] leading-none font-normal tracking-[-0.02em] lg:text-[calc(var(--r)*42.8)]">
+              <h3 className="text-onyx text-[2.25rem] leading-none sm:text-[2.5rem] font-normal tracking-[-0.02em] lg:text-[calc(var(--r)*42.8)]">
                 {yacht.name}
               </h3>
-              <ul className="text-onyx mt-6 flex flex-wrap items-center gap-x-3.5 gap-y-1 text-[0.9375rem] lg:mt-[calc(var(--r)*24)] lg:gap-x-[calc(var(--r)*14)] lg:text-[max(calc(var(--r)*15),12px)]">
+              <ul className="text-onyx mt-4 flex flex-wrap sm:mt-6 items-center gap-x-3.5 gap-y-1 text-[0.9375rem] lg:mt-[calc(var(--r)*24)] lg:gap-x-[calc(var(--r)*14)] lg:text-[max(calc(var(--r)*15),12px)]">
                 {yacht.specs.map((spec, index) => (
                   <li key={spec} className="flex items-center gap-3.5 lg:gap-[calc(var(--r)*14)]">
                     {index > 0 ? (

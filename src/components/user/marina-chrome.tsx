@@ -4,12 +4,11 @@ import Link from "next/link";
 import type { Route } from "next";
 import type { CSSProperties } from "react";
 
-import logo from "@/components/assets/Frame 1.svg";
 import { userRoutes } from "@/constants/routes";
 
 /*
  * Shared chrome for the Figma-designed pages (yacht details, plan your charter):
- * colour tokens, fonts, logo, header and footer.
+ * colour tokens, fonts, logo and footer. The header is the shared `SiteHeader`.
  */
 
 export const NAVY = "#0b1a2e";
@@ -56,47 +55,13 @@ export function MarinaFonts() {
 export function Logo({ light = false, size = "sm" }: { light?: boolean; size?: "sm" | "lg" }) {
   return (
     <Image
-      src={logo}
+      src="/images/brand/sithara-marina-logo.svg"
+      width={161}
+      height={87}
       alt="Sithara Marina"
       preload={!light}
       className={`h-auto ${size === "lg" ? "w-[160px] lg:w-[219px]" : "w-[120px] lg:w-[161px]"} ${light ? "brightness-0 invert" : ""}`}
     />
-  );
-}
-
-/** Site header from the Figma: menu, centred logo, "Book yachts" button. */
-export function MarinaHeader() {
-  return (
-    <header className="relative mx-auto h-[96px] w-full max-w-[1728px] lg:h-[112px]">
-      <button
-        type="button"
-        className="absolute top-[30px] left-5 flex items-center gap-[11px] text-[13px] leading-[20px] tracking-[0.15em] uppercase lg:left-[40px]"
-        style={{ color: INK }}
-      >
-        <span aria-hidden="true" className="flex w-[20px] flex-col gap-[6px]">
-          <span className="h-[1.5px] w-full" style={{ backgroundColor: INK }} />
-          <span className="h-[1.5px] w-full" style={{ backgroundColor: INK }} />
-        </span>
-        Menu
-      </button>
-
-      <Link
-        href={userRoutes.home}
-        aria-label="Sithara Marina home"
-        className="absolute top-[20px] left-1/2 -translate-x-1/2 lg:top-[27px]"
-      >
-        <Logo />
-      </Link>
-
-      <Link
-        href={userRoutes.yachts}
-        className="absolute top-[22px] right-5 hidden h-[53px] w-[187px] items-center justify-center gap-[18px] text-[12px] tracking-[0.18em] text-white uppercase transition-opacity hover:opacity-90 sm:flex lg:top-[28px] lg:right-[28px]"
-        style={{ backgroundColor: NAVY }}
-      >
-        Book yachts
-        <ArrowRight className="size-[13px]" strokeWidth={1.5} aria-hidden="true" />
-      </Link>
-    </header>
   );
 }
 
@@ -112,8 +77,8 @@ export function MarinaFooter() {
           <Logo light size="lg" />
         </div>
 
-        <div className="mt-[60px] flex flex-col items-center gap-14 text-center lg:flex-row lg:justify-center lg:gap-[90px]">
-          <nav aria-label="Explore" className="order-2 w-[200px] lg:order-1">
+        <div className="mt-[60px] grid grid-cols-2 items-start gap-x-6 gap-y-14 text-center lg:flex lg:flex-row lg:items-center lg:justify-center lg:gap-[90px]">
+          <nav aria-label="Explore" className="order-2 lg:order-1 lg:w-[200px]">
             <p className="text-[13px] leading-[18px]">Explore Astra</p>
             <ul className="mt-[28px] space-y-[16.5px] text-[14px] leading-[20px] text-white/75">
               {exploreLinks.map(({ label, href }) => (
@@ -130,7 +95,7 @@ export function MarinaFooter() {
             </ul>
           </nav>
 
-          <div className="order-1 flex w-full flex-col items-center lg:order-2 lg:w-[530px]">
+          <div className="order-1 col-span-2 flex w-full flex-col items-center lg:order-2 lg:w-[530px]">
             <span className="h-[65px] w-px bg-[#1d4a7c]" aria-hidden="true" />
             <p
               className="mt-[23px] text-[52px] leading-[56px] italic lg:text-[58px] lg:leading-[63px]"
@@ -150,7 +115,7 @@ export function MarinaFooter() {
             </Link>
           </div>
 
-          <nav aria-label="Destinations" className="order-3 w-[200px]">
+          <nav aria-label="Destinations" className="order-3 lg:w-[200px]">
             <p className="text-[13px] leading-[18px]">Find your place</p>
             <ul className="mt-[28px] space-y-[16.5px] text-[14px] leading-[20px] text-white/75">
               {placeLinks.map((label) => (
@@ -160,7 +125,7 @@ export function MarinaFooter() {
           </nav>
         </div>
 
-        <div className="mt-[96px] flex flex-wrap items-center justify-center gap-x-[35px] gap-y-3 text-[18px] leading-[24px] text-white/85 lg:mt-[126px]">
+        <div className="mt-[72px] flex flex-wrap items-center justify-center gap-x-[35px] gap-y-3 text-[16px] leading-[24px] text-white/85 sm:text-[18px] lg:mt-[126px]">
           <span>Kerala&nbsp;&nbsp;·&nbsp;&nbsp;India</span>
           <a href="tel:+919724553452" className="hover:text-white">
             +919724553452

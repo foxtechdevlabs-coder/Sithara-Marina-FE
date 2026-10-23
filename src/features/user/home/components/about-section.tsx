@@ -53,11 +53,12 @@ export function AboutSection() {
 
         <div className="relative aspect-[4/5] md:order-last md:col-span-2 md:aspect-[16/10] xl:order-none xl:col-span-1 xl:mt-[2.66vw] xl:aspect-[496/600]">
           <Image
-            src="/images/home/about-backwaters.png"
+            src="/images/home/hero-yacht-img.png"
             alt="Aerial view of a yacht cruising the Kerala backwaters at sunset"
             fill
             sizes="(min-width: 1280px) 29vw, 100vw"
-            className="object-cover object-[60%_50%]"
+            unoptimized
+            className="object-cover"
           />
         </div>
 

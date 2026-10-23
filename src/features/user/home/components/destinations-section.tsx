@@ -5,7 +5,7 @@ import Link from "next/link";
 import { userRoutes } from "@/constants/routes";
 import { cx } from "@/lib/cx";
 
-import { ROUND_BUTTON_GRADIENT } from "./featured-yacht-section";
+import { ROUND_BUTTON_GRADIENT } from "./round-button";
 
 // Content from the design reference. Add destinations here; one indicator
 // is shown per entry.
@@ -15,8 +15,34 @@ const DESTINATIONS = [
     description: "Palm-lined waterways, quiet villages, and the luxury of slowing down.",
     duration: "3–5 nights",
     season: "October – March",
-    image: "/images/home/destination-kerala-backwaters.png",
+    image: "/images/home/ee3baf285fd2df3e8d025c83a33e9e172cfa59d9.png",
     imageAlt: "A white motor yacht cruising palm-lined Kerala backwaters at sunset",
+  },
+  // DUMMY entries so the indicator shows four destinations, as in the Figma.
+  // Replace with real content (and images) once it is ready.
+  {
+    name: "Lakshadweep Islands",
+    description: "Coral atolls, clear lagoons, and days measured by the tide.",
+    duration: "4–7 nights",
+    season: "October – May",
+    image: "/images/home/ee3baf285fd2df3e8d025c83a33e9e172cfa59d9.png",
+    imageAlt: "Lakshadweep Islands",
+  },
+  {
+    name: "The Malabar Coast",
+    description: "Spice-route harbours, golden beaches, and long sunsets at sea.",
+    duration: "2–4 nights",
+    season: "November – March",
+    image: "/images/home/ee3baf285fd2df3e8d025c83a33e9e172cfa59d9.png",
+    imageAlt: "The Malabar Coast",
+  },
+  {
+    name: "The Maldives",
+    description: "A little beyond: turquoise water and islands made for slow days.",
+    duration: "5–7 nights",
+    season: "November – April",
+    image: "/images/home/ee3baf285fd2df3e8d025c83a33e9e172cfa59d9.png",
+    imageAlt: "The Maldives",
   },
 ] as const;
 
@@ -70,7 +96,9 @@ export function DestinationsSection() {
             alt={destination.imageAlt}
             fill
             sizes="(min-width: 1024px) 48vw, 100vw"
-            className="object-cover object-[58%_50%]"
+            unoptimized
+            // Figma crop: the boat sits centred, the houseboat on the right is out of frame.
+            className="object-cover object-[61%_50%]"
           />
         </div>
 
@@ -101,7 +129,7 @@ export function DestinationsSection() {
               {destination.description}
             </p>
             <ul className="mt-4 flex flex-wrap gap-2 text-[0.75rem] tracking-[0.12em] uppercase lg:mt-[calc(var(--r)*20)] lg:gap-[calc(var(--r)*9)] lg:text-[max(calc(var(--r)*13),10px)]">
-              <li className="bg-black px-2.5 py-1 leading-tight whitespace-nowrap text-white lg:px-[calc(var(--r)*10)] lg:py-[calc(var(--r)*5)]">
+              <li className="text-onyx bg-[#eaeaea] px-2.5 py-1 leading-tight whitespace-nowrap lg:px-[calc(var(--r)*10)] lg:py-[calc(var(--r)*5)]">
                 {destination.duration}
               </li>
               <li className="text-onyx bg-[#eaeaea] px-2.5 py-1 leading-tight whitespace-nowrap lg:px-[calc(var(--r)*10)] lg:py-[calc(var(--r)*5)]">

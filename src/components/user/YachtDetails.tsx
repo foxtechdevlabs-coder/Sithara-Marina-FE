@@ -4,22 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import journeyImage from "@/components/assets/Image.png";
-import gallery1 from "@/components/assets/Image (A thoughtfully set private dining table at sea).png";
-import gallery2 from "@/components/assets/Image (A thoughtfully set private dining table at sea) (1).png";
-import gallery3 from "@/components/assets/Image (A thoughtfully set private dining table at sea) (2).png";
-import gallery4 from "@/components/assets/Image (A thoughtfully set private dining table at sea) (3).png";
-import gallery5 from "@/components/assets/Image (A thoughtfully set private dining table at sea) (4).png";
-import gallery6 from "@/components/assets/Image (A thoughtfully set private dining table at sea) (5).png";
-import heroAsset from "@/components/assets/Image (An elegant white superyacht at sea under a clear blue sky).png";
-import {
-  INK,
-  MarinaFonts,
-  MarinaFooter,
-  MarinaHeader,
-  SANS,
-  SERIF,
-} from "@/components/user/marina-chrome";
+import { INK, MarinaFonts, MarinaFooter, SANS, SERIF } from "@/components/user/marina-chrome";
 import { userRoutes } from "@/constants/routes";
 
 /* ------------------------------------------------------------------ */
@@ -78,7 +63,7 @@ export const dummyYachtDetails: YachtDetailsData = {
   intro:
     "Our flagship superyacht. Spacious suites, open-air living, and the freedom to venture further.",
   heroImage: {
-    src: heroAsset.src,
+    src: "/images/yachts/astra-one-hero.png",
     alt: "Astra One cruising off the coast",
   },
   stats: [
@@ -105,12 +90,15 @@ export const dummyYachtDetails: YachtDetailsData = {
     { label: "Charter style", value: "Private, fully crewed" },
   ],
   gallery: [
-    { src: gallery1.src, alt: "Master suite with floor-to-ceiling ocean views" },
-    { src: gallery2.src, alt: "Marble en-suite bathroom with porthole" },
-    { src: gallery3.src, alt: "Private dining table set at sea" },
-    { src: gallery4.src, alt: "Main saloon lounge" },
-    { src: gallery5.src, alt: "Galley kitchen" },
-    { src: gallery6.src, alt: "Media lounge and bar" },
+    {
+      src: "/images/yachts/astra-one-master-suite.png",
+      alt: "Master suite with floor-to-ceiling ocean views",
+    },
+    { src: "/images/yachts/astra-one-bathroom.png", alt: "Marble en-suite bathroom with porthole" },
+    { src: "/images/yachts/astra-one-dining.png", alt: "Private dining table set at sea" },
+    { src: "/images/yachts/astra-one-saloon.png", alt: "Main saloon lounge" },
+    { src: "/images/yachts/astra-one-galley.png", alt: "Galley kitchen" },
+    { src: "/images/yachts/astra-one-media-lounge.png", alt: "Media lounge and bar" },
   ],
   relatedYachts: [
     {
@@ -267,11 +255,11 @@ function Hero({ yacht }: { yacht: YachtDetailsData }) {
 function Stats({ yacht }: { yacht: YachtDetailsData }) {
   return (
     <section className="mx-auto w-full max-w-[1728px] px-5 pt-[45px] lg:pr-[3.36%] lg:pl-[4.05%]">
-      <ul className="grid grid-cols-2 gap-y-10 lg:grid-cols-4">
+      <ul className="grid grid-cols-2 gap-y-10 sm:grid-cols-4">
         {yacht.stats.map((stat, i) => (
           <li
             key={stat.label}
-            className={`relative flex flex-col items-center justify-center gap-2 text-center min-[400px]:flex-row min-[400px]:gap-[17px] min-[400px]:text-left ${
+            className={`relative flex flex-col items-center justify-center gap-2 text-center lg:flex-row lg:gap-[17px] lg:text-left ${
               i < yacht.stats.length - 1
                 ? "lg:after:absolute lg:after:top-1/2 lg:after:right-[10%] lg:after:h-[47px] lg:after:w-px lg:after:-translate-y-1/2 lg:after:bg-[#dcdfe2]"
                 : ""
@@ -283,7 +271,10 @@ function Stats({ yacht }: { yacht: YachtDetailsData }) {
             >
               {stat.value}
             </span>
-            <span className="max-w-[90px] text-[14px] leading-[17px]" style={{ color: "#555a60" }}>
+            <span
+              className="max-w-[110px] text-[14px] leading-[17px] lg:max-w-[90px]"
+              style={{ color: "#555a60" }}
+            >
               {stat.label}
             </span>
           </li>
@@ -508,7 +499,8 @@ function JourneyCta() {
   return (
     <section className="relative mx-auto w-full max-w-[1728px] overflow-hidden text-white lg:h-[801px]">
       <Image
-        src={journeyImage}
+        src="/images/yachts/kerala-journey-houseboat.png"
+        unoptimized
         alt=""
         aria-hidden="true"
         fill
@@ -574,7 +566,6 @@ export default function YachtDetails({ yacht = dummyYachtDetails }: { yacht?: Ya
   return (
     <div className="bg-white antialiased" style={{ ...SANS, color: INK }}>
       <MarinaFonts />
-      <MarinaHeader />
       <TitleBlock yacht={yacht} />
       <Hero yacht={yacht} />
       <Stats yacht={yacht} />

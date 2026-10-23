@@ -5,14 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useState, type ReactNode, type SubmitEvent } from "react";
 
-import charterImage from "@/components/assets/Image (A private yacht on the calm Arabian Sea off Kerala).png";
-import {
-  INK,
-  MarinaFonts,
-  MarinaFooter,
-  MarinaHeader,
-  SANS,
-} from "@/components/user/marina-chrome";
+import { INK, MarinaFonts, MarinaFooter, SANS } from "@/components/user/marina-chrome";
 import { userRoutes } from "@/constants/routes";
 
 /* ------------------------------------------------------------------ */
@@ -186,7 +179,10 @@ function Intro() {
       </p>
 
       <Image
-        src={charterImage}
+        src="/images/yachts/astra-one-arabian-sea.png"
+        unoptimized
+        width={553}
+        height={300}
         alt="A private yacht on the calm Arabian Sea off Kerala"
         preload
         sizes="(min-width: 1024px) 553px, 100vw"
@@ -405,7 +401,6 @@ export default function PlanCharter() {
   return (
     <div className="bg-white antialiased" style={{ ...SANS, color: INK }}>
       <MarinaFonts />
-      <MarinaHeader />
 
       <section className="mx-auto w-full max-w-[1728px] px-5 pt-[37px] pb-[120px] lg:px-[clamp(40px,10.82vw,187px)] lg:pb-[157px]">
         <nav
