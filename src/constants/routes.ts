@@ -30,6 +30,7 @@ export const userRoutes = {
 
   about: "/about",
   contact: "/contact",
+  planCharter: "/plan-your-charter",
   terms: "/terms",
   privacy: "/privacy",
   cancellationPolicy: "/cancellation-policy",
