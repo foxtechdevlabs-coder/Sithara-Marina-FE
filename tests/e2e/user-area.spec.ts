@@ -4,21 +4,24 @@ import { expect, test } from "@playwright/test";
 // a production build. No backend is involved: every page is still a starter
 // placeholder, so booking, availability and account DATA are NOT verified here.
 
+// The main navigation sits behind the header's menu button at every viewport.
 const siteHeader = (page: import("@playwright/test").Page) =>
-  page.getByRole("navigation", { name: "Main" });
+  page.getByRole("button", { name: "Open menu" });
 
 test("home page renders inside the site layout", async ({ page }) => {
   const response = await page.goto("/");
   expect(response?.status()).toBe(200);
   await expect(page).toHaveTitle("Sithara Marina — Yacht Charters");
-  await expect(page.getByRole("heading", { level: 1, name: "Sithara Marina" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Sail into the soul of Kerala." }),
+  ).toBeVisible();
   await expect(siteHeader(page)).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Footer" })).toBeVisible();
 });
 
 test("customer can navigate from home to yachts and open a yacht", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("link", { name: "Browse yachts" }).click();
+  await page.getByRole("link", { name: "Explore the yachts" }).click();
   await expect(page).toHaveURL("/yachts");
   await expect(page.getByRole("heading", { level: 1, name: "Our yachts" })).toBeVisible();
 
