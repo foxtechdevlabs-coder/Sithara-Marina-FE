@@ -2,14 +2,7 @@
 import { ArrowRight, ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 
-import astraOneImage from "@/components/assets/Image (A private yacht on the calm Arabian Sea off Kerala).png";
-import {
-  INK,
-  MarinaFonts,
-  MarinaFooter,
-  MarinaHeader,
-  SANS,
-} from "@/components/user/marina-chrome";
+import { INK, MarinaFonts, MarinaFooter, SANS } from "@/components/user/marina-chrome";
 import type { RelatedYacht } from "@/components/user/YachtDetails";
 import { userRoutes } from "@/constants/routes";
 
@@ -41,7 +34,10 @@ export const dummyFleet: FleetYacht[] = [
     name: "Astra One",
     location: "Kochi",
     area: "Kochi",
-    image: { src: astraOneImage.src, alt: "Astra One cruising off the Kerala coast" },
+    image: {
+      src: "/images/yachts/astra-one-arabian-sea.png",
+      alt: "Astra One cruising off the Kerala coast",
+    },
     lengthMetres: 46,
     guests: 12,
     suites: 6,
@@ -222,7 +218,6 @@ export default function OurYachts({ yachts = dummyFleet }: { yachts?: FleetYacht
   return (
     <div className="bg-white antialiased" style={{ ...SANS, color: INK }}>
       <MarinaFonts />
-      <MarinaHeader />
 
       <section className="mx-auto w-full max-w-[1728px] px-5 pt-[37px] pb-[140px] lg:px-[clamp(40px,11.8vw,204px)] lg:pb-[211px]">
         <Intro />

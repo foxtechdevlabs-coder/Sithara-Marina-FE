@@ -1,9 +1,9 @@
 import type { ReactNode } from "react";
 
-import { SiteFooter } from "@/components/user/site-footer";
+import { MarinaFonts, MarinaFooter, SANS } from "@/components/user/marina-chrome";
 import { SiteHeader } from "@/components/user/site-header";
 
-/** Public website shell: header, page content, footer. Also wraps /account. */
+/** Public website shell: header, page content, and the navy Figma footer. */
 export default function SiteLayout({ children }: { children: ReactNode }) {
   return (
     <>
@@ -11,7 +11,11 @@ export default function SiteLayout({ children }: { children: ReactNode }) {
       <main id="main" className="flex-1">
         {children}
       </main>
-      <SiteFooter />
+      {/* Same footer, font and smoothing as the standalone yacht pages. */}
+      <div className="antialiased" style={SANS}>
+        <MarinaFonts />
+        <MarinaFooter />
+      </div>
     </>
   );
 }
