@@ -70,7 +70,7 @@ export function GuestsSection() {
   const count = TESTIMONIALS.length;
   // The track holds three copies of the cards; `position` indexes into it and
   // starts on the middle copy so there are always cards on both sides.
-  const [position, setPosition] = useState(count);
+  const [position, setPosition] = useState<number>(count);
   const [isAnimating, setIsAnimating] = useState(false);
   const isBusy = useRef(false);
   const touchStartX = useRef<number | null>(null);
