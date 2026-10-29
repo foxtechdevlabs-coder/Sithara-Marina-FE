@@ -11,6 +11,7 @@ export interface NavItem {
 // journal" join this list once their routes exist.
 export const primaryNav: readonly NavItem[] = [
   { label: "Our yachts", href: userRoutes.yachts },
+  { label: "Find your yacht", href: userRoutes.search },
   { label: "Get in touch", href: userRoutes.planCharter },
 ];
 

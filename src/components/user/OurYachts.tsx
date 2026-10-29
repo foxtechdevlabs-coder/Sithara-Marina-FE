@@ -1,5 +1,6 @@
 /* eslint-disable @next/next/no-img-element -- mix of local and remote placeholder imagery; swap for next/image once assets are hosted */
 import { ArrowRight, ArrowUpRight } from "lucide-react";
+import type { Route } from "next";
 import Link from "next/link";
 
 import { INK, MarinaFonts, MarinaFooter, SANS } from "@/components/user/marina-chrome";
@@ -214,7 +215,20 @@ function YachtCard({ yacht }: { yacht: FleetYacht }) {
  * "Our yachts" listing screen, built from the Figma design (1728px frame).
  * Renders dummy data by default; pass the API response as `yachts` once it is ready.
  */
-export default function OurYachts({ yachts = dummyFleet }: { yachts?: FleetYacht[] }) {
+/** Shown when the list is filtered by a search. */
+export interface ResultsSummary {
+  shown: number;
+  total: number;
+  editHref: Route;
+}
+
+export default function OurYachts({
+  yachts = dummyFleet,
+  summary,
+}: {
+  yachts?: FleetYacht[];
+  summary?: ResultsSummary;
+}) {
   return (
     <div className="bg-white antialiased" style={{ ...SANS, color: INK }}>
       <MarinaFonts />
@@ -222,7 +236,41 @@ export default function OurYachts({ yachts = dummyFleet }: { yachts?: FleetYacht
       <section className="mx-auto w-full max-w-[1728px] px-5 pt-[37px] pb-[140px] lg:px-[clamp(40px,11.8vw,204px)] lg:pb-[211px]">
         <Intro />
 
-        <div className="mt-[80px] grid gap-x-[36px] gap-y-[56px] md:grid-cols-2 lg:mt-[127px] lg:gap-y-[45px]">
+        {summary && (
+          <div className="mt-[56px] flex flex-wrap items-center justify-between gap-4 border-y border-[#e5e7eb] py-[18px] lg:mt-[80px]">
+            <p className="text-[14px]" style={{ color: BODY }}>
+              Showing {summary.shown} of {summary.total} yachts for your search.
+            </p>
+            <div className="flex gap-[24px] text-[12px] tracking-[0.18em] uppercase">
+              <Link href={summary.editHref} className="border-b pb-1" style={{ borderColor: INK }}>
+                Edit filters
+              </Link>
+              <Link
+                href={userRoutes.yachts}
+                className="border-b border-transparent pb-1 hover:border-current"
+                style={{ color: MUTED }}
+              >
+                Clear
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {yachts.length === 0 && (
+          <p className="mt-[56px] max-w-[520px] text-[16px] leading-[27px]" style={{ color: BODY }}>
+            No yachts match every filter yet. Try fewer options, or{" "}
+            <Link href={userRoutes.planCharter} className="underline underline-offset-2">
+              ask our concierge
+            </Link>{" "}
+            to find one for you.
+          </p>
+        )}
+
+        <div
+          className={`grid gap-x-[36px] gap-y-[56px] md:grid-cols-2 lg:gap-y-[45px] ${
+            summary ? "mt-[48px] lg:mt-[64px]" : "mt-[80px] lg:mt-[127px]"
+          }`}
+        >
           {yachts.map((yacht) => (
             <YachtCard key={yacht.id} yacht={yacht} />
           ))}

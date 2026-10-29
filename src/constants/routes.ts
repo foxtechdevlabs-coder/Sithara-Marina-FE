@@ -22,6 +22,7 @@ export const userRoutes = {
   register: "/register",
 
   planCharter: "/plan-your-charter",
+  search: "/search",
 } as const satisfies Record<string, Route | ((...args: string[]) => Route)>;
 
 /** Admin dashboard routes (`src/app/admin`). */
