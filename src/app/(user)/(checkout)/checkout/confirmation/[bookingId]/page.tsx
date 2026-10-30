@@ -1,7 +1,13 @@
 import { RoutePlaceholder } from "@/components/shared/route-placeholder";
 import type { Metadata } from "next";
 
-export const metadata: Metadata = { title: "Booking confirmation" };
+export const metadata: Metadata = {
+  title: "Booking Confirmation",
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
 
 export default async function BookingConfirmationPage({
   params,

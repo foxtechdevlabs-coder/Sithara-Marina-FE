@@ -4,24 +4,13 @@ import Link from "next/link";
 import { MarinaFonts } from "@/components/user/marina-chrome";
 import { userRoutes } from "@/constants/routes";
 import { cx } from "@/lib/cx";
+import { FAQ_DATA } from "@/lib/seo-schema";
 
 const SWITZER = "font-['Switzer',ui-sans-serif,system-ui,sans-serif]";
 
-// Questions from the design reference. The design has no answer copy yet, so
-// they render as a static list; add answers here to turn rows into disclosures.
-const QUESTIONS = [
-  "What kind of journeys do you arrange?",
-  "Do I need any sailing experience?",
-  "When is the best time to visit?",
-  "What is included in a private charter?",
-  "How do I begin planning?",
-] as const;
-
 /**
- * "A few things, before you set sail." FAQ teaser: introduction and enquiry
- * button on the left, numbered questions on the right. From `lg` sizes are
- * 1728px-reference pixels times `--r` (viewport width / 1728); small text has
- * a readable minimum. The section is far shorter than a laptop screen.
+ * "A few things, before you set sail." FAQ section with accessible disclosure markup
+ * and factual, authoritative answers for AI/RAG crawlers and users.
  */
 export function FaqSection() {
   return (
@@ -58,29 +47,34 @@ export function FaqSection() {
         </Link>
       </div>
 
-      <ol className="mx-5 mt-14 border-t border-[#E7EAE4] sm:mx-10 lg:mx-0 lg:mt-0">
-        {QUESTIONS.map((question, index) => (
-          <li
-            key={question}
-            className="flex items-center gap-4 border-b border-[#E7EAE4] py-6 lg:gap-[calc(var(--r)*22)] lg:py-0 lg:h-[calc(var(--r)*89)]"
+      <div className="mx-5 mt-14 border-t border-[#E7EAE4] sm:mx-10 lg:mx-0 lg:mt-0">
+        {FAQ_DATA.map((item, index) => (
+          <details
+            key={item.question}
+            className="group border-b border-[#E7EAE4] py-6 lg:py-[calc(var(--r)*24)]"
           >
-            <span
-              aria-hidden="true"
-              className="w-7 shrink-0 text-[0.9375rem] tracking-[0.06em] text-[#A69E83] tabular-nums lg:w-[calc(var(--r)*28)] lg:text-[max(calc(var(--r)*19),14px)]"
-            >
-              {String(index + 1).padStart(2, "0")}
-            </span>
-            <span className="text-forest flex-1 text-[1.0625rem] leading-snug lg:text-[max(calc(var(--r)*20.5),15px)]">
-              {question}
-            </span>
-            <Plus
-              aria-hidden="true"
-              strokeWidth={1}
-              className="text-forest/45 size-4 shrink-0 lg:size-[max(calc(var(--r)*17),14px)]"
-            />
-          </li>
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 focus-visible:outline-2 focus-visible:outline-brand-950 lg:gap-[calc(var(--r)*22)] [&::-webkit-details-marker]:hidden">
+              <span
+                aria-hidden="true"
+                className="w-7 shrink-0 text-[0.9375rem] tracking-[0.06em] text-[#A69E83] tabular-nums lg:w-[calc(var(--r)*28)] lg:text-[max(calc(var(--r)*19),14px)]"
+              >
+                {String(index + 1).padStart(2, "0")}
+              </span>
+              <span className="text-forest flex-1 text-[1.0625rem] font-medium leading-snug lg:text-[max(calc(var(--r)*20.5),15px)]">
+                {item.question}
+              </span>
+              <Plus
+                aria-hidden="true"
+                strokeWidth={1.5}
+                className="text-forest/60 size-4 shrink-0 transition-transform duration-200 group-open:rotate-45 lg:size-[max(calc(var(--r)*17),14px)]"
+              />
+            </summary>
+            <div className="pt-4 pr-6 pl-11 text-graphite text-[0.9375rem] leading-[1.6] lg:pl-[calc(var(--r)*50)] lg:text-[max(calc(var(--r)*16),14px)]">
+              <p>{item.answer}</p>
+            </div>
+          </details>
         ))}
-      </ol>
+      </div>
     </section>
   );
 }
