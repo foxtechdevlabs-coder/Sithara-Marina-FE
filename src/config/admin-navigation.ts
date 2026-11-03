@@ -1,17 +1,18 @@
 import {
-  Bell,
+  BadgeIndianRupee,
+  CalendarCheck2,
   CalendarDays,
   ChartColumn,
-  ClipboardList,
-  FileText,
+  CreditCard,
+  Files,
   Handshake,
-  LayoutDashboard,
+  LayoutGrid,
   type LucideIcon,
+  MessagesSquare,
   Percent,
   Settings,
+  ShieldCheck,
   Ship,
-  Undo2,
-  UserCog,
   Users,
   Wallet,
 } from "lucide-react";
@@ -31,40 +32,41 @@ export interface AdminNavSection {
 }
 
 /**
- * Sidebar navigation. Role-based visibility will be added here once the
- * staff roles and permissions contract is defined by the backend.
+ * Sidebar navigation, as in the admin Figma design. Role-based visibility will
+ * be added here once the staff roles and permissions contract is defined.
  */
 export const adminNav: readonly AdminNavSection[] = [
   {
-    title: "Overview",
-    items: [{ label: "Dashboard", href: adminRoutes.dashboard, icon: LayoutDashboard }],
+    title: "Start",
+    items: [{ label: "Overview", href: adminRoutes.dashboard, icon: LayoutGrid }],
   },
   {
     title: "Operations",
     items: [
-      { label: "Fleet", href: adminRoutes.fleet, icon: Ship },
+      { label: "Bookings", href: adminRoutes.bookings, icon: CalendarCheck2 },
+      { label: "Enquiries", href: adminRoutes.enquiries, icon: MessagesSquare },
+      { label: "Yachts", href: adminRoutes.fleet, icon: Ship },
+      { label: "Pricing & slots", href: adminRoutes.availabilitySlots, icon: BadgeIndianRupee },
       { label: "Availability", href: adminRoutes.availability, icon: CalendarDays },
-      { label: "Bookings", href: adminRoutes.bookings, icon: ClipboardList },
       { label: "Customers", href: adminRoutes.customers, icon: Users },
-      { label: "Partners", href: adminRoutes.partners, icon: Handshake },
     ],
   },
   {
-    title: "Finance",
+    title: "Partners & finance",
     items: [
+      { label: "Partners", href: adminRoutes.partners, icon: Handshake },
       { label: "Commissions", href: adminRoutes.commissions, icon: Percent },
       { label: "Payouts", href: adminRoutes.payouts, icon: Wallet },
-      { label: "Refunds", href: adminRoutes.refunds, icon: Undo2 },
-      { label: "Reports", href: adminRoutes.reports, icon: ChartColumn },
+      { label: "Payments & refunds", href: adminRoutes.refunds, icon: CreditCard },
     ],
   },
   {
-    title: "Administration",
+    title: "Workspace",
     items: [
-      { label: "Content", href: adminRoutes.content, icon: FileText },
-      { label: "Notifications", href: adminRoutes.notifications, icon: Bell },
-      { label: "Staff", href: adminRoutes.staff, icon: UserCog },
-      { label: "Settings", href: adminRoutes.settings, icon: Settings },
+      { label: "Reports", href: adminRoutes.reports, icon: ChartColumn },
+      { label: "Content", href: adminRoutes.content, icon: Files },
+      { label: "Settings & staff", href: adminRoutes.settings, icon: Settings },
+      { label: "Audit history", href: adminRoutes.audit, icon: ShieldCheck },
     ],
   },
 ];
