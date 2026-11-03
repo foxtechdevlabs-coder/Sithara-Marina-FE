@@ -4,7 +4,7 @@
 Sithara-Marina-FE/
 ├── src/
 │   ├── app/                      Next.js routes, layouts, boundaries (see architecture.md)
-│   │   ├── (user)/               customer website — (site), (checkout), (auth) groups
+│   │   ├── (user)/               customer website — (site), (standalone), (checkout) groups
 │   │   └── admin/                staff dashboard — (auth), (console) groups
 │   ├── features/
 │   │   ├── user/<feature>/       customer-only UI, hooks, types, helpers

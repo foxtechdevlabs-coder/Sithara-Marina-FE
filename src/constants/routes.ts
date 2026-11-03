@@ -20,6 +20,9 @@ export const userRoutes = {
 
   login: "/login",
   register: "/register",
+  forgotPassword: "/forgot-password",
+  resetPassword: "/reset-password",
+  verifyEmail: "/verify-email",
 
   planCharter: "/plan-your-charter",
   search: "/search",

@@ -1,7 +1,7 @@
 "use client";
 
 import { BRAND_NAME } from "@/constants/brand";
-import { ArrowRight, X } from "lucide-react";
+import { ArrowRight, UserRound, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -122,20 +122,37 @@ export function SiteHeader() {
           </span>
         </Link>
 
-        <Link
-          href={bookingNav.href}
-          onClick={closeMenu}
-          className={cx(
-            "inline-flex h-10 items-center gap-6 px-2.5 text-[0.625rem] font-normal tracking-[0.1em] uppercase transition-colors duration-300 min-[380px]:px-3.5 min-[380px]:tracking-[0.16em] sm:h-[3.3125rem] sm:px-[1.875rem] sm:text-[0.6875rem] sm:tracking-[0.2em]",
-            isOverlay
-              ? "bg-surface text-brand-950 hover:bg-pearl active:bg-pearl/90"
-              : "bg-brand-950 text-white hover:bg-[#0d2c47]",
-            focusRing,
-          )}
-        >
-          {bookingNav.label}
-          <ArrowRight aria-hidden="true" strokeWidth={1.5} className="hidden size-3.5 sm:block" />
-        </Link>
+        <div className="flex gap-1.5 md:gap-2.5 lg:gap-[1.125rem]">
+          {/* Sign in: full button from lg, icon-only from sm; inside the menu on phones. */}
+          <Link
+            href={userRoutes.login}
+            onClick={closeMenu}
+            aria-label="Sign in"
+            aria-current={isCurrent(userRoutes.login) ? "page" : undefined}
+            className={cx(
+              "hidden h-[3.3125rem] w-11 items-center justify-center gap-2.5 border border-[#0d1b2a] bg-white text-[0.875rem] text-[#0d1b2a] transition-colors duration-300 hover:bg-[#0d1b2a] hover:text-white sm:inline-flex lg:w-[11.75rem]",
+              focusRing,
+            )}
+          >
+            <UserRound aria-hidden="true" strokeWidth={1.5} className="size-[1.125rem] shrink-0" />
+            <span className="hidden lg:inline">Sign in</span>
+          </Link>
+
+          <Link
+            href={bookingNav.href}
+            onClick={closeMenu}
+            className={cx(
+              "inline-flex h-10 items-center gap-6 px-2.5 text-[0.625rem] font-normal tracking-[0.1em] uppercase transition-colors duration-300 min-[380px]:px-3.5 min-[380px]:tracking-[0.16em] sm:h-[3.3125rem] sm:px-[1.875rem] sm:text-[0.6875rem] sm:tracking-[0.2em]",
+              isOverlay
+                ? "bg-surface text-brand-950 hover:bg-pearl active:bg-pearl/90"
+                : "bg-brand-950 text-white hover:bg-[#0d2c47]",
+              focusRing,
+            )}
+          >
+            {bookingNav.label}
+            <ArrowRight aria-hidden="true" strokeWidth={1.5} className="hidden size-3.5 sm:block" />
+          </Link>
+        </div>
       </div>
 
       <nav
@@ -162,6 +179,22 @@ export function SiteHeader() {
               </Link>
             </li>
           ))}
+          {/* Phones have no room for the header's Sign in button. */}
+          <li className="sm:hidden">
+            <Link
+              href={userRoutes.login}
+              onClick={closeMenu}
+              aria-current={isCurrent(userRoutes.login) ? "page" : undefined}
+              className={cx(
+                "flex items-center gap-3 py-3 font-serif text-[1.625rem] leading-tight opacity-90 transition-opacity duration-300 hover:opacity-100 aria-[current=page]:italic",
+                focusRingBase,
+                "focus-visible:outline-white",
+              )}
+            >
+              <UserRound aria-hidden="true" strokeWidth={1.25} className="size-5" />
+              Sign in
+            </Link>
+          </li>
         </ul>
       </nav>
     </header>

@@ -36,6 +36,34 @@ test("customer can navigate from home to yachts and open a yacht", async ({ page
   await expect(page.getByRole("heading", { level: 1, name: "Check availability" })).toBeVisible();
 });
 
+test("forgot-password page is reachable from sign in and links back", async ({ page }) => {
+  await page.goto("/login");
+  await page.getByRole("link", { name: "Forgot your password?" }).click();
+  await expect(page).toHaveURL("/forgot-password");
+  await expect(
+    page.getByRole("heading", { level: 1, name: "A fresh start, simply arranged." }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: /Send password reset link/ }).click();
+  await expect(page.getByText("Enter a valid email address.")).toBeVisible();
+  await page.getByRole("link", { name: "Back to sign in" }).click();
+  await expect(page).toHaveURL("/login");
+});
+
+test("verify-email page shows a neutral subtitle and accepts digits only", async ({ page }) => {
+  await page.goto("/verify-email");
+  await expect(
+    page.getByRole("heading", { level: 1, name: "One last detail, then you are in." }),
+  ).toBeVisible();
+  // No email is handed over when the page is opened directly.
+  await expect(
+    page.getByText("Verify your email address to keep your journeys together."),
+  ).toBeVisible();
+  const code = page.getByLabel("Verification code");
+  await code.pressSequentially("12ab3456789");
+  await expect(code).toHaveValue("123456");
+  await expect(page.getByRole("button", { name: /Resend code · / })).toBeDisabled();
+});
+
 test("checkout uses the distraction-free layout and fabricates no booking", async ({ page }) => {
   await page.goto("/checkout");
   await expect(page.getByRole("heading", { level: 1, name: "Checkout" })).toBeVisible();
@@ -47,15 +75,24 @@ test("checkout uses the distraction-free layout and fabricates no booking", asyn
   await expect(page.getByText(/only after the backend confirms/i)).toBeVisible();
 });
 
-test("auth pages use the centred layout without site navigation", async ({ page }) => {
-  for (const [path, heading] of [
-    ["/login", "Sign in"],
-    ["/register", "Create an account"],
-  ] as const) {
-    await page.goto(path);
-    await expect(page.getByRole("heading", { level: 1, name: heading })).toBeVisible();
-    await expect(siteHeader(page)).toHaveCount(0);
-  }
+test("sign-in page uses the site header and footer", async ({ page }) => {
+  await page.goto("/login");
+  await expect(page).toHaveTitle("Sign in | Sithara Marina");
+  await expect(page.getByRole("heading", { level: 1, name: "Welcome back." })).toBeVisible();
+  await expect(siteHeader(page)).toBeVisible();
+  await expect(page.getByRole("contentinfo")).toBeVisible();
+  await expect(page.getByLabel("Password")).toHaveAttribute("type", "password");
+});
+
+test("create-account page uses the site header and footer", async ({ page }) => {
+  await page.goto("/register");
+  await expect(page).toHaveTitle("Create an account | Sithara Marina");
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Keep your journeys close." }),
+  ).toBeVisible();
+  await expect(siteHeader(page)).toBeVisible();
+  await expect(page.getByRole("contentinfo")).toBeVisible();
+  await expect(page.getByLabel("Confirm password")).toHaveAttribute("type", "password");
 });
 
 test("removed pages are no longer served", async ({ page }) => {
