@@ -1,32 +1,151 @@
-import { BRAND_NAME } from "@/constants/brand";
-import { Anchor } from "lucide-react";
+"use client";
+
+import { Menu, SquareArrowOutUpRight, X } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { usePathname } from "next/navigation";
+import { useEffect, useState, type ReactNode } from "react";
 
-import { adminRoutes } from "@/constants/routes";
+import { adminNav } from "@/config/admin-navigation";
 
+import { findYacht } from "./fleet-data";
+import { adminRoutes, userRoutes } from "@/constants/routes";
+
+import { AdminFonts, CANVAS, INK, MUTED, NAVY, SANS } from "./admin-theme";
 import { SidebarNav } from "./sidebar-nav";
 
-/** Admin dashboard frame: fixed sidebar, top bar and scrollable content area. */
-export function DashboardShell({ children }: { children: ReactNode }) {
+/** Small label at the top of each page, e.g. "Operations / Bookings". */
+function pageLabel(pathname: string): string {
+  // Screen codes from the Figma designs.
+  if (pathname === adminRoutes.dashboard) return "Operations / A02";
+  if (pathname === adminRoutes.fleet) return "Operations / A03";
+  if (pathname === adminRoutes.fleetNew) return "Operations / Yachts / New";
+  const yachtMatch = pathname.match(/^\/admin\/fleet\/([^/]+)(\/edit)?$/);
+  if (yachtMatch && yachtMatch[1] !== "new") {
+    const yacht = findYacht(decodeURIComponent(yachtMatch[1]!));
+    if (yacht) return `Operations / Yachts / ${yacht.form.name}${yachtMatch[2] ? " / Edit" : ""}`;
+  }
+  for (const section of adminNav)
+    for (const item of section.items)
+      if (pathname === item.href || pathname.startsWith(`${item.href}/`))
+        return `${section.title} / ${item.label}`;
+  return "Admin";
+}
+
+function Logo({ className }: { className: string }) {
   return (
-    <div className="bg-canvas flex min-h-dvh flex-col md:flex-row">
-      <aside className="bg-sidebar w-full shrink-0 p-4 md:sticky md:top-0 md:h-dvh md:w-64 md:overflow-y-auto">
+    <Image
+      src="/images/brand/sithara-marina-logo.svg"
+      alt="Sithara Marina"
+      width={161}
+      height={87}
+      unoptimized
+      className={`h-auto brightness-0 invert ${className}`}
+    />
+  );
+}
+
+/**
+ * Admin dashboard frame from the Figma design: navy sidebar on desktop, a
+ * navy top bar with a "Menu" drawer on smaller screens, and the content area.
+ */
+export function DashboardShell({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  // Close the drawer on Escape.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setMenuOpen(false);
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [menuOpen]);
+
+  return (
+    <div
+      className="flex min-h-dvh flex-col antialiased lg:flex-row"
+      style={{ ...SANS, color: INK, backgroundColor: CANVAS }}
+    >
+      <AdminFonts />
+
+      {/* Desktop sidebar */}
+      <aside
+        className="hidden w-[216px] shrink-0 px-[20px] pt-[18px] pb-[40px] text-white lg:sticky lg:top-0 lg:block lg:h-dvh lg:overflow-y-auto"
+        style={{ backgroundColor: NAVY }}
+      >
         <Link
           href={adminRoutes.dashboard}
-          className="mb-6 flex items-center gap-2 px-3 font-semibold text-white"
+          className="mx-auto block w-fit focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
         >
-          <Anchor aria-hidden="true" className="size-5" />
-          {BRAND_NAME} Admin
+          <Logo className="w-[116px]" />
         </Link>
+        <div className="mt-[8px] mb-[12px] border-t border-white/40" />
         <SidebarNav />
       </aside>
 
+      {/* Mobile / tablet top bar */}
+      <header
+        className="sticky top-0 z-30 flex h-[96px] items-center justify-between px-[44px] text-white lg:hidden"
+        style={{ backgroundColor: NAVY }}
+      >
+        <Link href={adminRoutes.dashboard} className="block">
+          <Logo className="w-[74px]" />
+        </Link>
+        <button
+          type="button"
+          aria-expanded={menuOpen}
+          aria-controls="admin-menu"
+          onClick={() => setMenuOpen((o) => !o)}
+          className="flex items-center gap-[10px] text-[14px] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
+        >
+          {menuOpen ? (
+            <X aria-hidden="true" strokeWidth={1.5} className="size-[18px]" />
+          ) : (
+            <Menu aria-hidden="true" strokeWidth={1.5} className="size-[18px]" />
+          )}
+          {menuOpen ? "Close" : "Menu"}
+        </button>
+      </header>
+      {menuOpen && (
+        <div
+          id="admin-menu"
+          className="fixed inset-x-0 top-[96px] bottom-0 z-30 overflow-y-auto px-[20px] pt-[16px] pb-[40px] text-white lg:hidden"
+          style={{ backgroundColor: NAVY }}
+        >
+          <SidebarNav onNavigate={() => setMenuOpen(false)} />
+        </div>
+      )}
+
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="border-line bg-panel flex h-14 items-center justify-end border-b px-6">
-          {/* Signed-in staff member and sign-out will go here once auth is defined. */}
-          <span className="text-muted text-sm">Staff session — not yet implemented</span>
-        </header>
+        <div className="hidden items-center justify-between pt-[37px] pr-[238px] pl-[46px] lg:flex">
+          <p className="text-[10px] tracking-[0.12em] uppercase" style={{ color: MUTED }}>
+            {pageLabel(pathname)}
+          </p>
+          <div className="flex items-center gap-[14px]">
+            {/^\/admin\/fleet\/(?!new$)[^/]+$/.test(pathname) && (
+              <Link
+                href={adminRoutes.fleetNew}
+                className="flex h-[47px] w-[120px] items-center justify-center gap-[4px] border bg-white text-[12px] transition-colors hover:bg-[#f2f1ee]"
+                style={{ borderColor: INK }}
+              >
+                + Add yacht
+              </Link>
+            )}
+            <Link
+              href={userRoutes.home}
+              target="_blank"
+              className="flex h-[47px] w-[147px] items-center justify-center gap-[4px] border bg-white text-[11px] transition-colors hover:bg-[#f2f1ee]"
+              style={{ borderColor: INK }}
+            >
+              Website
+              <SquareArrowOutUpRight
+                aria-label="(opens in a new tab)"
+                strokeWidth={1.75}
+                className="size-[11px] text-[#2f6fb5]"
+              />
+            </Link>
+          </div>
+        </div>
         <main id="main" className="flex-1">
           {children}
         </main>
