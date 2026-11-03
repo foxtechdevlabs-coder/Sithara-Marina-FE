@@ -26,7 +26,7 @@ npm run dev
 
 macOS / Linux / Git Bash: same, with `cp .env.example .env.local`.
 
-Open <http://localhost:3000> (user area) and <http://localhost:3000/admin> (admin area).
+Open <http://localhost:3001> (user area) and <http://localhost:3001/admin> (admin area). Port 3000 is left free for the local backend API.
 
 For end-to-end tests, also run once: `npx playwright install chromium`.
 
@@ -38,13 +38,13 @@ the Next.js TypeScript plugin works.
 
 ## Daily commands
 
-| Command            | Notes                                                                   |
-| ------------------ | ----------------------------------------------------------------------- |
-| `npm run dev`      | Turbopack dev server, port 3000. `npm run dev -- --port 3005` to change |
-| `npm run check`    | typecheck + lint + format:check + unit/integration tests                |
-| `npm run build`    | Needs `.env.local` (or real env vars) — fails otherwise                 |
-| `npm run start`    | Serve the last build                                                    |
-| `npm run test:e2e` | Build first; starts `next start` on port 3100 automatically             |
+| Command            | Notes                                                                                               |
+| ------------------ | --------------------------------------------------------------------------------------------------- |
+| `npm run dev`      | Turbopack dev server, port 3001 (3000 is the local backend). `npm run dev -- --port 3005` to change |
+| `npm run check`    | typecheck + lint + format:check + unit/integration tests                                            |
+| `npm run build`    | Needs `.env.local` (or real env vars) — fails otherwise                                             |
+| `npm run start`    | Serve the last build                                                                                |
+| `npm run test:e2e` | Build first; starts `next start` on port 3100 automatically                                         |
 
 `npm run typecheck` runs `next typegen` first, which generates the `PageProps`/`LayoutProps`
 helpers and typed-route definitions that `tsc` needs.
@@ -75,7 +75,7 @@ for the installed version are in `node_modules/next/dist/docs/`.
 ## Troubleshooting
 
 - **Build fails with `Invalid public environment configuration`** — create `.env.local` from
-  `.env.example`, or set `NEXT_PUBLIC_API_BASE_URL` in the environment. Restart `next dev` after
+  `.env.example`, or set `NEXT_PUBLIC_API_URL` in the environment. Restart `next dev` after
   changing env files.
 - **`Port 3000 is in use`** — PowerShell: `Get-NetTCPConnection -LocalPort 3000 | Select OwningProcess`,
   then `Stop-Process -Id <pid>`.

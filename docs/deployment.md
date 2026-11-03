@@ -20,17 +20,17 @@ on it.
 
 ```bash
 npm ci                                   # exact lockfile install
-export NEXT_PUBLIC_API_BASE_URL=https://api.example.com/api   # real value from the backend team
+export NEXT_PUBLIC_API_URL=https://api.example.com   # real value from the backend team
 npm run check                            # typecheck, lint, format, unit/integration tests
 npm run build                            # one production build in .next/
 npm run start -- --port 3000             # or set PORT
 ```
 
-Windows PowerShell: `$env:NEXT_PUBLIC_API_BASE_URL = "https://…"` instead of `export`.
+Windows PowerShell: `$env:NEXT_PUBLIC_API_URL = "https://…"` instead of `export`.
 
-`npm run build` **fails** if `NEXT_PUBLIC_API_BASE_URL` is missing or not an absolute URL.
+`npm run build` **fails** if `NEXT_PUBLIC_API_URL` is missing or not an absolute URL.
 
-Because `NEXT_PUBLIC_API_BASE_URL` is baked in at build time, build **once per environment**
+Because `NEXT_PUBLIC_API_URL` is baked in at build time, build **once per environment**
 (staging, production) with that environment's value, or choose a runtime-configuration approach
 deliberately later.
 
@@ -52,10 +52,10 @@ test it before switching.
 
 ## Environment variables
 
-| Variable                   | Required | When       | Notes                                 |
-| -------------------------- | -------- | ---------- | ------------------------------------- |
-| `NEXT_PUBLIC_API_BASE_URL` | Yes      | Build time | Absolute URL; public — never a secret |
-| `PORT`                     | No       | Runtime    | Port for `next start` (default 3000)  |
+| Variable              | Required | When       | Notes                                 |
+| --------------------- | -------- | ---------- | ------------------------------------- |
+| `NEXT_PUBLIC_API_URL` | Yes      | Build time | Absolute URL; public — never a secret |
+| `PORT`                | No       | Runtime    | Port for `next start` (default 3000)  |
 
 ## HTTP headers sent by the app
 

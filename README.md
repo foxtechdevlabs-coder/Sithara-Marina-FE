@@ -27,14 +27,14 @@ Zod 4 · Lucide icons · ESLint 9 · Prettier 3 · Vitest 4 · Playwright 1.63 �
 ```bash
 npm install
 cp .env.example .env.local        # Windows Command Prompt: copy .env.example .env.local
-npm run dev                       # http://localhost:3000  (admin: /admin)
+npm run dev                       # http://localhost:3001  (admin: /admin)
 ```
 
 ## Commands
 
 | Command                | What it does                                               |
 | ---------------------- | ---------------------------------------------------------- |
-| `npm run dev`          | Development server on port 3000                            |
+| `npm run dev`          | Development server on port 3001 (backend uses 3000)        |
 | `npm run build`        | Production build (fails if required env vars are missing)  |
 | `npm run start`        | Serve the production build (port 3000, or `-- --port <n>`) |
 | `npm run lint`         | ESLint, including user/admin import boundaries             |
@@ -51,16 +51,16 @@ Details: [docs/testing.md](docs/testing.md).
 
 ## Environment
 
-| Variable                   | Required | Exposed to browser | Purpose                      |
-| -------------------------- | -------- | ------------------ | ---------------------------- |
-| `NEXT_PUBLIC_API_BASE_URL` | Yes      | Yes                | Absolute base URL of the API |
+| Variable              | Required | Exposed to browser | Purpose                      |
+| --------------------- | -------- | ------------------ | ---------------------------- |
+| `NEXT_PUBLIC_API_URL` | Yes      | Yes                | Absolute base URL of the API |
 
 The value in `.env.example` is a placeholder; the backend team must confirm the real URL. Never
 put secrets in `NEXT_PUBLIC_*` variables. See [docs/api-integration.md](docs/api-integration.md).
 
 ## Deployment (overview)
 
-One install, one build, one Node.js server: `npm ci` → set `NEXT_PUBLIC_API_BASE_URL` →
+One install, one build, one Node.js server: `npm ci` → set `NEXT_PUBLIC_API_URL` →
 `npm run check` → `npm run build` → `npm run start`. Full guide and smoke checks:
 [docs/deployment.md](docs/deployment.md).
 

@@ -14,6 +14,6 @@ import { createHttpClient } from "./create-http-client";
  *   defined. Add `getHeaders` / `onUnauthorized` here once it is.
  */
 export const apiClient = createHttpClient({
-  baseUrl: () => getPublicEnv().NEXT_PUBLIC_API_BASE_URL,
+  baseUrl: () => getPublicEnv().NEXT_PUBLIC_API_URL,
   timeoutMs: 15_000,
 });

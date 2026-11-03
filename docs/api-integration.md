@@ -19,7 +19,7 @@ src/services/http/api-client.ts                  the single configured client
 src/services/http/create-http-client.ts          fetch wrapper: URL, JSON, timeout, errors, validation
     │
     ▼
-src/config/env.ts                                NEXT_PUBLIC_API_BASE_URL, validated with Zod
+src/config/env.ts                                NEXT_PUBLIC_API_URL, validated with Zod
 ```
 
 Rules: components never call `fetch`/`apiClient`; each endpoint has exactly one service function;
@@ -108,13 +108,14 @@ When the contract is known:
 
 ## Environment variables
 
-| Variable                   | Exposed to browser | Purpose                                     |
-| -------------------------- | ------------------ | ------------------------------------------- |
-| `NEXT_PUBLIC_API_BASE_URL` | **Yes**            | Absolute base URL of the API (user + admin) |
+| Variable              | Exposed to browser | Purpose                                     |
+| --------------------- | ------------------ | ------------------------------------------- |
+| `NEXT_PUBLIC_API_URL` | **Yes**            | Absolute base URL of the API (user + admin) |
 
-- Copy `.env.example` to `.env.local` (git-ignored). The template value
-  `http://localhost:4000/api` is a **placeholder**; the backend team must confirm host, port and
-  prefix.
+- Copy `.env.example` to `.env.local` (git-ignored). Locally the backend runs at
+  `http://localhost:3000` with no `/api` prefix (reference: <http://localhost:3000/docs>). Once the
+  server is hosted, set the hosted URL in the deployment's environment settings and redeploy.
+- `NEXT_PUBLIC_API_BASE_URL` (the previous name) is still accepted as a fallback.
 - `NEXT_PUBLIC_*` values are **inlined at build time** into browser JavaScript: never put secrets
   in them, and build with the target environment's values. `next build` fails if the variable is
   missing or not an absolute URL (validated in `src/app/layout.tsx`).

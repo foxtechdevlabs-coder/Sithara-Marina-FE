@@ -10,7 +10,7 @@
                     │  features/{user,admin} · components/{ui,shared,user,admin}       │
                     │  services/http (one client) · config · lib · validation          │
                     └───────────────────────────────┬──────────────────────────────────┘
-                                                    │ fetch (NEXT_PUBLIC_API_BASE_URL)
+                                                    │ fetch (NEXT_PUBLIC_API_URL)
                                                     ▼
                                    Backend API — separate team, separate repo
                    (authority for availability, pricing, holds, payments, auth, permissions)
