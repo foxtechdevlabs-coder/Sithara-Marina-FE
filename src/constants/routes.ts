@@ -62,4 +62,6 @@ export const adminRoutes = {
   staffRoles: "/admin/staff/roles",
   notifications: "/admin/notifications",
   reports: "/admin/reports",
+  enquiries: "/admin/enquiries",
+  audit: "/admin/audit",
 } as const satisfies Record<string, Route | ((...args: string[]) => Route)>;
