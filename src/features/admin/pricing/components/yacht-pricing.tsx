@@ -32,15 +32,24 @@ export function YachtPricing({ yachtId }: { yachtId: string }) {
   const data = query.data;
   usePublishBreadcrumbYacht(data?.yacht);
   const [notice, setNotice] = useState("");
+  const [setupFailed, setSetupFailed] = useState(false);
 
-  // Message passed on from the add-yacht form's "Publish yacht" (?notice=publish).
+  // Message passed on from the add-yacht form (?notice=publish|setup).
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("notice") === "publish")
+    const value = new URLSearchParams(window.location.search).get("notice");
+    if (value === "publish")
       queueMicrotask(() =>
         setNotice(
-          "Yacht saved (hidden for now). Add operating hours, a slot type and a base price here, then switch on “Visible on website” in Edit yacht to publish it.",
+          "Yacht saved (hidden for now). Add a base price for a package here, then switch on “Visible on website” in Edit yacht to publish it.",
         ),
       );
+    if (value === "setup")
+      queueMicrotask(() => {
+        setSetupFailed(true);
+        setNotice(
+          "The yacht was created, but its operating hours or package prices couldn't be saved. Check them below and save again.",
+        );
+      });
   }, []);
 
   return (
@@ -89,7 +98,7 @@ export function YachtPricing({ yachtId }: { yachtId: string }) {
         </>
       ) : (
         <div className="mt-[32px] flex max-w-[1040px] flex-col gap-[24px]">
-          {notice && <Notice>{notice}</Notice>}
+          {notice && <Notice tone={setupFailed ? "error" : "success"}>{notice}</Notice>}
           <SlotSetupSection
             yachtId={yachtId}
             setup={data.setup}

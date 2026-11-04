@@ -1,15 +1,30 @@
 "use client";
 
-import { ArrowRight, Check, Clock, Plus } from "lucide-react";
+import { ArrowRight, Check, Plus } from "lucide-react";
 import type { Route } from "next";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { adminRoutes } from "@/constants/routes";
+import { BookingSetupFields } from "@/features/admin/fleet/components/booking-setup-fields";
 import { YachtGallery, type QueuedPhoto } from "@/features/admin/fleet/components/yacht-gallery";
 import { useAdminQuery } from "@/features/admin/fleet/hooks/use-admin-query";
 import { usePublishBreadcrumbYacht } from "@/features/admin/fleet/hooks/use-breadcrumb-yacht";
+import {
+  EMPTY_BOOKING_SETUP,
+  PACKAGES,
+  bookingSetupErrors,
+  draftFromSaved,
+  hasPricedPackage,
+  isSetupChanged,
+  packagePriceId,
+  priceChanges,
+  repriceForRate,
+  toSlotSetup,
+  withSavedIds,
+  type SavedBooking,
+} from "@/features/admin/fleet/utils/booking-setup";
 import { fleetErrorMessage } from "@/features/admin/fleet/utils/fleet-error-message";
 import {
   EMPTY_FORM,
@@ -18,6 +33,7 @@ import {
   formFromYacht,
   toCreateInput,
   toPatch,
+  validateForPublish,
   validateYachtForm,
   type YachtFormState,
 } from "@/features/admin/fleet/utils/yacht-form";
@@ -26,14 +42,24 @@ import {
   attachPhotos,
   createYacht,
   deactivateYacht,
+  getSlotTypes,
   getYacht,
   listActivePartners,
+  listCruisingRegions,
+  replaceSlotTypes,
   updateYacht,
   type YachtDetail,
   type YachtPhoto,
 } from "@/services/admin/fleet.service";
 import { uploadYachtPhoto } from "@/services/admin/media.service";
+import {
+  createPriceRule,
+  deletePriceRule,
+  listPriceRules,
+  updatePriceRule,
+} from "@/services/admin/pricing.service";
 import { isApiError } from "@/services/http/api-error";
+import { formatPaise, rupeesToPaise } from "@/features/admin/pricing/utils/pricing-form";
 import { cx } from "@/lib/cx";
 
 import { BODY, GRADIENT, INK, MUTED, SAND } from "./admin-theme";
@@ -42,7 +68,6 @@ import {
   FieldError,
   Label,
   LoadState,
-  NotSaved,
   Section,
   SelectBox,
   Toggle,
@@ -85,7 +110,7 @@ const BOOKING_MODES = [
     text: "No online payment — concierge sends a quote.",
   },
 ] as const;
-const STATUSES = ["Active", "Inactive", "Under maintenance"] as const;
+const STATUSES = ["Active", "Inactive"] as const;
 type Status = (typeof STATUSES)[number];
 const TAGLINE_MAX = 120;
 
@@ -101,51 +126,30 @@ const FIELD_ORDER = [
   "yacht-name",
   "vessel-type",
   "home-port",
+  "registration",
+  "cruising-regions",
   "slug",
   "departure-points",
   "partner",
   "length",
   "capacity",
   "suites",
+  "built",
+  "speed",
+  "tagline",
   "description",
   "amenities",
   "inclusions",
   "policies",
+  "rate",
+  "booking-first-start",
+  "booking-last-return",
+  ...PACKAGES.map((p) => packagePriceId(String(p.hours))),
 ];
 
-/**
- * Design fields the backend has no field for yet. They are shown (marked
- * "Not saved yet") but never sent; see features/admin/fleet/README.md.
- */
-interface UnsavedFields {
-  registration: string;
-  regions: string[];
-  crew: string;
-  built: string;
-  speed: string;
-  tagline: string;
-  rate: string;
-  minDays: string;
-  deposit: string;
-  embark: string;
-  disembark: string;
-}
-
-const UNSAVED_START: UnsavedFields = {
-  registration: "",
-  regions: [],
-  crew: "",
-  built: "",
-  speed: "",
-  tagline: "",
-  rate: "",
-  minDays: "",
-  deposit: "",
-  embark: "10:00",
-  disembark: "17:00",
-};
-
 const digits = (v: string) => v.replace(/\D/g, "");
+/** The rate in paise; "15000." while typing counts as 15000. */
+const hourlyPaise = (text: string) => rupeesToPaise(text.replace(/\.$/, ""));
 
 /**
  * Chips for a list of short texts (amenities, inclusions, departure points),
@@ -154,6 +158,7 @@ const digits = (v: string) => v.replace(/\D/g, "");
 function ListField({
   id,
   label,
+  required,
   hint,
   addLabel,
   values,
@@ -166,6 +171,7 @@ function ListField({
 }: {
   id: string;
   label: string;
+  required?: boolean;
   hint?: string;
   addLabel: string;
   values: string[];
@@ -178,6 +184,8 @@ function ListField({
 }) {
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState("");
+  // Removed chips stay gone, including suggestions that come from outside this list.
+  const [removed, setRemoved] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
     if (adding) inputRef.current?.focus();
@@ -188,6 +196,7 @@ function ListField({
     if (value) {
       if (!options.includes(value)) onOptionsChange([...options, value]);
       if (!values.includes(value)) onChange([...values, value]);
+      setRemoved((r) => r.filter((x) => x !== value));
     }
     setDraft("");
   };
@@ -197,13 +206,18 @@ function ListField({
       <ChipGroup
         id={id}
         label={label}
+        required={required}
         hint={hint}
         multiple
-        options={options.map((o) => ({ value: o, label: o }))}
+        options={options.filter((o) => !removed.includes(o)).map((o) => ({ value: o, label: o }))}
         selected={values}
         onToggle={(v) =>
           onChange(values.includes(v) ? values.filter((x) => x !== v) : [...values, v])
         }
+        onRemove={(v) => {
+          setRemoved((r) => [...r, v]);
+          if (values.includes(v)) onChange(values.filter((x) => x !== v));
+        }}
         after={
           adding ? (
             <span className="flex w-full max-w-[380px] gap-[8px]">
@@ -311,11 +325,20 @@ export default function AddYacht({
   duplicateId?: string;
 }) {
   const sourceId = yachtId ?? duplicateId;
-  const source = useAdminQuery<YachtDetail | null>(
-    (signal) => (sourceId ? getYacht(sourceId, signal) : Promise.resolve(null)),
+  const source = useAdminQuery<{ yacht: YachtDetail; booking?: SavedBooking } | null>(
+    async (signal) => {
+      if (!sourceId) return null;
+      if (!yachtId) return { yacht: await getYacht(sourceId, signal) };
+      const [yacht, setup, rules] = await Promise.all([
+        getYacht(sourceId, signal),
+        getSlotTypes(sourceId, signal),
+        listPriceRules(sourceId, { kind: "base" }, signal),
+      ]);
+      return { yacht, booking: { setup, rules } };
+    },
     sourceId ?? "new",
   );
-  usePublishBreadcrumbYacht(yachtId ? (source.data ?? undefined) : undefined);
+  usePublishBreadcrumbYacht(yachtId ? source.data?.yacht : undefined);
 
   if (source.loading || source.error) {
     return (
@@ -341,12 +364,28 @@ export default function AddYacht({
     );
   }
 
-  const yacht = yachtId ? (source.data ?? undefined) : undefined;
-  const template = duplicateId ? (source.data ?? undefined) : undefined;
-  return <YachtEditor key={sourceId ?? "new"} saved={yacht} template={template} />;
+  const yacht = yachtId ? source.data?.yacht : undefined;
+  const template = duplicateId ? source.data?.yacht : undefined;
+  return (
+    <YachtEditor
+      key={sourceId ?? "new"}
+      saved={yacht}
+      savedBooking={source.data?.booking}
+      template={template}
+    />
+  );
 }
 
-function YachtEditor({ saved, template }: { saved?: YachtDetail; template?: YachtDetail }) {
+function YachtEditor({
+  saved,
+  savedBooking,
+  template,
+}: {
+  saved?: YachtDetail;
+  /** The yacht's slots and base prices, when editing. */
+  savedBooking?: SavedBooking;
+  template?: YachtDetail;
+}) {
   const editing = Boolean(saved);
   const router = useRouter();
   const doneHref = saved ? adminRoutes.fleetYacht(saved.id) : adminRoutes.fleet;
@@ -358,7 +397,6 @@ function YachtEditor({ saved, template }: { saved?: YachtDetail; template?: Yach
         ? formFromTemplate(template)
         : { ...EMPTY_FORM, type: VESSEL_TYPES[0]! },
   );
-  const [unsaved, setUnsaved] = useState<UnsavedFields>(UNSAVED_START);
   const savedStatus: Status = saved && !saved.is_active ? "Inactive" : "Active";
   const [status, setStatus] = useState<Status>(savedStatus);
   const start = saved ?? template;
@@ -368,26 +406,38 @@ function YachtEditor({ saved, template }: { saved?: YachtDetail; template?: Yach
   ]);
   const [inclusionOptions, setInclusionOptions] = useState(() => [...(start?.inclusions ?? [])]);
   const [pointOptions, setPointOptions] = useState(() => [...(start?.departure_points ?? [])]);
+  const [regionOptions, setRegionOptions] = useState(() => [
+    ...REGIONS,
+    ...(start?.cruising_regions.filter((r) => !REGIONS.includes(r)) ?? []),
+  ]);
   const [photos, setPhotos] = useState<YachtPhoto[]>(() => saved?.photos ?? []);
   const [queued, setQueued] = useState<QueuedPhoto[]>([]);
+  // The backend's copy, kept current as parts of a save succeed so a retry is safe.
+  const [bookingBase, setBookingBase] = useState(savedBooking);
+  const [booking, setBooking] = useState(() =>
+    savedBooking ? draftFromSaved(savedBooking, saved?.hourly_rate) : EMPTY_BOOKING_SETUP,
+  );
   const [activeTab, setActiveTab] = useState<string>("details");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [problem, setProblem] = useState("");
   const [notice, setNotice] = useState("");
   const [submitting, setSubmitting] = useState("");
   const submittingRef = useRef(false);
+  // The last usable rate, so clearing the field and typing a new one still updates prices.
+  const lastRate = useRef(hourlyPaise(form.rate));
 
   const partners = useAdminQuery(
     (signal) => (form.ownership === "partner" ? listActivePartners(signal) : Promise.resolve(null)),
     form.ownership,
   );
 
+  // Regions other yachts use, as extra suggestions; the form works without them.
+  const usedRegions = useAdminQuery((signal) => listCruisingRegions(signal), "regions");
+
   const set = <K extends keyof YachtFormState>(key: K, value: YachtFormState[K]) => {
     setForm((f) => ({ ...f, [key]: value }));
     setNotice("");
   };
-  const setExtra = <K extends keyof UnsavedFields>(key: K, value: UnsavedFields[K]) =>
-    setUnsaved((u) => ({ ...u, [key]: value }));
   const clearError = (id: string) => {
     if (!errors[id]) return;
     setErrors((current) => {
@@ -396,17 +446,6 @@ function YachtEditor({ saved, template }: { saved?: YachtDetail; template?: Yach
       return next;
     });
   };
-
-  // Show a message passed on from the create step (?notice=photos).
-  useEffect(() => {
-    const value = new URLSearchParams(window.location.search).get("notice");
-    if (value === "photos")
-      queueMicrotask(() =>
-        setProblem(
-          "The yacht was created, but some photos couldn't be uploaded. Add them again below.",
-        ),
-      );
-  }, []);
 
   // Highlight the tab of the section in view.
   useEffect(() => {
@@ -426,18 +465,22 @@ function YachtEditor({ saved, template }: { saved?: YachtDetail; template?: Yach
 
   const patch = useMemo(() => (saved ? toPatch(form, saved) : {}), [form, saved]);
   /** Active / Inactive are saved with POST …/activate or …/deactivate. */
-  const statusChange = status !== "Under maintenance" && status !== savedStatus;
-  const dirty = editing ? Object.keys(patch).length > 0 || statusChange : true;
+  const statusChange = status !== savedStatus;
+  const bookingChanged = bookingBase
+    ? isSetupChanged(booking, bookingBase) ||
+      priceChanges(booking, bookingBase.setup, bookingBase.rules).length > 0
+    : false;
+  const dirty = editing ? Object.keys(patch).length > 0 || statusChange || bookingChanged : true;
 
   /* Ready to publish — the items from the design. */
   const photoCount = editing ? photos.length : queued.length;
   const checks = [
     { label: "Yacht name", done: form.name.trim() !== "" },
-    { label: "At least one region", done: unsaved.regions.length > 0, notSaved: true },
+    { label: "At least one region", done: form.regions.length > 0 },
     { label: "Maximum guests", done: Number(form.capacity) > 0 },
-    { label: "Card tagline", done: unsaved.tagline.trim() !== "", notSaved: true },
-    { label: "3+ photos with a cover", done: photoCount >= 3 },
-    { label: "Day rate", done: Number(unsaved.rate) > 0, notSaved: true },
+    { label: "Card tagline", done: form.tagline.trim() !== "" },
+    { label: "At least one photo", done: photoCount > 0 },
+    { label: "Package with a price", done: hasPricedPackage(booking) },
   ];
   const doneCount = checks.filter((c) => c.done).length;
 
@@ -454,14 +497,24 @@ function YachtEditor({ saved, template }: { saved?: YachtDetail; template?: Yach
     setErrors(found);
     const count = Object.keys(found).length;
     setProblem(`Check ${count} ${count === 1 ? "field" : "fields"} before saving.`);
-    const first = FIELD_ORDER.find((id) => found[id]);
+    // Custom packages aren't in the fixed order; they come last on the page.
+    const first = FIELD_ORDER.find((id) => found[id]) ?? Object.keys(found)[0];
     if (first) focusField(first);
   }
 
   /** Puts a backend refusal next to the field it is about, when it is about one. */
   function showSaveError(err: unknown) {
     const code = isApiError(err) ? err.code : undefined;
+    if (code === "NOT_PUBLISHABLE" && editing) {
+      setProblem(
+        "This yacht is visible on the website, so it needs at least one package that is on and has a price. Keep one, or hide the yacht first.",
+      );
+      return;
+    }
     if (code === "SLUG_EXISTS") return showErrors({ slug: fleetErrorMessage(err) });
+    if (code === "REGISTRATION_NUMBER_EXISTS")
+      return showErrors({ registration: fleetErrorMessage(err) });
+    if (code === "INVALID_YACHT_YEARS") return showErrors({ built: fleetErrorMessage(err) });
     if (code === "INVALID_PARTNER") return showErrors({ partner: fleetErrorMessage(err) });
     setProblem(`Couldn't save the yacht. ${fleetErrorMessage(err)}`);
   }
@@ -489,13 +542,17 @@ function YachtEditor({ saved, template }: { saved?: YachtDetail; template?: Yach
   }
 
   /**
-   * "Publish yacht" and "Save as draft" both create the yacht hidden (the
-   * backend refuses a visible new yacht, and a yacht needs a priced slot type
-   * to be visible). Publish then continues to Slots & pricing.
+   * "Publish yacht" and "Save as draft" both create the yacht hidden, because
+   * the backend refuses a visible new yacht. Publish then makes it visible, once
+   * its package prices and photos are saved.
    */
   async function save(intent: "publish" | "draft" | "update") {
     if (submittingRef.current) return;
-    const found = validateYachtForm(form, editing);
+    const found = {
+      ...validateYachtForm(form, editing),
+      ...(intent === "publish" ? validateForPublish(form) : {}),
+      ...bookingSetupErrors(booking, bookingBase),
+    };
     if (Object.keys(found).length) return showErrors(found);
     if (editing && !dirty) {
       setProblem("");
@@ -511,7 +568,12 @@ function YachtEditor({ saved, template }: { saved?: YachtDetail; template?: Yach
     );
     try {
       if (saved) {
-        if (Object.keys(patch).length) await updateYacht(saved.id, patch);
+        // Hide first and publish last, so the yacht is never visible without a priced package.
+        const hiding = patch.is_visible === false;
+        const hasPatch = Object.keys(patch).length > 0;
+        if (hiding) await updateYacht(saved.id, patch);
+        if (bookingChanged) await saveBooking(saved.id, bookingBase);
+        if (hasPatch && !hiding) await updateYacht(saved.id, patch);
         if (statusChange) {
           await (status === "Active" ? activateYacht(saved.id) : deactivateYacht(saved.id));
         }
@@ -519,18 +581,9 @@ function YachtEditor({ saved, template }: { saved?: YachtDetail; template?: Yach
         return;
       }
       const created = await createYacht(toCreateInput(form));
-      // The yacht exists from here on; later steps never create it again.
-      const photosOk = queued.length === 0 || (await uploadQueued(created.id));
-      if (status === "Inactive") {
-        await deactivateYacht(created.id).catch(() => undefined);
-      }
-      router.push(
-        (!photosOk
-          ? `${adminRoutes.fleetYachtEdit(created.id)}?notice=photos`
-          : intent === "publish"
-            ? `${adminRoutes.fleetYachtPricing(created.id)}?notice=publish`
-            : `${adminRoutes.fleetYacht(created.id)}?notice=created`) as Route,
-      );
+      // The yacht exists from here on; later steps never create it again, and a
+      // failure sends the admin to the page where that step can be finished.
+      router.push((await finishNewYacht(created.id, intent)) as Route);
     } catch (err) {
       showSaveError(err);
       submittingRef.current = false;
@@ -538,8 +591,65 @@ function YachtEditor({ saved, template }: { saved?: YachtDetail; template?: Yach
     }
   }
 
+  /**
+   * PUT …/slot-types with every package, then the price rule changes. `base` is
+   * what is saved already (nothing, for a new yacht). Each success is recorded,
+   * so saving again after a failure carries on instead of repeating it.
+   */
+  async function saveBooking(id: string, base?: SavedBooking) {
+    let current = base;
+    if (!base || isSetupChanged(booking, base)) {
+      const setup = await replaceSlotTypes(id, toSlotSetup(booking, base));
+      const kept = new Set(setup.slot_types.map((s) => s.id));
+      current = { setup, rules: (base?.rules ?? []).filter((r) => kept.has(r.slot_type_id)) };
+      setBookingBase(current);
+      setBooking((draft) => withSavedIds(draft, setup));
+    }
+    const { setup } = current!;
+    let rules = current!.rules;
+    for (const change of priceChanges(booking, setup, rules)) {
+      if (change.type === "create") {
+        rules = [...rules, await createPriceRule(id, change.input)];
+      } else if (change.type === "update") {
+        const updated = await updatePriceRule(change.ruleId, { amount: change.amount });
+        rules = rules.map((r) => (r.id === updated.id ? updated : r));
+      } else {
+        await deletePriceRule(change.ruleId);
+        rules = rules.filter((r) => r.id !== change.ruleId);
+      }
+      setBookingBase({ setup, rules });
+    }
+  }
+
+  /** After POST /admin/yachts: hours and packages, photos, publishing. Returns where to go. */
+  async function finishNewYacht(id: string, intent: "publish" | "draft" | "update") {
+    let setupOk = true;
+    setSubmitting("Saving packages…");
+    try {
+      await saveBooking(id);
+    } catch {
+      setupOk = false;
+    }
+    const photosOk = queued.length === 0 || (await uploadQueued(id));
+
+    let next = `${adminRoutes.fleetYacht(id)}?notice=created`;
+    if (!setupOk) next = `${adminRoutes.fleetYachtPricing(id)}?notice=setup`;
+    else if (!photosOk) next = `${adminRoutes.fleetYacht(id)}?notice=no-photos`;
+    else if (intent === "publish" && !hasPricedPackage(booking))
+      next = `${adminRoutes.fleetYachtPricing(id)}?notice=publish`;
+    else if (intent === "publish" && queued.length > 0) {
+      setSubmitting("Publishing…");
+      next = await updateYacht(id, { is_visible: true }).then(
+        () => `${adminRoutes.fleetYacht(id)}?notice=published`,
+        () => `${adminRoutes.fleetYacht(id)}?notice=not-published`,
+      );
+    }
+    if (status === "Inactive") await deactivateYacht(id).catch(() => undefined);
+    return next;
+  }
+
   const cover = editing ? photos[0]?.url : queued[0]?.src;
-  const rate = Number(unsaved.rate);
+  const rate = rupeesToPaise(form.rate);
   const partnerOptions = (() => {
     const list = partners.data ?? [];
     const current = saved?.partner;
@@ -659,35 +769,41 @@ function YachtEditor({ saved, template }: { saved?: YachtDetail; template?: Yach
                   <FieldError id="home-port" message={errors["home-port"]} />
                 </div>
                 <div>
-                  <Label htmlFor="registration" notSaved>
-                    Registration no.
-                  </Label>
+                  <Label htmlFor="registration">Registration no.</Label>
                   <input
                     id="registration"
                     className={input}
                     placeholder="Shown to staff only"
-                    value={unsaved.registration}
-                    onChange={(e) => setExtra("registration", e.currentTarget.value)}
+                    maxLength={50}
+                    autoCapitalize="characters"
+                    spellCheck={false}
+                    value={form.registration}
+                    onChange={(e) => {
+                      set("registration", e.currentTarget.value);
+                      clearError("registration");
+                    }}
+                    {...errorProps("registration", errors["registration"])}
                   />
+                  <FieldError id="registration" message={errors["registration"]} />
                 </div>
               </div>
               <div className="mt-[24px]">
-                <ChipGroup
+                <ListField
+                  id="cruising-regions"
                   label="Cruising regions"
                   required
                   hint="choose all that apply"
-                  notSaved
-                  multiple
-                  options={REGIONS.map((r) => ({ value: r, label: r }))}
-                  selected={unsaved.regions}
-                  onToggle={(v) =>
-                    setExtra(
-                      "regions",
-                      unsaved.regions.includes(v)
-                        ? unsaved.regions.filter((x) => x !== v)
-                        : [...unsaved.regions, v],
-                    )
-                  }
+                  addLabel="Add region"
+                  placeholder="e.g. Vembanad Lake"
+                  values={form.regions}
+                  options={[...new Set([...regionOptions, ...(usedRegions.data ?? [])])]}
+                  maxLength={LIST_ITEM_MAX.regions}
+                  onChange={(v) => {
+                    set("regions", v);
+                    clearError("cruising-regions");
+                  }}
+                  onOptionsChange={setRegionOptions}
+                  error={errors["cruising-regions"]}
                 />
               </div>
               <div className="mt-[24px]">
@@ -813,55 +929,45 @@ function YachtEditor({ saved, template }: { saved?: YachtDetail; template?: Yach
                   </div>
                 ))}
                 <div>
-                  <Label htmlFor="crew" notSaved>
-                    Crew
-                  </Label>
-                  <input
-                    id="crew"
-                    inputMode="numeric"
-                    className={input}
-                    placeholder="9"
-                    maxLength={3}
-                    value={unsaved.crew}
-                    onChange={(e) => setExtra("crew", digits(e.currentTarget.value))}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="built" notSaved>
-                    Built / refit
-                  </Label>
+                  <Label htmlFor="built">Built / refit</Label>
                   <input
                     id="built"
                     className={input}
                     placeholder="2019 / 2024"
-                    value={unsaved.built}
-                    onChange={(e) => setExtra("built", e.currentTarget.value)}
+                    value={form.built}
+                    onChange={(e) => {
+                      set("built", e.currentTarget.value);
+                      clearError("built");
+                    }}
+                    {...errorProps("built", errors["built"])}
                   />
+                  <FieldError id="built" message={errors["built"]} />
                 </div>
                 <div>
-                  <Label htmlFor="speed" notSaved>
-                    Cruising speed (kn)
-                  </Label>
+                  <Label htmlFor="speed">Cruising speed (kn)</Label>
                   <input
                     id="speed"
-                    inputMode="numeric"
+                    inputMode="decimal"
                     className={input}
                     placeholder="12"
-                    value={unsaved.speed}
-                    onChange={(e) =>
-                      setExtra("speed", e.currentTarget.value.replace(/[^\d.]/g, ""))
-                    }
+                    value={form.speed}
+                    onChange={(e) => {
+                      set("speed", e.currentTarget.value.replace(/[^\d.]/g, ""));
+                      clearError("speed");
+                    }}
+                    {...errorProps("speed", errors["speed"])}
                   />
+                  <FieldError id="speed" message={errors["speed"]} />
                 </div>
               </div>
 
               <div className="mt-[24px]">
                 <div className="flex items-baseline justify-between gap-4">
-                  <Label htmlFor="tagline" required hint="shown on yacht cards and search" notSaved>
+                  <Label htmlFor="tagline" required hint="shown on yacht cards and search">
                     Card tagline
                   </Label>
                   <span className="text-[11px]" style={{ color: MUTED }} aria-live="polite">
-                    {unsaved.tagline.length}/{TAGLINE_MAX}
+                    {form.tagline.length}/{TAGLINE_MAX}
                   </span>
                 </div>
                 <input
@@ -869,9 +975,14 @@ function YachtEditor({ saved, template }: { saved?: YachtDetail; template?: Yach
                   maxLength={TAGLINE_MAX}
                   className={input}
                   placeholder="Spacious suites, open-air living, and the freedom to venture further."
-                  value={unsaved.tagline}
-                  onChange={(e) => setExtra("tagline", e.currentTarget.value)}
+                  value={form.tagline}
+                  onChange={(e) => {
+                    set("tagline", e.currentTarget.value);
+                    clearError("tagline");
+                  }}
+                  {...errorProps("tagline", errors["tagline"])}
                 />
+                <FieldError id="tagline" message={errors["tagline"]} />
               </div>
 
               <div className="mt-[24px]">
@@ -1017,91 +1128,42 @@ function YachtEditor({ saved, template }: { saved?: YachtDetail; template?: Yach
 
               <div className="mt-[24px] grid grid-cols-2 gap-x-[20px] gap-y-[22px] md:grid-cols-3">
                 <div className="col-span-2 md:col-span-1">
-                  <Label htmlFor="rate" required notSaved>
-                    Day rate (₹)
+                  <Label htmlFor="rate" hint="excl. GST">
+                    Hourly rate (₹)
                   </Label>
                   <input
                     id="rate"
-                    inputMode="numeric"
+                    inputMode="decimal"
                     className={input}
-                    placeholder="450000"
-                    value={unsaved.rate}
-                    onChange={(e) => setExtra("rate", digits(e.currentTarget.value))}
+                    placeholder="15000"
+                    value={form.rate}
+                    onChange={(e) => {
+                      const text = e.currentTarget.value.replace(/[^\d.,]/g, "");
+                      set("rate", text);
+                      clearError("rate");
+                      const next = hourlyPaise(text);
+                      if (!next) return;
+                      const previous = lastRate.current;
+                      setBooking((draft) => repriceForRate(draft, previous, next));
+                      lastRate.current = next;
+                    }}
+                    {...errorProps("rate", errors["rate"])}
                   />
+                  <FieldError id="rate" message={errors["rate"]} />
                 </div>
-                <div>
-                  <Label htmlFor="min-days" notSaved>
-                    Minimum days
-                  </Label>
-                  <input
-                    id="min-days"
-                    inputMode="numeric"
-                    className={input}
-                    placeholder="1"
-                    value={unsaved.minDays}
-                    onChange={(e) => setExtra("minDays", digits(e.currentTarget.value))}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="deposit" notSaved>
-                    Deposit (%)
-                  </Label>
-                  <input
-                    id="deposit"
-                    inputMode="numeric"
-                    className={input}
-                    placeholder="30"
-                    value={unsaved.deposit}
-                    onChange={(e) => setExtra("deposit", digits(e.currentTarget.value).slice(0, 3))}
-                  />
-                </div>
-                {(
-                  [
-                    ["embark", "Embark time"],
-                    ["disembark", "Disembark time"],
-                  ] as const
-                ).map(([key, label]) => (
-                  <div key={key}>
-                    <Label htmlFor={key} notSaved>
-                      {label}
-                    </Label>
-                    <div className="relative">
-                      <input
-                        id={key}
-                        type="time"
-                        className={cx(
-                          input,
-                          "pr-10 [&::-webkit-calendar-picker-indicator]:opacity-0",
-                        )}
-                        value={unsaved[key]}
-                        onChange={(e) => setExtra(key, e.currentTarget.value)}
-                      />
-                      <Clock
-                        aria-hidden="true"
-                        strokeWidth={1.75}
-                        className="pointer-events-none absolute top-1/2 right-[16px] size-[15px] -translate-y-1/2"
-                      />
-                    </div>
-                  </div>
-                ))}
               </div>
               <p className="mt-[22px] text-[12px]" style={{ color: BODY }} aria-live="polite">
-                {rate > 0
-                  ? `Guests will see: from ₹ ${rate.toLocaleString("en-IN")} per day${unsaved.deposit ? ` · ${unsaved.deposit}% deposit to confirm` : ""}.`
-                  : "Set a day rate to preview what guests will see."}
+                {rate
+                  ? `${formatPaise(rate)} per hour. Package prices below are worked out from this.`
+                  : "Set an hourly rate to work out the package prices below."}
               </p>
-              {saved && (
-                <p className="mt-[10px] text-[12px] leading-[18px]" style={{ color: BODY }}>
-                  Bookable slots and their prices are saved on{" "}
-                  <Link
-                    href={adminRoutes.fleetYachtPricing(saved.id)}
-                    className="underline underline-offset-2 hover:opacity-70"
-                  >
-                    Slots &amp; pricing
-                  </Link>
-                  .
-                </p>
-              )}
+              <BookingSetupFields
+                draft={booking}
+                hourlyRate={rate}
+                errors={errors}
+                onChange={setBooking}
+                onClearError={clearError}
+              />
             </Section>
 
             {/* 05 Publishing */}
@@ -1112,7 +1174,7 @@ function YachtEditor({ saved, template }: { saved?: YachtDetail; template?: Yach
                 text={
                   editing
                     ? "Appears in yacht search and the collection."
-                    : "Appears in yacht search and the collection. New yachts start hidden: switch this on once the yacht has a priced slot on Slots & pricing."
+                    : "Appears in yacht search and the collection. New yachts start hidden: “Publish yacht” makes it visible once it has a priced package and a photo."
                 }
                 checked={editing ? form.visible : false}
                 disabled={!editing}
@@ -1126,9 +1188,7 @@ function YachtEditor({ saved, template }: { saved?: YachtDetail; template?: Yach
                 onChange={(v) => set("featured", v)}
               />
               <div className="mt-[22px] max-w-[365px]">
-                <Label htmlFor="status" notSaved={status === "Under maintenance"}>
-                  Operational status
-                </Label>
+                <Label htmlFor="status">Operational status</Label>
                 <SelectBox
                   id="status"
                   value={status}
@@ -1155,9 +1215,9 @@ function YachtEditor({ saved, template }: { saved?: YachtDetail; template?: Yach
                 ) : (
                   <div className="aspect-[264/156] w-full bg-[#eceae6]" />
                 )}
-                {(unsaved.regions[0] || form.departureCity.trim()) && (
+                {(form.regions[0] || form.departureCity.trim()) && (
                   <span className="absolute top-[8px] left-[8px] bg-white px-[7px] py-[2px] text-[11px]">
-                    {unsaved.regions[0] || form.departureCity.trim()}
+                    {form.regions[0] || form.departureCity.trim()}
                   </span>
                 )}
               </div>
@@ -1174,7 +1234,7 @@ function YachtEditor({ saved, template }: { saved?: YachtDetail; template?: Yach
                 suites
               </p>
               <p className="mt-[10px] text-[13px] leading-[19px]">
-                {unsaved.tagline || "Your card tagline appears here."}
+                {form.tagline || "Your card tagline appears here."}
               </p>
               <span className="mt-[14px] inline-flex items-center gap-[6px] border-b border-current pb-[3px] text-[11px] tracking-[0.12em] uppercase">
                 Discover yacht
@@ -1209,10 +1269,7 @@ function YachtEditor({ saved, template }: { saved?: YachtDetail; template?: Yach
                     >
                       {c.done && <Check className="size-[11px]" strokeWidth={3} />}
                     </span>
-                    <span>
-                      {c.label}
-                      {c.notSaved && <NotSaved />}
-                    </span>
+                    {c.label}
                     <span className="sr-only">{c.done ? "(done)" : "(to do)"}</span>
                   </li>
                 ))}

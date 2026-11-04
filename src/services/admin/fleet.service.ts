@@ -34,6 +34,16 @@ export const yachtSchema = z.object({
   partner: z.object({ id: z.string(), name: z.string() }).nullable(),
   /** Percentage; partner yachts only. */
   commission_rate: nullableNumber,
+  /** Unique, stored upper-case; never shown on the public website. */
+  registration_number: nullableString,
+  built_year: nullableNumber,
+  /** Not before built_year. */
+  refit_year: nullableNumber,
+  cruising_speed_kmh: nullableNumber,
+  card_tagline: nullableString,
+  /** Paise per hour, excl. GST. Reference only: customers pay the slot price rule. */
+  hourly_rate: nullableNumber,
+  cruising_regions: z.array(z.string()),
   type: nullableString,
   length_ft: nullableNumber,
   capacity: z.number(),
@@ -119,6 +129,16 @@ export interface YachtInput {
   description?: string | null;
   departure_city?: string | null;
   departure_points?: string[];
+  cruising_regions?: string[];
+  registration_number?: string | null;
+  built_year?: number | null;
+  refit_year?: number | null;
+  /** km/h, up to one decimal place. */
+  cruising_speed_kmh?: number | null;
+  /** Up to 120 characters. */
+  card_tagline?: string | null;
+  /** Paise per hour, excl. GST. Reference only. */
+  hourly_rate?: number | null;
   amenities?: string[];
   inclusions?: string[];
   policies?: string | null;
@@ -259,6 +279,15 @@ export function getSlotTypes(id: string, signal?: AbortSignal): Promise<SlotSetu
 /** PUT /admin/yachts/{id}/slot-types — replaces the whole slot setup. */
 export function replaceSlotTypes(id: string, input: SlotSetupInput): Promise<SlotSetup> {
   return adminApiClient.put(`${path(id)}/slot-types`, { body: input, schema: slotSetupSchema });
+}
+
+/** GET /admin/yachts/cruising-regions — every region already used on a yacht, sorted. */
+export async function listCruisingRegions(signal?: AbortSignal): Promise<string[]> {
+  const { regions } = await adminApiClient.get("/admin/yachts/cruising-regions", {
+    schema: z.object({ regions: z.array(z.string()) }),
+    signal,
+  });
+  return regions;
 }
 
 /* Partners (for choosing a partner yacht's owner) -------------------- */
