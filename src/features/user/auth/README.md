@@ -2,11 +2,11 @@
 
 **Scope:** Customer sign-in and registration forms and session helpers.
 
-**Routes:** `/login`, `/register`
+**Routes:** `/login`, `/register`, `/verify-email`, `/forgot-password`, `/reset-password`
 
-**Notes:** Do not choose a token storage strategy until the backend auth contract is defined. Prefer httpOnly cookies set by the backend over storing tokens in `localStorage`.
+**Notes:** Registration, email verification (link-based, `?token=<id>.<secret>`) and resend are connected to the backend; sign-in and password reset are not yet. The session (tokens + user) lives in `session.ts` (sessionStorage). See [docs/api-integration.md](../../../../docs/api-integration.md#customer-authentication).
 
-Not implemented yet. When building this feature, add only the folders you need:
+Add only the folders you need:
 
 ```
 auth/

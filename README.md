@@ -26,8 +26,9 @@ Zod 4 · Lucide icons · ESLint 9 · Prettier 3 · Vitest 4 · Playwright 1.63 �
 
 ```bash
 npm install
-cp .env.example .env.local        # Windows Command Prompt: copy .env.example .env.local
-npm run dev                       # http://localhost:3001  (admin: /admin)
+cp .env.example .env              # Windows Command Prompt: copy .env.example .env
+# then set NEXT_PUBLIC_API_BASE_URL in .env
+npm run dev                       # http://localhost:3000  (admin: /admin)
 ```
 
 ## Commands
@@ -55,10 +56,10 @@ Details: [docs/testing.md](docs/testing.md).
 | --------------------- | -------- | ------------------ | ---------------------------- |
 | `NEXT_PUBLIC_API_URL` | Yes      | Yes                | Absolute base URL of the API |
 
-`.env.example` points at the hosted backend, `https://sithara-backend.onrender.com`
-([API docs](https://sithara-backend.onrender.com/docs)); use `http://localhost:3000` for a local
-backend. Never
-put secrets in `NEXT_PUBLIC_*` variables. See [docs/api-integration.md](docs/api-integration.md).
+Set `NEXT_PUBLIC_API_BASE_URL` in the root `.env` file (git-ignored; create it from
+`.env.example`, which is only a template). `.env` is the single place the backend URL is
+configured — don't add it to `.env.local` as well, because Next.js gives `.env.local` priority.
+Restart `npm run dev` after changing it. Never put secrets in `NEXT_PUBLIC_*` variables. See [docs/api-integration.md](docs/api-integration.md).
 
 ## Deployment (overview)
 

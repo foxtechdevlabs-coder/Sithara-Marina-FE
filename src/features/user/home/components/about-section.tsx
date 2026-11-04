@@ -4,25 +4,30 @@ import Image from "next/image";
 /**
  * "Welcome to Sithara Marina" introduction with the Heritage / Mission gallery.
  * From `xl` the three gallery columns are sized in `vw` to keep the
- * reference proportions; smaller screens use two columns, then one.
+ * reference proportions; tablets use two columns. Phones follow the mobile
+ * design: left-aligned intro and only the backwaters photo (the Heritage and
+ * Mission cards are desktop/tablet only).
  */
 export function AboutSection() {
   return (
-    <section aria-labelledby="about-heading" className="bg-surface font-brand pt-20 pb-20 lg:pt-24">
-      <div className="mx-auto max-w-[52rem] px-5 text-center sm:px-10">
-        <p className="text-midnight text-[0.6875rem] tracking-[0.2em] uppercase">
+    <section
+      aria-labelledby="about-heading"
+      className="bg-surface font-brand -mb-6 pt-14 pb-2 md:mb-0 md:pt-20 md:pb-20 lg:pt-24"
+    >
+      <div className="mx-auto max-w-[52rem] px-5 text-left sm:px-10 md:text-center">
+        <p className="text-midnight text-[0.625rem] tracking-[0.2em] uppercase md:text-[0.6875rem]">
           Welcome to Sithara Marina
         </p>
         <h2
           id="about-heading"
-          className="text-midnight mt-5 text-[clamp(2.5rem,4.03vw,4.35rem)] leading-[1.08] font-normal tracking-[-0.03em] lg:mt-6"
+          className="text-midnight mt-4 text-[clamp(2.125rem,10.3vw,2.5rem)] leading-[1.02] font-normal tracking-[-0.03em] md:mt-5 md:text-[clamp(2.5rem,4.03vw,4.35rem)] md:leading-[1.08] lg:mt-6"
         >
           Private yachting,
           <br />
           with a <span className="font-serif tracking-[-0.01em]">Kerala</span>{" "}
           <em className="font-serif tracking-[-0.01em]">soul.</em>
         </h2>
-        <p className="text-graphite mx-auto mt-7 max-w-[32rem] text-lg leading-[1.3] lg:text-[1.2875rem] lg:leading-[1.24]">
+        <p className="text-graphite mt-7 max-w-[32rem] text-[0.8125rem] leading-[1.6] md:mx-auto md:text-lg md:leading-[1.3] lg:text-[1.2875rem] lg:leading-[1.24]">
           From the historic shores of Kochi to the tranquil waters of Kumarakom, Sithara Marina
           brings a new perspective to Kerala.
         </p>
@@ -33,8 +38,8 @@ export function AboutSection() {
         </p>
       </div>
 
-      <div className="mt-16 grid gap-14 px-5 sm:px-10 md:grid-cols-2 md:gap-x-10 xl:grid-cols-[1fr_28.7vw_1fr] xl:gap-0 xl:px-[5.9vw]">
-        <article className="xl:w-[16.2vw]">
+      <div className="mt-8 grid gap-14 px-5 sm:px-10 md:mt-16 md:grid-cols-2 md:gap-x-10 xl:grid-cols-[1fr_28.7vw_1fr] xl:gap-0 xl:px-[5.9vw]">
+        <article className="hidden md:block xl:w-[16.2vw]">
           <div className="relative aspect-[7/8]">
             <Image
               src="/images/home/about-heritage.png"
@@ -51,7 +56,7 @@ export function AboutSection() {
           </p>
         </article>
 
-        <div className="relative aspect-[4/5] md:order-last md:col-span-2 md:aspect-[16/10] xl:order-none xl:col-span-1 xl:mt-[2.66vw] xl:aspect-[496/600]">
+        <div className="relative aspect-[368/437] md:order-last md:col-span-2 md:aspect-[16/10] xl:order-none xl:col-span-1 xl:mt-[2.66vw] xl:aspect-[496/600]">
           <Image
             src="/images/home/hero-yacht-img.png"
             alt="Aerial view of a yacht cruising the Kerala backwaters at sunset"
@@ -62,7 +67,7 @@ export function AboutSection() {
           />
         </div>
 
-        <article className="xl:mt-[0.64vw] xl:w-[17.36vw] xl:justify-self-end">
+        <article className="hidden md:block xl:mt-[0.64vw] xl:w-[17.36vw] xl:justify-self-end">
           <div className="relative aspect-[15/13]">
             <Image
               src="/images/home/about-mission.jpg"

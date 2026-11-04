@@ -53,30 +53,18 @@ export class ApiError extends Error {
     this.headers = options.headers;
   }
 
-  private get parsedBody(): ApiErrorBody | undefined {
-    return this.body && typeof this.body === "object" ? (this.body as ApiErrorBody) : undefined;
-  }
-
-  /** Backend error code (e.g. "INVALID_TOKEN"), when the body has one. */
-  get code(): string | undefined {
-    return typeof this.parsedBody?.code === "string" ? this.parsedBody.code : undefined;
-  }
-
-  /** Backend message(s) as a list; validation errors return several. */
-  get messages(): string[] {
-    const message = this.parsedBody?.message;
-    if (Array.isArray(message)) return message.filter((m) => typeof m === "string");
-    return typeof message === "string" ? [message] : [];
-  }
-
-  /** Seconds from the `Retry-After` header (429 / 503), if sent. */
+  /**
+   * Seconds to wait from the `Retry-After` header (delta-seconds or HTTP date),
+   * or `undefined` when absent or unreadable. Cross-origin, browsers expose this
+   * header only if the backend lists it in `Access-Control-Expose-Headers`.
+   */
   get retryAfterSeconds(): number | undefined {
-    const value = this.headers?.get("Retry-After");
+    const value = this.headers?.get("Retry-After")?.trim();
     if (!value) return undefined;
-    const seconds = Number(value);
-    if (Number.isFinite(seconds)) return Math.max(0, Math.ceil(seconds));
+    if (/^\d+$/.test(value)) return Number(value);
     const date = Date.parse(value);
-    return Number.isNaN(date) ? undefined : Math.max(0, Math.ceil((date - Date.now()) / 1000));
+    if (Number.isNaN(date)) return undefined;
+    return Math.max(0, Math.ceil((date - Date.now()) / 1000));
   }
 
   /** 401 — not signed in, or the session has expired. */
