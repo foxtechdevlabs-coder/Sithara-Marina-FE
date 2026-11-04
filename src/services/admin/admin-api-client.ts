@@ -19,10 +19,7 @@ import { createHttpClient } from "@/services/http/create-http-client";
 export const adminApiClient = createHttpClient({
   baseUrl: () => getPublicEnv().NEXT_PUBLIC_API_URL,
   timeoutMs: 15_000,
-  getHeaders: async (): Promise<HeadersInit> => {
-    const token = await getAccessToken();
-    return token ? { Authorization: `Bearer ${token}` } : {};
-  },
-  retryUnauthorized: () => refreshSession().catch(() => false),
+  getAccessToken,
+  refreshAccessToken: refreshSession,
   onUnauthorized: () => clearSession("expired"),
 });

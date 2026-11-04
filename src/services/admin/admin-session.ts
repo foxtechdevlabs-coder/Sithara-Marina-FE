@@ -174,6 +174,7 @@ export function refreshSession(): Promise<boolean> {
     }
     try {
       const pair = await apiClient.post("/admin/auth/refresh", {
+        auth: false,
         body: { refresh_token: latest.refreshToken },
         schema: tokenPairSchema,
       });

@@ -38,7 +38,7 @@ export function AccountPageShell({
         aria-labelledby={headingId}
         className={cx(
           "border-t border-[#d9dcdf] px-5 pt-16 pb-24 text-[#0d1b2a] sm:px-10 lg:pt-[calc(var(--r)*105)] lg:pr-[calc(var(--rw)*101)] lg:pb-[calc(var(--r)*101)] lg:pl-[calc(var(--rw)*100)] lg:[--r:var(--rw)] lg:[--rw:calc(100vw/1728)]",
-          aside &&
+          Boolean(aside) &&
             "md:grid md:grid-cols-[minmax(0,1fr)_minmax(16rem,22rem)] md:gap-x-12 lg:grid-cols-[1fr_calc(var(--rw)*440)] lg:gap-x-0",
         )}
       >

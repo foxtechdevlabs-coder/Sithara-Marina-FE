@@ -18,8 +18,11 @@ export interface HttpClientOptions {
    * expired session (e.g. clear it and redirect to sign-in).
    */
   onUnauthorized?: (error: ApiError) => void | Promise<void>;
-  /** Current access token, sent as `Authorization: Bearer …` on `auth` requests. */
-  getAccessToken?: () => string | null;
+  /**
+   * Current access token, sent as `Authorization: Bearer …` on `auth` requests.
+   * May be async, e.g. to renew a token that is about to expire.
+   */
+  getAccessToken?: () => string | null | Promise<string | null>;
   /**
    * Obtains a new access token. Resolves `true` when the session was renewed.
    * The client runs at most one refresh at a time and retries a request once.
@@ -94,6 +97,8 @@ export function createHttpClient({
   timeoutMs: defaultTimeoutMs,
   getHeaders,
   onUnauthorized,
+  getAccessToken,
+  refreshAccessToken,
 }: HttpClientOptions): HttpClient {
   /** One shared refresh at a time; concurrent 401s and new requests wait for it. */
   let refreshInFlight: Promise<boolean> | null = null;
@@ -112,7 +117,8 @@ export function createHttpClient({
   async function send<TResponse>(
     method: HttpMethod,
     path: string,
-    options: RequestOptions<TResponse> = {},
+    options: RequestOptions<TResponse>,
+    accessToken: string | null,
   ): Promise<TResponse> {
     const { query, body, headers, signal, schema, init } = options;
     const timeoutMs =
@@ -190,7 +196,6 @@ export function createHttpClient({
         body: data,
         headers: response.headers,
       });
-      if (error.isUnauthorized && onUnauthorized) await onUnauthorized(error);
       throw error;
     }
 
@@ -216,7 +221,7 @@ export function createHttpClient({
   ): Promise<TResponse> {
     const useAuth = options.auth !== false;
     if (useAuth && refreshInFlight) await refreshInFlight; // queue behind a running refresh
-    const sentToken = useAuth ? (getAccessToken?.() ?? null) : null;
+    const sentToken = useAuth ? ((await getAccessToken?.()) ?? null) : null;
 
     try {
       return await send(method, path, options, sentToken);
@@ -226,9 +231,9 @@ export function createHttpClient({
       let finalError = error;
       if (sentToken && options.refreshOnUnauthorized !== false) {
         // Another request may already have renewed the token; otherwise refresh once.
-        const current = getAccessToken?.() ?? null;
+        const current = (await getAccessToken?.()) ?? null;
         const renewed = current !== null && current !== sentToken ? true : await refreshOnce();
-        const retryToken = renewed ? (getAccessToken?.() ?? null) : null;
+        const retryToken = renewed ? ((await getAccessToken?.()) ?? null) : null;
         if (retryToken) {
           try {
             return await send(method, path, options, retryToken); // single retry, never loops

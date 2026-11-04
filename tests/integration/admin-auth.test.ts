@@ -79,6 +79,28 @@ describe("admin login", () => {
   });
 });
 
+describe("alongside a signed-in customer", () => {
+  it("keeps the customer's session out of public admin calls", async () => {
+    const { auth } = await load();
+    const handlers = await import("@/services/http/auth-handlers");
+    const customer = {
+      getAccessToken: () => "customer-token",
+      refresh: vi.fn(async () => true),
+      onSessionExpired: vi.fn(),
+    };
+    handlers.registerAuthHandlers(customer);
+    const fetchMock = vi.fn(async () => json({ statusCode: 401, message: "Invalid" }, 401));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(auth.login("a@b.co", "wrong-password")).rejects.toMatchObject({ status: 401 });
+
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(new Headers(init.headers).get("Authorization")).toBeNull();
+    expect(customer.refresh).not.toHaveBeenCalled();
+    expect(customer.onSessionExpired).not.toHaveBeenCalled();
+  });
+});
+
 describe("token refresh", () => {
   it("sends only one refresh request for concurrent callers", async () => {
     const { session } = await load();

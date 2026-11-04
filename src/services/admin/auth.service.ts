@@ -39,6 +39,7 @@ export type ResetToken = z.infer<typeof resetTokenSchema>;
 /** POST /admin/auth/login — stores the returned token pair. */
 export async function login(email: string, password: string): Promise<void> {
   const pair = await apiClient.post("/admin/auth/login", {
+    auth: false,
     body: { email, password },
     schema: tokenPairSchema,
   });
@@ -72,6 +73,7 @@ export async function logout(): Promise<void> {
  */
 export async function requestStaffPasswordReset(email: string): Promise<string> {
   const { message } = await apiClient.post("/admin/auth/forgot-password", {
+    auth: false,
     body: { email },
     schema: messageSchema,
   });
@@ -84,6 +86,7 @@ export async function requestStaffPasswordReset(email: string): Promise<string> 
  */
 export function verifyResetLink(token: string): Promise<ResetToken> {
   return apiClient.post("/admin/auth/verify-reset-link", {
+    auth: false,
     body: { token },
     schema: resetTokenSchema,
   });
@@ -96,6 +99,7 @@ export async function resetPassword(input: {
   confirmPassword: string;
 }): Promise<string> {
   const { message } = await apiClient.post("/admin/auth/reset-password", {
+    auth: false,
     body: {
       reset_token: input.resetToken,
       new_password: input.newPassword,

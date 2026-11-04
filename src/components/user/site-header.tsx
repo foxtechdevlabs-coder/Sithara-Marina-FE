@@ -2,7 +2,6 @@
 
 import { BRAND_NAME } from "@/constants/brand";
 import { ArrowRight, UserRound, X } from "lucide-react";
-import { ArrowRight, UserRound, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -122,6 +121,22 @@ export function SiteHeader() {
             ))}
           </span>
         </Link>
+
+        <div className="flex gap-1.5 md:gap-2.5 lg:gap-[1.125rem]">
+          {/* Sign in: full button from lg, icon-only from sm; inside the menu on phones. */}
+          <Link
+            href={userRoutes.login}
+            onClick={closeMenu}
+            aria-label="Sign in"
+            aria-current={isCurrent(userRoutes.login) ? "page" : undefined}
+            className={cx(
+              "hidden h-[3.3125rem] w-11 items-center justify-center gap-2.5 border border-[#0d1b2a] bg-white text-[0.875rem] text-[#0d1b2a] transition-colors duration-300 hover:bg-[#0d1b2a] hover:text-white sm:inline-flex lg:w-[11.75rem]",
+              focusRing,
+            )}
+          >
+            <UserRound aria-hidden="true" strokeWidth={1.5} className="size-[1.125rem] shrink-0" />
+            <span className="hidden lg:inline">Sign in</span>
+          </Link>
 
           <Link
             href={bookingNav.href}
