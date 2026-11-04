@@ -7,23 +7,24 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 
 import { adminNav } from "@/config/admin-navigation";
-
-import { findYacht } from "./fleet-data";
 import { adminRoutes, userRoutes } from "@/constants/routes";
+import { useBreadcrumbYacht } from "@/features/admin/fleet/hooks/use-breadcrumb-yacht";
 
 import { AdminFonts, CANVAS, INK, MUTED, NAVY, SANS } from "./admin-theme";
 import { SidebarNav } from "./sidebar-nav";
 
 /** Small label at the top of each page, e.g. "Operations / Bookings". */
-function pageLabel(pathname: string): string {
+function pageLabel(pathname: string, yacht: { id: string; name: string } | null): string {
   // Screen codes from the Figma designs.
   if (pathname === adminRoutes.dashboard) return "Operations / A02";
   if (pathname === adminRoutes.fleet) return "Operations / A03";
   if (pathname === adminRoutes.fleetNew) return "Operations / Yachts / New";
-  const yachtMatch = pathname.match(/^\/admin\/fleet\/([^/]+)(\/edit)?$/);
+  const yachtMatch = pathname.match(/^\/admin\/fleet\/([^/]+)(\/edit|\/pricing)?$/);
   if (yachtMatch && yachtMatch[1] !== "new") {
-    const yacht = findYacht(decodeURIComponent(yachtMatch[1]!));
-    if (yacht) return `Operations / Yachts / ${yacht.form.name}${yachtMatch[2] ? " / Edit" : ""}`;
+    const id = decodeURIComponent(yachtMatch[1]!);
+    const name = yacht?.id === id ? yacht.name : "Yacht";
+    const sub = yachtMatch[2] === "/edit" ? " / Edit" : yachtMatch[2] ? " / Slots & pricing" : "";
+    return `Operations / Yachts / ${name}${sub}`;
   }
   for (const section of adminNav)
     for (const item of section.items)
@@ -51,6 +52,7 @@ function Logo({ className }: { className: string }) {
  */
 export function DashboardShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const yacht = useBreadcrumbYacht();
   const [menuOpen, setMenuOpen] = useState(false);
 
   // Close the drawer on Escape.
@@ -119,7 +121,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="hidden items-center justify-between pt-[37px] pr-[238px] pl-[46px] lg:flex">
           <p className="text-[10px] tracking-[0.12em] uppercase" style={{ color: MUTED }}>
-            {pageLabel(pathname)}
+            {pageLabel(pathname, yacht)}
           </p>
           <div className="flex items-center gap-[14px]">
             {/^\/admin\/fleet\/(?!new$)[^/]+$/.test(pathname) && (

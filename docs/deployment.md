@@ -20,7 +20,7 @@ on it.
 
 ```bash
 npm ci                                   # exact lockfile install
-export NEXT_PUBLIC_API_URL=https://api.example.com   # real value from the backend team
+export NEXT_PUBLIC_API_URL=https://sithara-backend.onrender.com   # hosted backend
 npm run check                            # typecheck, lint, format, unit/integration tests
 npm run build                            # one production build in .next/
 npm run start -- --port 3000             # or set PORT

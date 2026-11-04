@@ -1,11 +1,17 @@
 import type { ReactNode } from "react";
 
 import { DashboardShell } from "@/components/admin/dashboard-shell";
+import { RequireAdmin } from "@/features/admin/auth/components/require-admin";
 
 /**
- * Every authenticated admin route lives in this group. This layout is the
- * intended place for the future staff-session check once auth is defined.
+ * Every authenticated admin route lives in this group. `RequireAdmin` shows it
+ * only to a signed-in admin or super admin (session restored with
+ * GET /admin/auth/me); the backend enforces access on every endpoint.
  */
 export default function DashboardLayout({ children }: { children: ReactNode }) {
-  return <DashboardShell>{children}</DashboardShell>;
+  return (
+    <RequireAdmin>
+      <DashboardShell>{children}</DashboardShell>
+    </RequireAdmin>
+  );
 }

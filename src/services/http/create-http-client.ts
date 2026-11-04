@@ -17,6 +17,12 @@ export interface HttpClientOptions {
    * single place to react to an expired session (e.g. redirect to sign-in).
    */
   onUnauthorized?: (error: ApiError) => void | Promise<void>;
+  /**
+   * Called when the backend answers 401. Resolve `true` after renewing the
+   * credentials (e.g. refreshing an access token) to retry the request once;
+   * resolve `false` to give up, which then calls `onUnauthorized`.
+   */
+  retryUnauthorized?: () => Promise<boolean>;
 }
 
 type MethodCall = <TResponse = unknown>(
@@ -86,11 +92,13 @@ export function createHttpClient({
   timeoutMs: defaultTimeoutMs,
   getHeaders,
   onUnauthorized,
+  retryUnauthorized,
 }: HttpClientOptions): HttpClient {
   async function request<TResponse = unknown>(
     method: HttpMethod,
     path: string,
     options: RequestOptions<TResponse> = {},
+    isRetry = false,
   ): Promise<TResponse> {
     const { query, body, headers, signal, schema, init } = options;
     const timeoutMs =
@@ -152,6 +160,7 @@ export function createHttpClient({
             kind: "parse",
             status: response.status,
             body: text,
+            headers: response.headers,
             cause,
           });
         }
@@ -164,8 +173,14 @@ export function createHttpClient({
         kind: "http",
         status: response.status,
         body: data,
+        headers: response.headers,
       });
-      if (error.isUnauthorized && onUnauthorized) await onUnauthorized(error);
+      if (error.isUnauthorized) {
+        if (!isRetry && retryUnauthorized && (await retryUnauthorized())) {
+          return request(method, path, options, true);
+        }
+        if (onUnauthorized) await onUnauthorized(error);
+      }
       throw error;
     }
 
@@ -177,6 +192,7 @@ export function createHttpClient({
         kind: "validation",
         status: response.status,
         body: data,
+        headers: response.headers,
         cause: parsed.error,
       });
     }

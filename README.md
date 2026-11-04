@@ -55,7 +55,9 @@ Details: [docs/testing.md](docs/testing.md).
 | --------------------- | -------- | ------------------ | ---------------------------- |
 | `NEXT_PUBLIC_API_URL` | Yes      | Yes                | Absolute base URL of the API |
 
-The value in `.env.example` is a placeholder; the backend team must confirm the real URL. Never
+`.env.example` points at the hosted backend, `https://sithara-backend.onrender.com`
+([API docs](https://sithara-backend.onrender.com/docs)); use `http://localhost:3000` for a local
+backend. Never
 put secrets in `NEXT_PUBLIC_*` variables. See [docs/api-integration.md](docs/api-integration.md).
 
 ## Deployment (overview)

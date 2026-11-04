@@ -112,9 +112,13 @@ When the contract is known:
 | --------------------- | ------------------ | ------------------------------------------- |
 | `NEXT_PUBLIC_API_URL` | **Yes**            | Absolute base URL of the API (user + admin) |
 
-- Copy `.env.example` to `.env.local` (git-ignored). Locally the backend runs at
-  `http://localhost:3000` with no `/api` prefix (reference: <http://localhost:3000/docs>). Once the
-  server is hosted, set the hosted URL in the deployment's environment settings and redeploy.
+- Copy `.env.example` to `.env.local` (git-ignored). The hosted backend is
+  `https://sithara-backend.onrender.com`, with no `/api` prefix (reference:
+  <https://sithara-backend.onrender.com/docs>, health: <https://sithara-backend.onrender.com/health>).
+  To use a backend running locally instead, set `http://localhost:3000`. In deployments, set the
+  same variable in the platform's environment settings and redeploy.
+- The hosted backend is on Render's free tier: the first request after it has been idle can take
+  up to about a minute while it wakes up.
 - `NEXT_PUBLIC_API_BASE_URL` (the previous name) is still accepted as a fallback.
 - `NEXT_PUBLIC_*` values are **inlined at build time** into browser JavaScript: never put secrets
   in them, and build with the target environment's values. `next build` fails if the variable is

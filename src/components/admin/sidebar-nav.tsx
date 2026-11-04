@@ -2,10 +2,15 @@
 
 import { LogOut } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useState } from "react";
 
 import { adminNav } from "@/config/admin-navigation";
 import { adminRoutes } from "@/constants/routes";
+import {
+  roleLabel,
+  useAdminSession,
+} from "@/features/admin/auth/components/admin-session-provider";
 import { cx } from "@/lib/cx";
 
 import { INK, SAND } from "./admin-theme";
@@ -15,12 +20,20 @@ function isActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-// DUMMY signed-in staff member until the staff session API exists.
-export const STAFF = { name: "Anjali Krishnan", role: "Super administrator", initials: "AK" };
-
 /** Sidebar links, signed-in staff member and sign out. */
 export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { admin, signOut } = useAdminSession();
+  const [signingOut, setSigningOut] = useState(false);
+
+  async function handleSignOut() {
+    setSigningOut(true);
+    onNavigate?.();
+    // POST /admin/auth/logout; the local session is cleared even if it fails.
+    await signOut().catch(() => {});
+    router.replace(adminRoutes.login);
+  }
 
   return (
     <nav aria-label="Admin" className="text-[13px] [&>div:first-child>p]:mt-0">
@@ -55,17 +68,18 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
       ))}
 
       <div className="mt-[24px] border-t border-white/40 pt-[16px] text-[10.5px] leading-[15px] text-white">
-        <p>{STAFF.name}</p>
-        <p>{STAFF.role}</p>
+        <p>{admin?.fullName}</p>
+        <p>{admin ? roleLabel(admin.role) : null}</p>
       </div>
-      <Link
-        href={adminRoutes.login}
-        onClick={onNavigate}
-        className="mt-[12px] flex h-[40px] items-center gap-[13px] px-[11px] text-white transition-colors hover:bg-white/[0.06] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-white"
+      <button
+        type="button"
+        onClick={handleSignOut}
+        disabled={signingOut}
+        className="mt-[12px] flex h-[40px] w-full items-center gap-[13px] px-[11px] text-white transition-colors hover:bg-white/[0.06] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-white"
       >
         <LogOut aria-hidden="true" strokeWidth={1.5} className="size-[16px]" />
-        Sign out
-      </Link>
+        {signingOut ? "Signing out…" : "Sign out"}
+      </button>
     </nav>
   );
 }
