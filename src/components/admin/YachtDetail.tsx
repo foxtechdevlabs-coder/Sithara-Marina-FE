@@ -8,11 +8,14 @@ import { useEffect, useState, type ReactNode } from "react";
 import { adminRoutes, userRoutes } from "@/constants/routes";
 import { CommissionPanel } from "@/features/admin/fleet/components/commission-panel";
 import { CrewPanel } from "@/features/admin/fleet/components/crew-panel";
+import { PackagesPanel } from "@/features/admin/fleet/components/packages-panel";
 import { PhotoLightbox } from "@/features/admin/fleet/components/photo-lightbox";
 import { useAdminQuery } from "@/features/admin/fleet/hooks/use-admin-query";
 import { usePublishBreadcrumbYacht } from "@/features/admin/fleet/hooks/use-breadcrumb-yacht";
 import { useYachtStatus } from "@/features/admin/fleet/hooks/use-yacht-status";
 import { fleetErrorMessage } from "@/features/admin/fleet/utils/fleet-error-message";
+import { formatYears, kmhToKnots } from "@/features/admin/fleet/utils/yacht-form";
+import { formatPaise } from "@/features/admin/pricing/utils/pricing-form";
 import {
   getYacht,
   type Yacht,
@@ -20,6 +23,7 @@ import {
 } from "@/services/admin/fleet.service";
 import { isApiError } from "@/services/http/api-error";
 import { cx } from "@/lib/cx";
+import { formatTime } from "@/lib/time";
 
 import { BODY, GRADIENT, INK, MUTED, NAVY, SAND } from "./admin-theme";
 import { LoadState, Notice } from "./form-parts";
@@ -36,8 +40,13 @@ const MODE_LABEL = (y: Yacht) =>
 
 const NOTICES: Record<string, string> = {
   created:
-    "Yacht created. It is hidden from the website until you add operating hours, a priced slot type and a photo, then make it visible.",
+    "Yacht created. It stays hidden from the website until it has a priced package and a photo, and you make it visible.",
+  "no-photos":
+    "Yacht created without photos, because photo upload isn't available right now. You can add them later in Edit yacht.",
   saved: "Changes saved.",
+  published: "Yacht created and published. It is now visible on the website.",
+  "not-published":
+    "The yacht was created with its packages and photos, but couldn't be made visible. Open Edit yacht and switch on “Visible on website” to try again.",
 };
 
 const card = "border border-[#e3e1dc] bg-white";
@@ -141,6 +150,17 @@ function OverviewTab({ yacht, onChange }: { yacht: YachtData; onChange: (y: Yach
           <Field label="Length" value={yacht.length_ft ? `${yacht.length_ft} ft` : "—"} />
           <Field label="Maximum guests" value={yacht.capacity} />
           <Field label="Suites" value={yacht.suites ?? "—"} />
+          <Field
+            label="Built / refit"
+            value={formatYears(yacht.built_year, yacht.refit_year) || "—"}
+          />
+          <Field
+            label="Cruising speed"
+            value={
+              yacht.cruising_speed_kmh === null ? "—" : `${kmhToKnots(yacht.cruising_speed_kmh)} kn`
+            }
+          />
+          <Field label="Registration no." value={yacht.registration_number || "—"} />
           <Field label="Departure city" value={yacht.departure_city || "—"} />
           <Field label="Departure points" value={yacht.departure_points.join(" · ") || "—"} />
           <Field
@@ -157,6 +177,14 @@ function OverviewTab({ yacht, onChange }: { yacht: YachtData; onChange: (y: Yach
 
       <Panel title="On the website">
         <p className="text-[12px]" style={{ color: MUTED }}>
+          Card tagline
+        </p>
+        <p className="mt-[6px] text-[16px] leading-[24px]">{yacht.card_tagline || "—"}</p>
+        <p className="mt-[22px] text-[12px]" style={{ color: MUTED }}>
+          Cruising regions
+        </p>
+        <Tags items={yacht.cruising_regions} empty="None listed" />
+        <p className="mt-[22px] text-[12px]" style={{ color: MUTED }}>
           Description
         </p>
         <p className="mt-[6px] text-[16px] leading-[24px] whitespace-pre-line">
@@ -185,12 +213,21 @@ function OverviewTab({ yacht, onChange }: { yacht: YachtData; onChange: (y: Yach
             label="Operating hours"
             value={
               yacht.opens_at && yacht.closes_at
-                ? `${yacht.opens_at} – ${yacht.closes_at}`
+                ? `${formatTime(yacht.opens_at)} – ${formatTime(yacht.closes_at)}`
                 : "Not set"
             }
           />
           <Field label="Turnaround" value={`${yacht.turnaround_minutes} min`} />
-          <Field label="Enquiries" value={yacht.enquiry_enabled ? "Accepted" : "Off"} />
+          <Field
+            label="Enquiries"
+            value={
+              yacht.booking_mode === "enquiry_only" || yacht.enquiry_enabled ? "Accepted" : "Off"
+            }
+          />
+          <Field
+            label="Hourly rate (reference)"
+            value={yacht.hourly_rate === null ? "—" : formatPaise(yacht.hourly_rate)}
+          />
         </dl>
         <Link
           href={adminRoutes.fleetYachtPricing(yacht.id)}
@@ -201,6 +238,7 @@ function OverviewTab({ yacht, onChange }: { yacht: YachtData; onChange: (y: Yach
         </Link>
       </Panel>
 
+      <PackagesPanel yachtId={yacht.id} hourlyRate={yacht.hourly_rate} />
       <CrewPanel yacht={yacht} onSaved={onChange} />
       {yacht.ownership_type === "partner" && <CommissionPanel yacht={yacht} onSaved={onChange} />}
     </div>
@@ -285,7 +323,14 @@ export default function YachtDetail({ yachtId }: { yachtId: string }) {
         Sithara Marina / Admin
       </p>
 
-      {notice && <Notice className="mt-[14px]">{notice}</Notice>}
+      {notice && (
+        <Notice
+          tone={notice === NOTICES["not-published"] ? "error" : "success"}
+          className="mt-[14px]"
+        >
+          {notice}
+        </Notice>
+      )}
 
       <div className="mt-[14px] flex flex-col gap-[20px] xl:flex-row xl:items-end xl:justify-between">
         <div className="min-w-0">

@@ -11,6 +11,7 @@ import { adminRoutes, userRoutes } from "@/constants/routes";
 import { useBreadcrumbYacht } from "@/features/admin/fleet/hooks/use-breadcrumb-yacht";
 
 import { AdminFonts, CANVAS, INK, MUTED, NAVY, SANS } from "./admin-theme";
+import { BackButton, useBackNavigation } from "./back-button";
 import { SidebarNav } from "./sidebar-nav";
 
 /** Small label at the top of each page, e.g. "Operations / Bookings". */
@@ -53,6 +54,7 @@ function Logo({ className }: { className: string }) {
 export function DashboardShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const yacht = useBreadcrumbYacht();
+  const goBack = useBackNavigation();
   const [menuOpen, setMenuOpen] = useState(false);
 
   // Close the drawer on Escape.
@@ -120,9 +122,12 @@ export function DashboardShell({ children }: { children: ReactNode }) {
 
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="hidden items-center justify-between pt-[37px] pr-[238px] pl-[46px] lg:flex">
-          <p className="text-[10px] tracking-[0.12em] uppercase" style={{ color: MUTED }}>
-            {pageLabel(pathname, yacht)}
-          </p>
+          <div className="flex items-center gap-[20px]">
+            <BackButton onBack={goBack} />
+            <p className="text-[10px] tracking-[0.12em] uppercase" style={{ color: MUTED }}>
+              {pageLabel(pathname, yacht)}
+            </p>
+          </div>
           <div className="flex items-center gap-[14px]">
             {/^\/admin\/fleet\/(?!new$)[^/]+$/.test(pathname) && (
               <Link
@@ -148,6 +153,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
             </Link>
           </div>
         </div>
+        <BackButton onBack={goBack} className="mt-[12px] ml-[20px] w-fit lg:hidden" />
         <main id="main" className="flex-1">
           {children}
         </main>

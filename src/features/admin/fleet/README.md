@@ -31,17 +31,36 @@ validation (mirrors the backend DTO rules): `utils/yacht-form.ts`. Error wording
 
 - Data is loaded in the browser (`hooks/use-admin-query.ts`), because the admin session lives there.
 - On create, photos are queued and uploaded after `POST /admin/yachts` succeeds. On edit, photo
-  changes are saved immediately.
+  changes are saved immediately. Photos are optional for creating a yacht, so a failed upload never
+  blocks it: the yacht page opens with a note, and photos can be added later in Edit yacht. The
+  backend needs one only before a yacht can be visible.
 - The form's three booking options map to `booking_mode` + `enquiry_enabled`: Instant =
-  `instant`/false, Slots + concierge = `instant`/true, Enquiry only = `enquiry_only`/true.
+  `instant`/false, Slots + concierge = `instant`/true, Enquiry only = `enquiry_only`.
+  `enquiry_enabled` only matters for `instant` yachts, so it isn't sent for `enquiry_only`.
 - The add/edit form follows the admin design. Length is entered in metres and saved as whole
   feet (`length_ft`); "Home port" is saved as `departure_city`. Edit also shows saved fields the
   design leaves out (URL name, departure points, inclusions, policies).
-- Design fields with **no backend field yet** are shown, marked "Not saved yet", and never sent:
-  registration no., cruising regions, crew (count), built / refit, cruising speed, card tagline,
-  day rate, minimum days, deposit %, embark / disembark time, and the "Under maintenance" status.
-  Operational status Active / Inactive is saved with `…/activate` / `…/deactivate`.
-- New yachts are always created hidden (backend rule). "Publish yacht" creates the yacht and opens
-  Slots & pricing, since a yacht needs a priced slot type before it can be visible.
+- Cruising speed is entered in knots and saved as km/h; "Built / refit" is one input saved as
+  `built_year` + `refit_year`. "Hourly rate" (`hourly_rate`) is a staff reference: customers pay the
+  slot price rules, never this. "Publish yacht" also needs a region and a tagline; a draft doesn't.
+- Operational status Active / Inactive is saved with `…/activate` / `…/deactivate`.
+- Operating hours and packages (`utils/booking-setup.ts`) are on both the add and edit forms, and
+  are saved through `PUT …/slot-types` and the price-rule endpoints; the API has no minimum-duration
+  or package fields. A package's switch is the slot type's `is_active`: on with a price is bookable,
+  off hides it and keeps its price. `PUT` always sends every package with its id, because one left
+  out is deleted along with its prices. Turning off a visible yacht's last priced package returns
+  409 `NOT_PUBLISHABLE`.
+  Every charter starts at 5:00 AM or later and is back by 7:00 PM the same day, so `closes_at`
+  (last return) is at most 19:00 and each package gets the hourly starts it can finish from (a
+  3-hour package's last start is 4:00 PM). On edit, unchanged hours leave saved start times and
+  display order alone, so slots made on Slots & pricing aren't rewritten.
+- Package prices start as hourly rate × hours and stay editable. A price that no longer matches
+  stays as typed when the rate changes. A saved package with no price gets rate × hours when the
+  edit form opens, and the yacht page shows it with a button to save it, since a package can't be
+  booked until its price is saved. Guests pay the saved package price, not `hourly_rate`.
+- New yachts are always created hidden (backend rule). "Publish yacht" then makes the yacht visible
+  if it has a priced package and a photo; without a price it opens Slots & pricing.
+- The yacht page lists the packages read-only (`components/packages-panel.tsx`): Bookable, Hidden, or
+  Needs a price. They are changed on the edit form.
 - Bookings, availability, activity and "next charter" on the yacht page are not connected yet.
 - Photo upload needs the storage bucket's CORS rule to allow `PUT` from the admin origin.

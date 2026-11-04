@@ -18,7 +18,11 @@ import {
   yachtPhotoProblem,
 } from "@/services/admin/media.service";
 
-import { fleetErrorMessage } from "../utils/fleet-error-message";
+import {
+  fleetErrorMessage,
+  isPhotoUploadDown,
+  photoUploadMessage,
+} from "../utils/fleet-error-message";
 import { PhotoLightbox } from "./photo-lightbox";
 
 /** A photo picked before the yacht exists; uploaded after it is created. */
@@ -135,9 +139,10 @@ export function YachtGallery(props: Props) {
         setNotice(`${attached.length} ${attached.length === 1 ? "photo" : "photos"} added.`);
       }
       if (failed.length) {
-        setProblem(
-          `${failed.length} ${failed.length === 1 ? "photo" : "photos"} couldn't be uploaded. ${fleetErrorMessage(failed[0]!.reason)}`,
-        );
+        const text = `${failed.length} ${failed.length === 1 ? "photo wasn't" : "photos weren't"} added. ${photoUploadMessage(failed[0]!.reason)}`;
+        // Photos are optional, so storage being unavailable is a note, not an error.
+        if (isPhotoUploadDown(failed[0]!.reason)) setNotice(text);
+        else setProblem(text);
       }
     } catch (err) {
       setProblem(`The photos were uploaded but couldn't be added. ${fleetErrorMessage(err)}`);
@@ -213,8 +218,8 @@ export function YachtGallery(props: Props) {
   return (
     <div aria-busy={busy}>
       <p className="-mt-[12px] text-[12px] leading-[18px]" style={{ color: "#4a4f55" }}>
-        Drag to reorder; choose the image used in yacht search. At least 3 photos, landscape, 2400px
-        wide or more.
+        Optional for now: a yacht needs at least one photo before it can be visible on the website.
+        Drag to reorder; choose the image used in yacht search. Landscape, 2400px wide or more.
         {props.mode === "live" && " Changes to photos are saved straight away."}
       </p>
 

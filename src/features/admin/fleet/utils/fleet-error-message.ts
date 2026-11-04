@@ -10,12 +10,25 @@ const EXPLAINED: Record<string, string> = {
   NOT_PUBLISHABLE:
     "A yacht can only be visible on the website once it has operating hours, an active slot type with an active base price, and at least one photo.",
   SLUG_EXISTS: "Another yacht already uses this URL name. Choose a different one.",
+  REGISTRATION_NUMBER_EXISTS: "Another yacht already has this registration number.",
+  INVALID_YACHT_YEARS: "The refit year can't be before the build year.",
   INVALID_PARTNER:
     "Choose an active partner for a partner-owned yacht (own yachts can't have a partner).",
   INVALID_PHOTO_ORDER: "The photo list changed in the meantime. Reload the page and try again.",
   STORAGE_NOT_CONFIGURED:
     "Photo storage isn't set up on the server yet, so photos can't be uploaded.",
 };
+
+/** Photo storage is down or not set up: photos have to wait, but that isn't an error in the form. */
+export const isPhotoUploadDown = (error: unknown) =>
+  isApiError(error) && (error.status ?? 0) >= 500;
+
+/** For a failed photo upload. */
+export function photoUploadMessage(error: unknown): string {
+  return isPhotoUploadDown(error)
+    ? "Photo upload isn't available right now. You can save the yacht without photos and add them later."
+    : fleetErrorMessage(error);
+}
 
 /**
  * A short, user-facing message for a failed admin fleet or pricing request.

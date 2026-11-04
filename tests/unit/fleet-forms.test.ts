@@ -1,14 +1,22 @@
 import { describe, expect, it } from "vitest";
 
 import { parseRate } from "@/features/admin/fleet/components/commission-panel";
-import { fleetErrorMessage } from "@/features/admin/fleet/utils/fleet-error-message";
+import {
+  fleetErrorMessage,
+  isPhotoUploadDown,
+  photoUploadMessage,
+} from "@/features/admin/fleet/utils/fleet-error-message";
 import {
   EMPTY_FORM,
   formFromYacht,
   toCreateInput,
   feetToMetres,
+  kmhToKnots,
+  knotsToKmh,
   metresToFeet,
+  parseYears,
   toPatch,
+  validateForPublish,
   validateYachtForm,
 } from "@/features/admin/fleet/utils/yacht-form";
 import {
@@ -17,6 +25,7 @@ import {
   rupeesToPaise,
   slotSetupProblem,
   toRuleInput,
+  toSlotSetupInput,
   toRulePatch,
   validateRuleDraft,
   emptyRuleDraft,
@@ -33,6 +42,13 @@ const saved: Yacht = {
   ownership_type: "partner",
   partner: { id: "p-1", name: "Coastal Co." },
   commission_rate: null,
+  registration_number: null,
+  built_year: null,
+  refit_year: null,
+  cruising_speed_kmh: null,
+  card_tagline: null,
+  hourly_rate: null,
+  cruising_regions: [],
   type: "Motor yacht",
   length_ft: 52,
   capacity: 12,
@@ -102,6 +118,9 @@ describe("yacht form → API", () => {
       capacity: 10,
     });
     expect(toPatch({ ...form, mode: "enquiry" }, saved)).toEqual({ booking_mode: "enquiry_only" });
+    expect(
+      toCreateInput({ ...EMPTY_FORM, name: "A", capacity: "4", mode: "enquiry" }),
+    ).not.toHaveProperty("enquiry_enabled");
   });
 
   it("switching to own sends ownership_type only (the server clears the partner)", () => {
@@ -128,6 +147,90 @@ describe("yacht form → API", () => {
     );
     expect(Object.keys(errors).sort()).toEqual(["capacity", "partner", "slug", "suites"]);
     expect(validateYachtForm({ ...formFromYacht(saved), slug: "" }, true)).toHaveProperty("slug");
+  });
+});
+
+describe("registration, regions, years, speed, tagline and rate", () => {
+  const filled = {
+    ...EMPTY_FORM,
+    name: "Azure",
+    capacity: "12",
+    registration: " kl-01-ab-1234 ",
+    regions: ["Arabian Sea"],
+    built: "2019 / 2024",
+    speed: "12",
+    tagline: " Sunset cruises ",
+    rate: "15,000",
+  };
+
+  it("creates with the API's fields and units", () => {
+    expect(toCreateInput(filled)).toMatchObject({
+      registration_number: "KL-01-AB-1234",
+      cruising_regions: ["Arabian Sea"],
+      built_year: 2019,
+      refit_year: 2024,
+      cruising_speed_kmh: 22.2,
+      card_tagline: "Sunset cruises",
+      hourly_rate: 1_500_000,
+    });
+  });
+
+  it("leaves them out when empty, and clears them with null on edit", () => {
+    const input = toCreateInput({ ...EMPTY_FORM, name: "A", capacity: "4" });
+    for (const key of ["registration_number", "built_year", "hourly_rate", "cruising_regions"])
+      expect(input).not.toHaveProperty(key);
+    const withValues = {
+      ...saved,
+      registration_number: "KL-1",
+      built_year: 2019,
+      hourly_rate: 100,
+    };
+    expect(
+      toPatch({ ...formFromYacht(withValues), registration: "", built: "", rate: "" }, withValues),
+    ).toEqual({ registration_number: null, built_year: null, hourly_rate: null });
+  });
+
+  it("round-trips speed and doesn't patch unchanged values", () => {
+    expect(kmhToKnots(knotsToKmh(12))).toBe(12);
+    const stored = {
+      ...saved,
+      registration_number: "KL-1",
+      cruising_speed_kmh: 37.5,
+      built_year: 2018,
+      refit_year: null,
+      hourly_rate: 1_500_050,
+      card_tagline: "Sunset",
+      cruising_regions: ["Arabian Sea"],
+    };
+    expect(toPatch(formFromYacht(stored), stored)).toEqual({});
+  });
+
+  it("reads the built / refit text", () => {
+    expect(parseYears("2019 / 2024")).toEqual({ built: 2019, refit: 2024 });
+    expect(parseYears("2019")).toEqual({ built: 2019, refit: null });
+    expect(parseYears("/ 2024")).toEqual({ built: null, refit: 2024 });
+    expect(parseYears("")).toEqual({ built: null, refit: null });
+    expect(parseYears("19")).toBeNull();
+  });
+
+  it("validates years, speed and rate; publishing also needs region and tagline", () => {
+    const bad = { ...filled, built: "2024 / 2019", speed: "12.34", rate: "abc" };
+    expect(Object.keys(validateYachtForm(bad, false)).sort()).toEqual(["built", "rate", "speed"]);
+    const nextYear = new Date().getFullYear() + 1;
+    expect(validateYachtForm({ ...filled, built: "1899" }, false)).toHaveProperty("built");
+    expect(validateYachtForm({ ...filled, built: `2019 / ${nextYear + 1}` }, false)).toHaveProperty(
+      "built",
+    );
+    expect(validateYachtForm({ ...filled, built: `/ ${nextYear}` }, false)).toEqual({});
+    expect(validateYachtForm({ ...filled, registration: "x".repeat(51) }, false)).toHaveProperty(
+      "registration",
+    );
+    expect(validateYachtForm({ ...filled, registration: "x".repeat(50) }, false)).toEqual({});
+    expect(Object.keys(validateForPublish(EMPTY_FORM)).sort()).toEqual([
+      "cruising-regions",
+      "tagline",
+    ]);
+    expect(validateForPublish(filled)).toEqual({});
   });
 });
 
@@ -165,7 +268,7 @@ describe("pricing form → API", () => {
 
   const setup = (over: Partial<SlotSetupDraft> = {}): SlotSetupDraft => ({
     opensAt: "08:00",
-    closesAt: "20:00",
+    closesAt: "19:00",
     turnaround: "30",
     slotTypes: [
       {
@@ -183,6 +286,25 @@ describe("pricing form → API", () => {
   it("checks the slot setup like the backend", () => {
     expect(slotSetupProblem(setup())).toBeNull();
     expect(slotSetupProblem(setup({ closesAt: "07:00" }))).toMatch(/after the first departure/);
+    expect(slotSetupProblem(setup({ closesAt: "19:30" }))).toMatch(/back by 7:00 PM/);
+    expect(slotSetupProblem(setup({ opensAt: "04:30" }))).toMatch(/5:00 AM or later/);
+    const types = setup().slotTypes[0]!;
+    expect(
+      slotSetupProblem(setup({ slotTypes: [{ ...types, startTimes: "9:00 AM, 2:00 PM" }] })),
+    ).toBeNull();
+    expect(
+      slotSetupProblem(setup({ slotTypes: [{ ...types, startTimes: "9:00 AM, 09:00" }] })),
+    ).toMatch(/twice/);
+    expect(slotSetupProblem(setup({ slotTypes: [{ ...types, startTimes: "soon" }] }))).toMatch(
+      /isn't a time/,
+    );
+    expect(slotSetupProblem(setup({ slotTypes: [{ ...types, startTimes: "5:00 PM" }] }))).toMatch(
+      /at 5:00 PM would end after the last return \(7:00 PM\)/,
+    );
+    expect(
+      toSlotSetupInput(setup({ slotTypes: [{ ...types, startTimes: "9:00 AM, 2:00 PM" }] }))
+        .slot_types[0]!.start_times,
+    ).toEqual(["09:00", "14:00"]);
     expect(
       slotSetupProblem(setup({ slotTypes: [{ ...setup().slotTypes[0]!, startTimes: "17:00" }] })),
     ).toMatch(/end after the last return/);
@@ -246,6 +368,16 @@ describe("pricing form → API", () => {
 
 describe("fleet error messages", () => {
   const http = (status: number, body: unknown) => new ApiError("x", { kind: "http", status, body });
+
+  it("says photos can wait when upload is down, and keeps other reasons", () => {
+    expect(photoUploadMessage(http(503, { code: "STORAGE_NOT_CONFIGURED" }))).toMatch(
+      /save the yacht without photos/,
+    );
+    expect(photoUploadMessage(http(500, {}))).toMatch(/save the yacht without photos/);
+    expect(photoUploadMessage(http(400, { message: "Not allowed" }))).toBe("Not allowed.");
+    expect(isPhotoUploadDown(http(503, {}))).toBe(true);
+    expect(isPhotoUploadDown(http(400, {}))).toBe(false);
+  });
 
   it("explains known codes and shows validation messages", () => {
     expect(fleetErrorMessage(http(409, { code: "SLUG_EXISTS", message: "x" }))).toMatch(/URL name/);

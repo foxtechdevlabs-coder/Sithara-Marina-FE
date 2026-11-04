@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, X } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { Spinner } from "@/components/ui/spinner";
@@ -21,33 +21,18 @@ export const outlineButton =
 export const PRIMARY_STYLE = { background: GRADIENT };
 export const OUTLINE_STYLE = { borderColor: INK };
 
-/** Marks a field the backend cannot store yet: shown, but not sent. */
-export function NotSaved() {
-  return (
-    <span
-      className="ml-[6px] inline-block border border-[#e8d6b4] bg-[#fbf5ea] px-[5px] align-[1px] text-[9px] leading-[14px] tracking-[0.06em] text-[#86601f] uppercase"
-      title="The backend has no field for this yet, so it isn't saved."
-    >
-      Not saved yet
-    </span>
-  );
-}
-
 export function Label({
   htmlFor,
   children,
   required,
   hint,
   as: Tag = "label",
-  notSaved,
 }: {
   htmlFor?: string;
   children: ReactNode;
   required?: boolean;
   hint?: string;
   as?: "label" | "p";
-  /** The backend has no field for this yet. */
-  notSaved?: boolean;
 }) {
   return (
     <Tag
@@ -58,7 +43,6 @@ export function Label({
       {children}
       {required && <span aria-hidden="true"> *</span>}
       {hint && <span className="text-[#8a8d91]"> — {hint}</span>}
-      {notSaved && <NotSaved />}
     </Tag>
   );
 }
@@ -126,15 +110,16 @@ export function ChipGroup({
   multiple,
   after,
   id,
-  notSaved,
+  onRemove,
 }: {
   label: string;
-  notSaved?: boolean;
   required?: boolean;
   hint?: string;
   options: { value: string; label: string }[];
   selected: string[];
   onToggle: (value: string) => void;
+  /** Adds an × to each chip that takes it out of the list. */
+  onRemove?: (value: string) => void;
   multiple?: boolean;
   after?: ReactNode;
   id?: string;
@@ -142,7 +127,7 @@ export function ChipGroup({
   return (
     <fieldset id={id}>
       <legend className="contents">
-        <Label as="p" required={required} hint={hint} notSaved={notSaved}>
+        <Label as="p" required={required} hint={hint}>
           {label}
         </Label>
       </legend>
@@ -150,22 +135,39 @@ export function ChipGroup({
         {options.map((o) => {
           const on = selected.includes(o.value);
           return (
-            <button
-              key={o.value}
-              type="button"
-              role={multiple ? undefined : "radio"}
-              aria-pressed={multiple ? on : undefined}
-              aria-checked={multiple ? undefined : on}
-              onClick={() => onToggle(o.value)}
-              className={cx(
-                chip,
-                on
-                  ? "border-[#0d1b2a] bg-[#0d1b2a] text-white"
-                  : "border-[#dcdad5] bg-white hover:border-[#0d1b2a]",
+            <span key={o.value} className="relative inline-flex max-w-full">
+              <button
+                type="button"
+                role={multiple ? undefined : "radio"}
+                aria-pressed={multiple ? on : undefined}
+                aria-checked={multiple ? undefined : on}
+                onClick={() => onToggle(o.value)}
+                className={cx(
+                  chip,
+                  onRemove && "pr-[34px]",
+                  on
+                    ? "border-[#0d1b2a] bg-[#0d1b2a] text-white"
+                    : "border-[#dcdad5] bg-white hover:border-[#0d1b2a]",
+                )}
+              >
+                {o.label}
+              </button>
+              {onRemove && (
+                <button
+                  type="button"
+                  aria-label={`Remove ${o.label}`}
+                  onClick={() => onRemove(o.value)}
+                  className={cx(
+                    "absolute top-1/2 right-[6px] flex size-[24px] -translate-y-1/2 items-center justify-center transition-colors focus-visible:outline-2",
+                    on
+                      ? "text-white hover:bg-white/20 focus-visible:outline-white"
+                      : "text-[#0d1b2a] hover:bg-[#f2f1ee] focus-visible:outline-[#0d1b2a]",
+                  )}
+                >
+                  <X aria-hidden="true" strokeWidth={1.75} className="size-[12px]" />
+                </button>
               )}
-            >
-              {o.label}
-            </button>
+            </span>
           );
         })}
         {after}
