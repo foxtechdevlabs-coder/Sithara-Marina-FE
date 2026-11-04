@@ -41,8 +41,24 @@ function verifyOnce(token: string): Promise<VerifyEmailResponse> {
 }
 
 /**
- * Email verification callback, matching the backend contract: the link in the
- * verification email opens this page as `/verify-email?token=<id>.<secret>`.
+ * Reads the emailed token from `#token=…`, or from `?token=…` for older links,
+ * then removes it from the address bar to keep the secret out of history,
+ * bookmarks and screenshots.
+ */
+function takeTokenFromUrl(): string | null {
+  const url = new URL(window.location.href);
+  const token =
+    new URLSearchParams(url.hash.slice(1)).get("token") ?? url.searchParams.get("token");
+  if (token !== null) {
+    url.searchParams.delete("token");
+    window.history.replaceState(null, "", url.pathname + url.search);
+  }
+  return token;
+}
+
+/**
+ * Email verification callback: the link in the verification email opens this
+ * page as `/verify-email#token=<id>.<secret>` (`?token=` is also accepted).
  * The token is read, removed from the address bar (never stored) and sent to
  * POST /auth/verify-email. Success signs the user in and shows the Welcome
  * screen, which is local state so it cannot be reached any other way. Without
@@ -83,20 +99,31 @@ export function VerifyEmailPage() {
     // cancels the first pass: the link is read and submitted exactly once.
     const timer = window.setTimeout(() => {
       if (tokenRef.current !== null) return;
-      const url = new URL(window.location.href);
-      const token = url.searchParams.get("token");
+      const token = takeTokenFromUrl();
       if (token === null) {
         router.replace(readAuthSession() ? userRoutes.home : userRoutes.verifyEmailPending);
         return;
       }
-      // Keep the secret out of history, bookmarks and screenshots of the address bar.
-      url.searchParams.delete("token");
-      window.history.replaceState(null, "", url.pathname + url.search + url.hash);
       tokenRef.current = token;
       void submitToken(token);
     }, 0);
     return () => window.clearTimeout(timer);
   }, [router, submitToken]);
+
+  useEffect(() => {
+    // A newer link opened while this page is showing only changes the #fragment,
+    // so the page does not reload. Only a failed attempt can be replaced: nothing
+    // may race a request in flight or take the user off the Welcome screen.
+    const onHashChange = () => {
+      const token = takeTokenFromUrl();
+      const canRetry = status.kind === "invalid" || status.kind === "failed";
+      if (token === null || token === tokenRef.current || !canRetry) return;
+      tokenRef.current = token;
+      void submitToken(token);
+    };
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, [status.kind, submitToken]);
 
   if (status.kind === "verified") {
     return (
