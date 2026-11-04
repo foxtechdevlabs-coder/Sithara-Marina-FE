@@ -260,3 +260,188 @@ describe("createHttpClient — timeouts and cancellation", () => {
     expect(error.kind).toBe("aborted");
   });
 });
+
+describe("createHttpClient — authentication and refresh", () => {
+  const bearer = (init: RequestInit) => new Headers(init.headers).get("Authorization");
+
+  /** Answers 401 unless the request carries `Bearer <validToken>`. */
+  function protectedFetch(validToken: () => string) {
+    return stubFetch(async (_url, init) =>
+      bearer(init) === `Bearer ${validToken()}`
+        ? jsonResponse({ ok: true })
+        : jsonResponse({}, 401),
+    );
+  }
+
+  it("sends the access token, and omits it for auth: false requests", async () => {
+    const fetchMock = stubFetch(async () => jsonResponse({}));
+    const client = createHttpClient({ baseUrl: BASE, getAccessToken: () => "token-1" });
+
+    await client.get("/me");
+    await client.post("/auth/login", { auth: false });
+
+    expect(bearer(fetchMock.mock.calls[0]![1])).toBe("Bearer token-1");
+    expect(bearer(fetchMock.mock.calls[1]![1])).toBeNull();
+  });
+
+  it("refreshes once on 401 and retries with the new token", async () => {
+    let token = "expired";
+    const fetchMock = protectedFetch(() => "fresh");
+    const refreshAccessToken = vi.fn(async () => {
+      token = "fresh";
+      return true;
+    });
+    const onUnauthorized = vi.fn();
+    const client = createHttpClient({
+      baseUrl: BASE,
+      getAccessToken: () => token,
+      refreshAccessToken,
+      onUnauthorized,
+    });
+
+    await expect(client.get("/me")).resolves.toEqual({ ok: true });
+    expect(refreshAccessToken).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(bearer(fetchMock.mock.calls[1]![1])).toBe("Bearer fresh");
+    expect(onUnauthorized).not.toHaveBeenCalled();
+  });
+
+  it("shares one refresh between concurrent 401s", async () => {
+    let token = "expired";
+    protectedFetch(() => "fresh");
+    let finishRefresh!: () => void;
+    const refreshAccessToken = vi.fn(
+      () =>
+        new Promise<boolean>((resolve) => {
+          finishRefresh = () => {
+            token = "fresh";
+            resolve(true);
+          };
+        }),
+    );
+    const client = createHttpClient({
+      baseUrl: BASE,
+      getAccessToken: () => token,
+      refreshAccessToken,
+    });
+
+    const requests = [client.get("/a"), client.get("/b"), client.get("/c")];
+    await vi.waitFor(() => expect(refreshAccessToken).toHaveBeenCalled());
+    finishRefresh();
+
+    await expect(Promise.all(requests)).resolves.toHaveLength(3);
+    expect(refreshAccessToken).toHaveBeenCalledTimes(1);
+  });
+
+  it("holds new requests until a running refresh finishes", async () => {
+    let token = "expired";
+    const fetchMock = protectedFetch(() => "fresh");
+    let finishRefresh!: () => void;
+    const refreshAccessToken = vi.fn(
+      () =>
+        new Promise<boolean>((resolve) => {
+          finishRefresh = () => {
+            token = "fresh";
+            resolve(true);
+          };
+        }),
+    );
+    const client = createHttpClient({
+      baseUrl: BASE,
+      getAccessToken: () => token,
+      refreshAccessToken,
+    });
+
+    const first = client.get("/a");
+    await vi.waitFor(() => expect(refreshAccessToken).toHaveBeenCalled());
+    const queued = client.get("/b"); // started while refreshing
+    finishRefresh();
+    await Promise.all([first, queued]);
+
+    const queuedCalls = fetchMock.mock.calls.filter(([url]) => url.endsWith("/b"));
+    expect(queuedCalls).toHaveLength(1); // sent once, with the new token
+    expect(bearer(queuedCalls[0]![1])).toBe("Bearer fresh");
+  });
+
+  it("calls onUnauthorized and does not retry when refresh fails", async () => {
+    const fetchMock = stubFetch(async () => jsonResponse({}, 401));
+    const refreshAccessToken = vi.fn(async () => false);
+    const onUnauthorized = vi.fn();
+    const client = createHttpClient({
+      baseUrl: BASE,
+      getAccessToken: () => "expired",
+      refreshAccessToken,
+      onUnauthorized,
+    });
+
+    const error = await catchApiError(client.get("/me"));
+    expect(error.status).toBe(401);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(onUnauthorized).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries only once even if the retry is also rejected (no loop)", async () => {
+    let token = "a";
+    const fetchMock = stubFetch(async () => jsonResponse({}, 401));
+    const refreshAccessToken = vi.fn(async () => {
+      token = `${token}+`;
+      return true;
+    });
+    const onUnauthorized = vi.fn();
+    const client = createHttpClient({
+      baseUrl: BASE,
+      getAccessToken: () => token,
+      refreshAccessToken,
+      onUnauthorized,
+    });
+
+    await catchApiError(client.get("/me"));
+    expect(refreshAccessToken).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(onUnauthorized).toHaveBeenCalledTimes(1);
+  });
+
+  it("never treats a 401 from an auth: false request as an expired session", async () => {
+    stubFetch(async () => jsonResponse({ message: "Invalid email or password" }, 401));
+    const refreshAccessToken = vi.fn(async () => true);
+    const onUnauthorized = vi.fn();
+    const client = createHttpClient({
+      baseUrl: BASE,
+      getAccessToken: () => "token",
+      refreshAccessToken,
+      onUnauthorized,
+    });
+
+    const error = await catchApiError(client.post("/auth/login", { auth: false }));
+    expect(error.status).toBe(401);
+    expect(refreshAccessToken).not.toHaveBeenCalled();
+    expect(onUnauthorized).not.toHaveBeenCalled();
+  });
+
+  it("skips the refresh when refreshOnUnauthorized is false", async () => {
+    stubFetch(async () => jsonResponse({}, 401));
+    const refreshAccessToken = vi.fn(async () => true);
+    const client = createHttpClient({
+      baseUrl: BASE,
+      getAccessToken: () => "token",
+      refreshAccessToken,
+    });
+
+    await catchApiError(client.post("/auth/logout", { refreshOnUnauthorized: false }));
+    expect(refreshAccessToken).not.toHaveBeenCalled();
+  });
+
+  it("exposes Retry-After from 429 responses", async () => {
+    stubFetch(
+      async () =>
+        new Response(JSON.stringify({ code: "RESEND_COOLDOWN" }), {
+          status: 429,
+          headers: { "Retry-After": "59" },
+        }),
+    );
+    const client = createHttpClient({ baseUrl: BASE });
+
+    const error = await catchApiError(client.post("/auth/forgot-password", { auth: false }));
+    expect(error.retryAfterSeconds).toBe(59);
+  });
+});

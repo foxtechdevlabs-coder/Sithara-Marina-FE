@@ -1,22 +1,23 @@
 # Feature: `pricing` (admin area)
 
-**Scope:** Per-yacht slot and add-on pricing management.
+**Scope:** A yacht's operating hours, slot types and price rules ("Slots & pricing").
 
 **Routes:** `/admin/fleet/[yachtId]/pricing`
 
-**Notes:** The admin edits price configuration; the backend remains the authority for calculating customer prices.
+## Backend contract (see the backend's `/docs`)
 
-Not implemented yet. When building this feature, add only the folders you need:
+| Endpoint                              | Used by                                                         |
+| ------------------------------------- | --------------------------------------------------------------- |
+| `GET /admin/yachts/{id}/slot-types`   | Load hours + slot types                                         |
+| `PUT /admin/yachts/{id}/slot-types`   | Save — replaces the whole setup; removed types lose their rules |
+| `GET /admin/yachts/{id}/price-rules`  | List rules (grouped by slot type on screen)                     |
+| `POST /admin/yachts/{id}/price-rules` | Add rule                                                        |
+| `PATCH /admin/price-rules/{id}`       | Edit rule — changed fields only; emptied optionals → null       |
+| `DELETE /admin/price-rules/{id}`      | Delete rule (with confirmation)                                 |
 
-```
-pricing/
-├── components/   UI used only by this feature
-├── hooks/        React hooks for this feature
-├── types/        Types for this feature's data
-└── utils/        Pure helpers for this feature
-```
+API functions: `src/services/admin/pricing.service.ts` and the slot-type calls in
+`fleet.service.ts`. Validation mirrors the backend (`utils/pricing-form.ts`).
 
-API calls for this feature belong in `src/services/admin/pricing.service.ts`, which uses
-`src/services/http/api-client.ts`. Route files in `src/app` stay thin and render components
-from this folder.
-See [docs/folder-structure.md](../../../../docs/folder-structure.md).
+**Notes:** Amounts are paise on the wire and rupees on screen, excluding GST. The backend picks the
+applicable rule (holiday > season > weekend > base, then priority); the frontend never calculates
+prices.

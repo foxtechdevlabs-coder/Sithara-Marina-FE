@@ -10,7 +10,7 @@
                     │  features/{user,admin} · components/{ui,shared,user,admin}       │
                     │  services/http (one client) · config · lib · validation          │
                     └───────────────────────────────┬──────────────────────────────────┘
-                                                    │ fetch (NEXT_PUBLIC_API_BASE_URL)
+                                                    │ fetch (NEXT_PUBLIC_API_URL)
                                                     ▼
                                    Backend API — separate team, separate repo
                    (authority for availability, pricing, holds, payments, auth, permissions)
@@ -41,12 +41,12 @@ src/app/
 ├── globals.css             Tailwind + design tokens (imported once, here)
 ├── error.tsx  global-error.tsx  not-found.tsx
 ├── (user)/                 route group — not part of the URL
-│   ├── (site)/             header + footer: /, /yachts, /yachts/[yachtId], …/availability,
-│   │   │                   /about, /contact, /terms, /privacy, /cancellation-policy
-│   │   └── account/        + account sub-nav: /account, /account/bookings, …/[bookingId],
-│   │                       …/invoice, …/cancel
-│   ├── (checkout)/         distraction-free: /checkout, /checkout/confirmation/[bookingId]
-│   └── (auth)/             centred card: /login, /register
+│   ├── (site)/             header + footer: /, /yachts/[yachtId]/availability
+│   ├── (standalone)/       site header; each page renders its own Figma footer: /yachts,
+│   │                       /yachts/[yachtId], /plan-your-charter, /login, /register,
+│   │                       /forgot-password, /reset-password,
+│   │                       /verify-email
+│   └── (checkout)/         distraction-free: /checkout, /checkout/confirmation/[bookingId]
 └── admin/                  /admin — layout sets noindex metadata, renders no chrome
     ├── page.tsx            /admin → redirects to /admin/dashboard
     ├── error.tsx           admin-styled error boundary

@@ -3,26 +3,55 @@
 import { ArrowRight, ArrowUpRight } from "lucide-react";
 import type { Route } from "next";
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import { adminRoutes, userRoutes } from "@/constants/routes";
+import { CommissionPanel } from "@/features/admin/fleet/components/commission-panel";
+import { CrewPanel } from "@/features/admin/fleet/components/crew-panel";
+import { PhotoLightbox } from "@/features/admin/fleet/components/photo-lightbox";
+import { useAdminQuery } from "@/features/admin/fleet/hooks/use-admin-query";
+import { usePublishBreadcrumbYacht } from "@/features/admin/fleet/hooks/use-breadcrumb-yacht";
+import { useYachtStatus } from "@/features/admin/fleet/hooks/use-yacht-status";
+import { fleetErrorMessage } from "@/features/admin/fleet/utils/fleet-error-message";
+import {
+  getYacht,
+  type Yacht,
+  type YachtDetail as YachtData,
+} from "@/services/admin/fleet.service";
+import { isApiError } from "@/services/http/api-error";
 import { cx } from "@/lib/cx";
 
 import { BODY, GRADIENT, INK, MUTED, NAVY, SAND } from "./admin-theme";
-import type { FleetRecord } from "./fleet-data";
+import { LoadState, Notice } from "./form-parts";
 
 const TABS = ["Overview", "Bookings", "Availability", "Activity"] as const;
 type Tab = (typeof TABS)[number];
 
-const MODE_LABEL = {
-  instant: "Instant booking",
-  slots: "Slots + concierge",
-  enquiry: "Enquiry only",
-} as const;
+const MODE_LABEL = (y: Yacht) =>
+  y.booking_mode === "enquiry_only"
+    ? "Enquiry only"
+    : y.enquiry_enabled
+      ? "Slots + concierge enquiry"
+      : "Instant booking";
+
+const NOTICES: Record<string, string> = {
+  created:
+    "Yacht created. It is hidden from the website until you add operating hours, a priced slot type and a photo, then make it visible.",
+  saved: "Changes saved.",
+};
 
 const card = "border border-[#e3e1dc] bg-white";
 const outline =
   "flex h-[50px] items-center justify-center gap-[6px] border bg-white px-[20px] text-[13px] transition-colors hover:bg-[#f2f1ee]";
+
+const formatDateTime = (iso: string) =>
+  new Date(iso).toLocaleString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 
 function Badge({ children, tone = "sand" }: { children: ReactNode; tone?: "sand" | "blue" }) {
   return (
@@ -45,7 +74,7 @@ function Field({ label, value }: { label: string; value: ReactNode }) {
       <dt className="text-[12px] leading-[16px]" style={{ color: MUTED }}>
         {label}
       </dt>
-      <dd className="mt-[6px] text-[16px] leading-[22px] lg:whitespace-nowrap">{value}</dd>
+      <dd className="mt-[6px] text-[16px] leading-[22px] break-words">{value}</dd>
     </div>
   );
 }
@@ -59,175 +88,122 @@ function Panel({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-/* ------------------------------------------------------------------ */
-/* Tab panels                                                          */
-/* ------------------------------------------------------------------ */
-
-function OverviewTab({ yacht }: { yacht: FleetRecord }) {
-  const f = yacht.form;
-  const fields = "grid grid-cols-2 gap-x-[20px] gap-y-[22px] md:grid-cols-4";
+function Tags({ items, empty }: { items: string[]; empty: string }) {
+  if (!items.length) return <p className="mt-[10px] text-[14px]">{empty}</p>;
   return (
-    <div className="flex flex-col gap-[24px]">
-      <Panel title="Vessel">
-        <dl className={fields}>
-          <Field label="Type" value={f.type} />
-          <Field label="Length" value={f.length ? `${f.length} metres` : "—"} />
-          <Field label="Maximum guests" value={f.guests || "—"} />
-          <Field label="Suites" value={f.suites || "—"} />
-          <Field label="Crew" value={f.crew || "—"} />
-          <Field label="Home port" value={f.port || "—"} />
-          <Field label="Regions" value={f.regions.join(" · ") || "—"} />
-          <Field
-            label="Ownership"
-            value={
-              f.ownership === "owned" ? "Owned" : `Partner${f.partner ? ` · ${f.partner}` : ""}`
-            }
-          />
-        </dl>
-      </Panel>
-
-      <Panel title="On the website">
-        <p className="text-[12px]" style={{ color: MUTED }}>
-          Card tagline
-        </p>
-        <p className="mt-[6px] text-[16px] leading-[24px]">{f.tagline || "—"}</p>
-        <p className="mt-[22px] text-[12px]" style={{ color: MUTED }}>
-          Amenities
-        </p>
-        <ul className="mt-[10px] flex flex-wrap gap-[8px]">
-          {f.amenities.map((a) => (
-            <li key={a} className="border border-[#dcdad5] px-[12px] py-[8px] text-[13px]">
-              {a}
-            </li>
-          ))}
-        </ul>
-      </Panel>
-
-      <Panel title="Booking & pricing">
-        <dl className={fields}>
-          <Field
-            label="Day rate"
-            value={f.rate ? `₹ ${Number(f.rate).toLocaleString("en-IN")}` : "—"}
-          />
-          <Field
-            label="Minimum stay"
-            value={`${f.minDays || 1} ${Number(f.minDays || 1) === 1 ? "day" : "days"}`}
-          />
-          <Field label="Deposit" value={f.deposit ? `${f.deposit}%` : "—"} />
-          <Field label="GST" value={yacht.ops.gst} />
-          <Field label="Embark · disembark" value={`${f.embark} · ${f.disembark}`} />
-          <Field label="Booking mode" value={MODE_LABEL[f.mode]} />
-        </dl>
-      </Panel>
-    </div>
+    <ul className="mt-[10px] flex flex-wrap gap-[8px]">
+      {items.map((a) => (
+        <li key={a} className="border border-[#dcdad5] px-[12px] py-[8px] text-[13px]">
+          {a}
+        </li>
+      ))}
+    </ul>
   );
 }
 
-function BookingsTab({ yacht }: { yacht: FleetRecord }) {
-  const { bookings } = yacht.ops;
+/** Tabs whose data comes from APIs that are not connected yet. */
+function NotConnected({
+  title,
+  text,
+  links,
+}: {
+  title: string;
+  text: string;
+  links: { label: string; href: Route }[];
+}) {
   return (
-    <Panel title="Upcoming charters">
-      {bookings.length === 0 ? (
-        <p className="text-[14px]" style={{ color: BODY }}>
-          No upcoming charters.
-        </p>
-      ) : (
-        <ul className="divide-y divide-[#eceae6] border-y border-[#eceae6]">
-          {bookings.map((b) => (
-            <li
-              key={b.ref}
-              className="grid gap-[4px] py-[14px] text-[14px] sm:grid-cols-[1.1fr_1.6fr_1fr] sm:items-center sm:gap-[16px]"
-            >
-              <span>
-                <Link href={adminRoutes.booking(b.ref)} className="hover:underline">
-                  {b.guest}
-                </Link>
-                <span className="block text-[12px]" style={{ color: MUTED }}>
-                  {b.ref} · {b.guests} guests
-                </span>
-              </span>
-              <span className="text-[13px]">
-                {b.embark} → {b.disembark}
-              </span>
-              <span className="text-[13px]">
-                {b.status}
-                <span className="block text-[12px]" style={{ color: MUTED }}>
-                  {b.payment}
-                </span>
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
-      <Link
-        href={adminRoutes.bookings}
-        className="mt-[18px] inline-flex items-center gap-[6px] text-[13px] underline underline-offset-2"
-      >
-        All bookings
-        <ArrowRight aria-hidden="true" strokeWidth={1.5} className="size-[13px]" />
-      </Link>
-    </Panel>
-  );
-}
-
-function AvailabilityTab({ yacht }: { yacht: FleetRecord }) {
-  const { blockedDates, bookedNext60 } = yacht.ops;
-  return (
-    <Panel title="Availability">
+    <Panel title={title}>
       <p className="text-[14px] leading-[22px]" style={{ color: BODY }}>
-        {bookedNext60} of available hours are booked over the next 60 days.
+        {text}
       </p>
-      <p className="mt-[20px] text-[12px]" style={{ color: MUTED }}>
-        Blocked dates
-      </p>
-      {blockedDates.length ? (
-        <ul className="mt-[8px] flex flex-col gap-[6px] text-[14px]">
-          {blockedDates.map((d) => (
-            <li key={d.range}>
-              {d.range} <span style={{ color: MUTED }}>· {d.reason}</span>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="mt-[8px] text-[14px]">None</p>
-      )}
       <div className="mt-[22px] flex flex-wrap gap-[12px]">
-        <Link href={adminRoutes.availability} className={outline} style={{ borderColor: INK }}>
-          Open calendar
-        </Link>
-        <Link
-          href={adminRoutes.availabilityBlocked}
-          className={outline}
-          style={{ borderColor: INK }}
-        >
-          Block dates
-        </Link>
+        {links.map((l) => (
+          <Link key={l.label} href={l.href} className={outline} style={{ borderColor: INK }}>
+            {l.label}
+          </Link>
+        ))}
       </div>
     </Panel>
   );
 }
 
-function ActivityTab({ yacht }: { yacht: FleetRecord }) {
+/* ------------------------------------------------------------------ */
+/* Tab panels                                                          */
+/* ------------------------------------------------------------------ */
+
+function OverviewTab({ yacht, onChange }: { yacht: YachtData; onChange: (y: Yacht) => void }) {
+  const fields = "grid grid-cols-2 gap-x-[20px] gap-y-[22px] md:grid-cols-4";
   return (
-    <Panel title="Activity">
-      <ol className="flex flex-col gap-[16px]">
-        {yacht.ops.activity.map((a) => (
-          <li key={a.when + a.what} className="border-l-2 border-[#e3e1dc] pl-[14px]">
-            <p className="text-[14px]">{a.what}</p>
-            <p className="mt-[2px] text-[12px]" style={{ color: MUTED }}>
-              {a.who} · {a.when}
-            </p>
-          </li>
-        ))}
-      </ol>
-      <Link
-        href={adminRoutes.audit}
-        className="mt-[18px] inline-flex items-center gap-[6px] text-[13px] underline underline-offset-2"
-      >
-        Full audit history
-        <ArrowRight aria-hidden="true" strokeWidth={1.5} className="size-[13px]" />
-      </Link>
-    </Panel>
+    <div className="flex flex-col gap-[24px]">
+      <Panel title="Vessel">
+        <dl className={fields}>
+          <Field label="Type" value={yacht.type || "—"} />
+          <Field label="Length" value={yacht.length_ft ? `${yacht.length_ft} ft` : "—"} />
+          <Field label="Maximum guests" value={yacht.capacity} />
+          <Field label="Suites" value={yacht.suites ?? "—"} />
+          <Field label="Departure city" value={yacht.departure_city || "—"} />
+          <Field label="Departure points" value={yacht.departure_points.join(" · ") || "—"} />
+          <Field
+            label="Ownership"
+            value={
+              yacht.ownership_type === "own"
+                ? "Owned"
+                : `Partner${yacht.partner ? ` · ${yacht.partner.name}` : ""}`
+            }
+          />
+          <Field label="URL name" value={yacht.slug} />
+        </dl>
+      </Panel>
+
+      <Panel title="On the website">
+        <p className="text-[12px]" style={{ color: MUTED }}>
+          Description
+        </p>
+        <p className="mt-[6px] text-[16px] leading-[24px] whitespace-pre-line">
+          {yacht.description || "—"}
+        </p>
+        <p className="mt-[22px] text-[12px]" style={{ color: MUTED }}>
+          Amenities
+        </p>
+        <Tags items={yacht.amenities} empty="None listed" />
+        <p className="mt-[22px] text-[12px]" style={{ color: MUTED }}>
+          Inclusions
+        </p>
+        <Tags items={yacht.inclusions} empty="None listed" />
+        <p className="mt-[22px] text-[12px]" style={{ color: MUTED }}>
+          Policies
+        </p>
+        <p className="mt-[6px] text-[14px] leading-[22px] whitespace-pre-line">
+          {yacht.policies || "—"}
+        </p>
+      </Panel>
+
+      <Panel title="Booking & operations">
+        <dl className={fields}>
+          <Field label="Booking mode" value={MODE_LABEL(yacht)} />
+          <Field
+            label="Operating hours"
+            value={
+              yacht.opens_at && yacht.closes_at
+                ? `${yacht.opens_at} – ${yacht.closes_at}`
+                : "Not set"
+            }
+          />
+          <Field label="Turnaround" value={`${yacht.turnaround_minutes} min`} />
+          <Field label="Enquiries" value={yacht.enquiry_enabled ? "Accepted" : "Off"} />
+        </dl>
+        <Link
+          href={adminRoutes.fleetYachtPricing(yacht.id)}
+          className="mt-[22px] inline-flex items-center gap-[6px] text-[13px] underline underline-offset-2"
+        >
+          Slots &amp; pricing
+          <ArrowRight aria-hidden="true" strokeWidth={1.5} className="size-[13px]" />
+        </Link>
+      </Panel>
+
+      <CrewPanel yacht={yacht} onSaved={onChange} />
+      {yacht.ownership_type === "partner" && <CommissionPanel yacht={yacht} onSaved={onChange} />}
+    </div>
   );
 }
 
@@ -237,40 +213,70 @@ function ActivityTab({ yacht }: { yacht: FleetRecord }) {
 
 /**
  * Admin yacht page from the Figma design: badges, gallery, key figures,
- * tabbed details, the next charter and quick actions. Dummy data for now.
+ * tabbed details, crew and commission, quick actions and the activation
+ * control. Data: GET /admin/yachts/{id}.
  */
-export default function YachtDetail({ yacht }: { yacht: FleetRecord }) {
-  const f = yacht.form;
+export default function YachtDetail({ yachtId }: { yachtId: string }) {
+  const query = useAdminQuery((signal) => getYacht(yachtId, signal), yachtId);
   const [tab, setTab] = useState<Tab>("Overview");
-  const [active, setActive] = useState(f.status === "Active");
-  const next = yacht.ops.nextCharter;
+  const [viewing, setViewing] = useState<number | null>(null);
+  const [notice, setNotice] = useState("");
+  const status = useYachtStatus();
+  usePublishBreadcrumbYacht(query.data);
+
+  // Message passed on from the form (?notice=created|saved).
+  useEffect(() => {
+    const value = new URLSearchParams(window.location.search).get("notice");
+    if (value && NOTICES[value]) queueMicrotask(() => setNotice(NOTICES[value]!));
+  }, []);
+
+  const yacht = query.data;
+  if (!yacht) {
+    return (
+      <div className="px-[20px] pt-[20px] pb-[56px] lg:pt-[33px] lg:pr-[47px] lg:pl-[46px]">
+        <p className="text-[10px] tracking-[0.12em] uppercase" style={{ color: MUTED }}>
+          Sithara Marina / Admin
+        </p>
+        <LoadState
+          loading={query.loading}
+          label="Loading the yacht"
+          error={query.error ? `Couldn't load the yacht. ${fleetErrorMessage(query.error)}` : ""}
+          onRetry={isApiError(query.error) && query.error.status === 404 ? undefined : query.reload}
+        />
+        {Boolean(query.error) && (
+          <Link href={adminRoutes.fleet} className="text-[12px] underline underline-offset-2">
+            Back to the fleet
+          </Link>
+        )}
+      </div>
+    );
+  }
+
+  /** Keeps the photos (not in mutation responses) and takes the rest from the server. */
+  const update = (fresh: Yacht) => query.setData((current) => ({ ...current!, ...fresh }));
 
   const stats = [
-    { label: "Upcoming charters", value: String(yacht.ops.upcomingCharters) },
-    { label: "Booked · next 60 days", value: yacht.ops.bookedNext60 },
-    { label: "Confirmed value", value: yacht.ops.confirmedValue },
-    { label: "Open enquiries", value: String(yacht.ops.openEnquiries) },
+    { label: "Maximum guests", value: String(yacht.capacity) },
+    { label: "Length", value: yacht.length_ft ? `${yacht.length_ft} ft` : "—" },
+    { label: "Suites", value: yacht.suites === null ? "—" : String(yacht.suites) },
+    { label: "Photos", value: String(yacht.photos.length) },
   ];
   const quickActions: { label: string; href: Route }[] = [
     { label: "Add a booking manually", href: adminRoutes.bookingNew },
     { label: "Block dates for maintenance", href: adminRoutes.availabilityBlocked },
-    { label: "Adjust seasonal pricing", href: adminRoutes.fleetYachtPricing(yacht.id) },
+    { label: "Slots & pricing", href: adminRoutes.fleetYachtPricing(yacht.id) },
     {
       label: "Duplicate as new yacht",
-      href: `${adminRoutes.fleetNew}?duplicate=${yacht.id}` as Route,
+      href: `${adminRoutes.fleetNew}?duplicate=${encodeURIComponent(yacht.id)}` as Route,
     },
   ];
 
-  function toggleActive() {
-    const verb = active ? "Deactivate" : "Reactivate";
-    if (
-      !window.confirm(
-        `${verb} ${f.name}? ${active ? "New bookings will stop; existing bookings stay in your records." : "The yacht can take bookings again."}`,
-      )
-    )
-      return;
-    // TODO: update the yacht's status through the fleet API.
-    setActive((a) => !a);
+  async function toggleActive() {
+    const result = await status.toggle(yacht!);
+    if (result) {
+      setNotice("");
+      update(result.yacht);
+    }
   }
 
   return (
@@ -279,30 +285,35 @@ export default function YachtDetail({ yacht }: { yacht: FleetRecord }) {
         Sithara Marina / Admin
       </p>
 
+      {notice && <Notice className="mt-[14px]">{notice}</Notice>}
+
       <div className="mt-[14px] flex flex-col gap-[20px] xl:flex-row xl:items-end xl:justify-between">
-        <div>
-          <h1 className="text-[44px] leading-[1.1] font-normal tracking-[-1.5px] lg:text-[60px] lg:tracking-[-2px]">
-            {f.name}
+        <div className="min-w-0">
+          <h1 className="text-[44px] leading-[1.1] font-normal tracking-[-1.5px] break-words lg:text-[60px] lg:tracking-[-2px]">
+            {yacht.name}
           </h1>
           <div className="mt-[12px] flex flex-wrap gap-[8px]">
             <Badge>
               <span
                 aria-hidden="true"
-                className={cx("size-[7px] rounded-full", active ? "bg-[#2e7d4f]" : "bg-[#a33]")}
+                className={cx(
+                  "size-[7px] rounded-full",
+                  yacht.is_active ? "bg-[#2e7d4f]" : "bg-[#a33]",
+                )}
               />
-              {active ? "Active" : "Inactive"}
+              {yacht.is_active ? "Active" : "Inactive"}
             </Badge>
-            <Badge tone={f.visible ? "blue" : "sand"}>
-              {f.visible ? "Visible on website" : "Hidden from website"}
+            <Badge tone={yacht.is_visible ? "blue" : "sand"}>
+              {yacht.is_visible ? "Visible on website" : "Hidden from website"}
             </Badge>
-            <Badge>{f.ownership === "owned" ? "Owned" : "Partner-owned"}</Badge>
-            <Badge>{f.mode === "slots" ? "Slots + concierge enquiry" : MODE_LABEL[f.mode]}</Badge>
-            {f.featured && <Badge>Featured on homepage</Badge>}
+            <Badge>{yacht.ownership_type === "own" ? "Owned" : "Partner-owned"}</Badge>
+            <Badge>{MODE_LABEL(yacht)}</Badge>
+            {yacht.is_featured && <Badge>Featured on homepage</Badge>}
           </div>
         </div>
         <div className="flex flex-wrap gap-[14px]">
           <Link
-            href={userRoutes.yacht(yacht.id)}
+            href={userRoutes.yacht(yacht.slug)}
             target="_blank"
             className={`${outline} w-[172px] whitespace-nowrap`}
             style={{ borderColor: INK }}
@@ -325,22 +336,65 @@ export default function YachtDetail({ yacht }: { yacht: FleetRecord }) {
       </div>
 
       {/* Gallery: cover + three */}
-      <div className="mt-[30px] grid grid-cols-3 gap-[10px] md:grid-cols-[2fr_1fr_1fr_1fr]">
-        {yacht.photos.slice(0, 4).map((p, i) => (
-          // eslint-disable-next-line @next/next/no-img-element -- local admin previews
-          <img
-            key={p.src}
-            src={p.src}
-            alt={p.alt}
-            className={cx(
-              "h-full w-full object-cover",
-              i === 0
-                ? "col-span-3 aspect-[408/248] md:col-span-1"
-                : "aspect-[198/248] max-md:aspect-square",
-            )}
-          />
-        ))}
-      </div>
+      {yacht.photos.length ? (
+        <div className="mt-[30px] grid grid-cols-3 gap-[10px] md:grid-cols-[2fr_1fr_1fr_1fr]">
+          {yacht.photos.slice(0, 4).map((p, i) => {
+            const more = i === 3 ? yacht.photos.length - 4 : 0;
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => setViewing(i)}
+                aria-label={`View photo ${i + 1} of ${yacht.photos.length} full screen`}
+                className={cx(
+                  "relative block cursor-zoom-in focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0d1b2a]",
+                  i === 0 && "col-span-3 md:col-span-1",
+                )}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element -- storage URLs from the API */}
+                <img
+                  src={p.url}
+                  alt={`${yacht.name}, photo ${i + 1}`}
+                  className={cx(
+                    "h-full w-full object-cover",
+                    i === 0 ? "aspect-[408/248]" : "aspect-[198/248] max-md:aspect-square",
+                  )}
+                />
+                {more > 0 && (
+                  <span className="absolute inset-0 flex items-center justify-center bg-[#0a1a2c]/55 text-[18px] text-white">
+                    +{more} more
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <div
+          className="mt-[30px] flex aspect-[408/120] max-h-[220px] w-full flex-col items-center justify-center gap-[10px] border border-[#dcdad5] text-center"
+          style={{ backgroundColor: "#f5f3ee" }}
+        >
+          <p className="text-[14px]">No photos yet</p>
+          <Link
+            href={`${adminRoutes.fleetYachtEdit(yacht.id)}#gallery` as Route}
+            className="text-[12px] underline underline-offset-2"
+          >
+            Add photos
+          </Link>
+        </div>
+      )}
+
+      {viewing !== null && (
+        <PhotoLightbox
+          photos={yacht.photos.map((p, i) => ({
+            src: p.url,
+            alt: `${yacht.name}, photo ${i + 1}`,
+          }))}
+          index={viewing}
+          onIndexChange={setViewing}
+          onClose={() => setViewing(null)}
+        />
+      )}
 
       {/* Key figures */}
       <dl className="mt-[24px] grid grid-cols-2 border-t border-l border-[#e3e1dc] bg-white md:grid-cols-4">
@@ -384,57 +438,45 @@ export default function YachtDetail({ yacht }: { yacht: FleetRecord }) {
             })}
           </div>
           <div id="yacht-tabpanel" role="tabpanel" aria-label={tab} className="mt-[24px]">
-            {tab === "Overview" && <OverviewTab yacht={yacht} />}
-            {tab === "Bookings" && <BookingsTab yacht={yacht} />}
-            {tab === "Availability" && <AvailabilityTab yacht={yacht} />}
-            {tab === "Activity" && <ActivityTab yacht={yacht} />}
+            {tab === "Overview" && <OverviewTab yacht={yacht} onChange={update} />}
+            {tab === "Bookings" && (
+              <NotConnected
+                title="Upcoming charters"
+                text="This yacht's bookings will show here once the bookings section is connected."
+                links={[{ label: "All bookings", href: adminRoutes.bookings }]}
+              />
+            )}
+            {tab === "Availability" && (
+              <NotConnected
+                title="Availability"
+                text="Blocked dates and booked hours will show here once the availability section is connected."
+                links={[
+                  { label: "Open calendar", href: adminRoutes.availability },
+                  { label: "Block dates", href: adminRoutes.availabilityBlocked },
+                ]}
+              />
+            )}
+            {tab === "Activity" && (
+              <NotConnected
+                title="Activity"
+                text="Changes to this yacht will show here once the audit history is connected."
+                links={[{ label: "Full audit history", href: adminRoutes.audit }]}
+              />
+            )}
           </div>
         </div>
 
         <aside className="flex flex-col gap-[22px]">
-          {next ? (
-            <section
-              aria-label="Next charter"
-              className="px-[24px] pt-[22px] pb-[24px] text-white"
-              style={{ backgroundColor: NAVY }}
-            >
-              <p className="text-[11px] tracking-[0.14em] text-white/80 uppercase">
-                Next charter · in {next.inDays} days
-              </p>
-              <p className="mt-[16px] text-[24px] leading-[30px] tracking-[-0.4px]">{next.guest}</p>
-              <p className="mt-[4px] text-[13px] text-white/85">
-                {next.ref} · {next.guests} guests
-              </p>
-              <dl className="mt-[16px] border-t border-white/20 pt-[14px] text-[14px]">
-                {[
-                  ["Embark", next.embark],
-                  ["Disembark", next.disembark],
-                  ["Payment", next.payment],
-                ].map(([k, v]) => (
-                  <div key={k} className="flex justify-between gap-4 py-[3px]">
-                    <dt className="text-white/80">{k}</dt>
-                    <dd className={k === "Payment" ? "text-[#8fbcf0]" : ""}>{v}</dd>
-                  </div>
-                ))}
-              </dl>
-              <Link
-                href={adminRoutes.booking(next.ref)}
-                className="mt-[18px] flex h-[50px] items-center justify-between border border-white/60 px-[18px] text-[14px] transition-colors hover:bg-white/10"
-              >
-                Open booking
-                <ArrowRight aria-hidden="true" strokeWidth={1.5} className="size-[14px]" />
-              </Link>
-            </section>
-          ) : (
-            <section
-              aria-label="Next charter"
-              className="px-[24px] py-[22px] text-white"
-              style={{ backgroundColor: NAVY }}
-            >
-              <p className="text-[11px] tracking-[0.14em] text-white/80 uppercase">Next charter</p>
-              <p className="mt-[12px] text-[15px]">No charters booked yet.</p>
-            </section>
-          )}
+          <section
+            aria-label="Next charter"
+            className="px-[24px] py-[22px] text-white"
+            style={{ backgroundColor: NAVY }}
+          >
+            <p className="text-[11px] tracking-[0.14em] text-white/80 uppercase">Next charter</p>
+            <p className="mt-[12px] text-[15px] leading-[22px]">
+              Upcoming charters will show here once bookings are connected.
+            </p>
+          </section>
 
           <section aria-label="Quick actions" className={`${card} px-[24px] pt-[22px] pb-[6px]`}>
             <p className="text-[11px] tracking-[0.14em] uppercase" style={{ color: MUTED }}>
@@ -456,17 +498,30 @@ export default function YachtDetail({ yacht }: { yacht: FleetRecord }) {
           </section>
 
           <p className="text-[12px]" style={{ color: MUTED }}>
-            Last edited by {yacht.ops.lastEdited}
+            Last updated {formatDateTime(yacht.updated_at)}
           </p>
+          {(status.message || status.error) && (
+            <Notice tone={status.error ? "error" : "success"}>
+              {status.error || status.message}
+            </Notice>
+          )}
           <button
             type="button"
-            onClick={toggleActive}
+            onClick={() => void toggleActive()}
+            disabled={status.pendingId !== null}
+            aria-busy={status.pendingId !== null}
             className={cx(
-              "w-fit text-[13px] hover:underline",
-              active ? "text-[#b3261e]" : "text-[#2e7d4f]",
+              "w-fit text-[13px] hover:underline disabled:cursor-wait disabled:opacity-60",
+              yacht.is_active ? "text-[#b3261e]" : "text-[#2e7d4f]",
             )}
           >
-            {active ? "Deactivate yacht" : "Reactivate yacht"}
+            {status.pendingId
+              ? yacht.is_active
+                ? "Deactivating…"
+                : "Activating…"
+              : yacht.is_active
+                ? "Deactivate yacht"
+                : "Activate yacht"}
           </button>
         </aside>
       </div>

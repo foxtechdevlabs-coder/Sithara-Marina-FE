@@ -122,24 +122,20 @@ export function SiteHeader() {
           </span>
         </Link>
 
-        <div className="flex items-center gap-3 lg:gap-4">
-          {/* Sign in: icon-only on tablets, full button from lg; on phones it lives in the menu. */}
+        <div className="flex gap-1.5 md:gap-2.5 lg:gap-[1.125rem]">
+          {/* Sign in: full button from lg, icon-only from sm; inside the menu on phones. */}
           <Link
             href={userRoutes.login}
             onClick={closeMenu}
             aria-label="Sign in"
+            aria-current={isCurrent(userRoutes.login) ? "page" : undefined}
             className={cx(
-              "hidden h-[3.3125rem] items-center justify-center gap-3 border text-[0.9375rem] font-normal transition-colors duration-300 md:inline-flex md:w-[3.3125rem] lg:w-auto lg:px-[2.375rem]",
-              isOverlay
-                ? "border-white/80 text-white hover:bg-white/10"
-                : "border-brand-950 text-brand-950 hover:bg-brand-950/5",
+              "hidden h-[3.3125rem] w-11 items-center justify-center gap-2.5 border border-[#0d1b2a] bg-white text-[0.875rem] text-[#0d1b2a] transition-colors duration-300 hover:bg-[#0d1b2a] hover:text-white sm:inline-flex lg:w-[11.75rem]",
               focusRing,
             )}
           >
-            <UserRound aria-hidden="true" strokeWidth={1.5} className="size-5" />
-            <span aria-hidden="true" className="hidden lg:inline">
-              Sign in
-            </span>
+            <UserRound aria-hidden="true" strokeWidth={1.5} className="size-[1.125rem] shrink-0" />
+            <span className="hidden lg:inline">Sign in</span>
           </Link>
 
           <Link
@@ -183,18 +179,19 @@ export function SiteHeader() {
               </Link>
             </li>
           ))}
-          {/* Phones: the header has no room for the Sign in button, so it sits here. */}
-          <li className="md:hidden">
+          {/* Phones have no room for the header's Sign in button. */}
+          <li className="sm:hidden">
             <Link
               href={userRoutes.login}
               onClick={closeMenu}
+              aria-current={isCurrent(userRoutes.login) ? "page" : undefined}
               className={cx(
-                "flex items-center gap-3 py-3 text-[0.9375rem] opacity-90 transition-opacity duration-300 hover:opacity-100",
+                "flex items-center gap-3 py-3 font-serif text-[1.625rem] leading-tight opacity-90 transition-opacity duration-300 hover:opacity-100 aria-[current=page]:italic",
                 focusRingBase,
                 "focus-visible:outline-white",
               )}
             >
-              <UserRound aria-hidden="true" strokeWidth={1.5} className="size-5" />
+              <UserRound aria-hidden="true" strokeWidth={1.25} className="size-5" />
               Sign in
             </Link>
           </li>

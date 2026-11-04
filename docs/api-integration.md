@@ -19,7 +19,7 @@ src/services/http/api-client.ts                  the single configured client
 src/services/http/create-http-client.ts          fetch wrapper: URL, JSON, timeout, errors, validation
     │
     ▼
-src/config/env.ts                                NEXT_PUBLIC_API_BASE_URL, validated with Zod
+src/config/env.ts                                NEXT_PUBLIC_API_URL, validated with Zod
 ```
 
 Rules: components never call `fetch`/`apiClient`; each endpoint has exactly one service function;
@@ -91,30 +91,90 @@ export function getYacht(yachtId: string): Promise<Yacht> {
   the API, not from checkout state).
 - Disable submit buttons while pending; send idempotency keys if the backend supports them.
 
-## Authentication (not implemented)
+## Customer authentication
 
-When the contract is known:
+Backend: `NEXT_PUBLIC_API_BASE_URL` from the root `.env` (NestJS; spec at `<base URL>/docs`, JSON
+at `<base URL>/docs-json`). Implemented in `src/services/user/auth.service.ts` (paths in
+`AUTH_PATHS`):
 
-- Prefer backend-issued **httpOnly, Secure, SameSite cookies**. Do not store tokens in
-  `localStorage`/`sessionStorage`.
-- Cookies on a different origin than the frontend need CORS with credentials
-  (`init: { credentials: "include" }`) and appropriate `SameSite` settings — agree this with the
-  backend team.
-- Put header-based auth (if required) in `getHeaders` and session-expiry handling in
-  `onUnauthorized`, both in `api-client.ts`.
-- Protect pages in `admin/(console)/layout.tsx` and `(user)/(site)/account/layout.tsx` (or
-  `src/proxy.ts`, which replaced `middleware.ts` in Next.js 16). These redirects are UX; **the
-  backend must authorize every request**.
+| Function                 | Endpoint                         | Used by                                  |
+| ------------------------ | -------------------------------- | ---------------------------------------- |
+| `registerUser()`         | `POST /auth/register`            | `/register`                              |
+| `verifyEmail()`          | `POST /auth/verify-email`        | `/verify-email?token=…`                  |
+| `resendVerification()`   | `POST /auth/resend-verification` | `/verify-email` "Resend"                 |
+| `loginUser()`            | `POST /auth/login`               | `/login` (then `?next=` or home)         |
+| `requestPasswordReset()` | `POST /auth/forgot-password`     | `/forgot-password`, "Request a new link" |
+| `verifyResetLink()`      | `POST /auth/verify-reset-link`   | `/reset-password?token=…`                |
+| `resetPassword()`        | `POST /auth/reset-password`      | `/reset-password` (then `/login`)        |
+| `refreshSession()`       | `POST /auth/refresh`             | HTTP client, automatically on 401        |
+| `logoutSession()`        | `POST /auth/logout` (bearer)     | `signOut()` in `session.ts` (no UI yet)  |
+
+- Request bodies contain exactly the documented fields (the backend rejects extra fields).
+  Responses are validated with Zod. Auth calls use a 60 s timeout (the Render instance can take
+  ~40 s to wake up) and `auth: false`, so a 401 from e.g. a wrong password never triggers a refresh.
+- **Unconfirmed response shapes:** Swagger declares no response schema for `/auth/login`,
+  `/auth/refresh` or `/auth/me`. Login is validated against `AuthResponseDto` (documented for
+  verify-email); refresh requires a new `access_token` and `refresh_token` (`user` optional).
+  A different shape fails validation instead of creating a broken session.
+- Error bodies (observed, not in the spec): domain errors `{ statusCode, code, message }`;
+  validation errors `{ statusCode: 400, error, message: string[] }`; 401s
+  `{ statusCode, message, error? }`. Read them with `getBackendErrorDetails()`.
+  `ApiError.retryAfterSeconds` reads `Retry-After`. Login returns the same 401 "Invalid email or
+  password" for wrong credentials **and for unverified accounts**.
+- **Links are token-based**, not six-digit codes: `/verify-email?token=<id>.<secret>` and
+  `/reset-password?token=<id>.<secret>` (link format to be confirmed by the backend team). Each
+  page reads the token, removes it from the address bar and posts it exactly once. The
+  short-lived `reset_token` (`expires_in`, currently 600 s) is kept in memory only.
+
+### Session and refresh
+
+- **Storage:** the backend returns `access_token` and `refresh_token` in the JSON body and sets no
+  cookies. They are kept in `sessionStorage` (tab-scoped, cleared when the tab closes) by
+  `src/features/user/auth/session.ts` (`useAuthSession()`), never in `localStorage`; passwords and
+  reset tokens are never stored. Script-readable storage is exposed to XSS — see below.
+- **Bearer + refresh:** the customer session registers handlers (`src/services/http/auth-handlers.ts`,
+  mounted on every customer page by `src/app/(user)/layout.tsx`). The shared client attaches
+  `Authorization: Bearer` to requests (unless `auth: false`). On a 401 it runs **one** refresh at
+  a time (concurrent 401s and new requests wait for it), retries each request **once**, and never
+  loops. The refresh token is single use and rotated, so the new pair replaces the old one.
+- **Failure:** an invalid/revoked refresh token (401/400) clears the session and redirects to
+  `/login?next=<current page>` with a "session expired" notice. A network failure during refresh
+  keeps the session. `?next=` only accepts same-site paths (open-redirect guard).
+- **Logout:** `signOut()` calls `POST /auth/logout` (never retried via refresh) and always clears
+  the local session. No sign-out button exists yet (the header was not changed).
+- **Moving to httpOnly cookies** needs backend changes: set the refresh (and ideally access) token
+  as `HttpOnly; Secure; SameSite` cookies on login / verify-email / refresh, read the refresh token
+  from the cookie in `/auth/refresh` and `/auth/logout`, add CSRF protection, and keep CORS
+  `credentials: true` with explicit origins (the frontend would send `credentials: "include"`).
+  Alternatively a Next.js server-side proxy could hold the tokens in httpOnly cookies.
+- Hiding UI or redirecting is UX only — **the backend must authorize every request**.
+
+### Known backend gaps
+
+1. **CORS:** only `http://localhost:5173` is allowed. `http://localhost:3000` (this app's dev
+   port) and the production frontend origin must be added.
+2. `Retry-After` is sent but not listed in `Access-Control-Expose-Headers`, so browsers can't read
+   it; the UI falls back to the documented 60 s cooldown (or "up to an hour" for
+   `TOO_MANY_EMAILS`).
+3. No response schemas for `/auth/login`, `/auth/refresh`, `/auth/me`; the link formats (and the
+   frontend URL used in emails) are not documented.
+4. Registering an `@example.com` address returned `503 EMAIL_DELIVERY_FAILED`; delivery to real
+   inboxes was not verified.
 
 ## Environment variables
 
-| Variable                   | Exposed to browser | Purpose                                     |
-| -------------------------- | ------------------ | ------------------------------------------- |
-| `NEXT_PUBLIC_API_BASE_URL` | **Yes**            | Absolute base URL of the API (user + admin) |
+| Variable              | Exposed to browser | Purpose                                     |
+| --------------------- | ------------------ | ------------------------------------------- |
+| `NEXT_PUBLIC_API_URL` | **Yes**            | Absolute base URL of the API (user + admin) |
 
-- Copy `.env.example` to `.env.local` (git-ignored). The template value
-  `http://localhost:4000/api` is a **placeholder**; the backend team must confirm host, port and
-  prefix.
+- Copy `.env.example` to `.env.local` (git-ignored). The hosted backend is
+  `https://sithara-backend.onrender.com`, with no `/api` prefix (reference:
+  <https://sithara-backend.onrender.com/docs>, health: <https://sithara-backend.onrender.com/health>).
+  To use a backend running locally instead, set `http://localhost:3000`. In deployments, set the
+  same variable in the platform's environment settings and redeploy.
+- The hosted backend is on Render's free tier: the first request after it has been idle can take
+  up to about a minute while it wakes up.
+- `NEXT_PUBLIC_API_BASE_URL` (the previous name) is still accepted as a fallback.
 - `NEXT_PUBLIC_*` values are **inlined at build time** into browser JavaScript: never put secrets
   in them, and build with the target environment's values. `next build` fails if the variable is
   missing or not an absolute URL (validated in `src/app/layout.tsx`).

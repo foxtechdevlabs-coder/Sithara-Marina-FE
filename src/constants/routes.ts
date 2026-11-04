@@ -20,6 +20,9 @@ export const userRoutes = {
 
   login: "/login",
   register: "/register",
+  forgotPassword: "/forgot-password",
+  resetPassword: "/reset-password",
+  verifyEmail: "/verify-email",
 
   planCharter: "/plan-your-charter",
   search: "/search",
@@ -28,6 +31,10 @@ export const userRoutes = {
 /** Admin dashboard routes (`src/app/admin`). */
 export const adminRoutes = {
   login: "/admin/login",
+  /** Staff password reset; emailed links open `<this>#token=…`. */
+  resetPassword: "/admin/reset-password",
+  /** Staff password recovery (request a new reset link). */
+  forgotPassword: "/admin/forgot-password",
   dashboard: "/admin/dashboard",
 
   fleet: "/admin/fleet",
