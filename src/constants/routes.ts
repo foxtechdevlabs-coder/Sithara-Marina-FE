@@ -22,7 +22,12 @@ export const userRoutes = {
   register: "/register",
   forgotPassword: "/forgot-password",
   resetPassword: "/reset-password",
+  /** Link in the verification email: `<this>?token=<id>.<secret>`. */
   verifyEmail: "/verify-email",
+  /** After registering: the email was accepted for sending (not "verified"). */
+  verifyEmailSuccess: "/verify-email/success",
+  verifyEmailFailed: "/verify-email/failed",
+  verifyEmailPending: "/verify-email/pending",
 
   planCharter: "/plan-your-charter",
   search: "/search",

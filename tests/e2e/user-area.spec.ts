@@ -49,8 +49,9 @@ test("forgot-password page is reachable from sign in and links back", async ({ p
   await expect(page).toHaveURL("/login");
 });
 
-test("verify-email page shows a neutral subtitle and accepts digits only", async ({ page }) => {
+test("verify-email without a token hands over to the pending page", async ({ page }) => {
   await page.goto("/verify-email");
+  await expect(page).toHaveURL("/verify-email/pending");
   await expect(
     page.getByRole("heading", { level: 1, name: "One last detail, then you are in." }),
   ).toBeVisible();
@@ -58,10 +59,8 @@ test("verify-email page shows a neutral subtitle and accepts digits only", async
   await expect(
     page.getByText("Verify your email address to keep your journeys together."),
   ).toBeVisible();
-  const code = page.getByLabel("Verification code");
-  await code.pressSequentially("12ab3456789");
-  await expect(code).toHaveValue("123456");
-  await expect(page.getByRole("button", { name: /Resend code · / })).toBeDisabled();
+  await expect(page.getByLabel("Email address")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Resend verification email" })).toBeEnabled();
 });
 
 test("checkout uses the distraction-free layout and fabricates no booking", async ({ page }) => {

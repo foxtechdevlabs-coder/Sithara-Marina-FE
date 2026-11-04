@@ -95,7 +95,7 @@ export function SignInForm() {
           <>
             The email or password is incorrect. If you registered recently, confirm your email first
             using the link we sent —{" "}
-            <Link href={userRoutes.verifyEmail} className="underline">
+            <Link href={userRoutes.verifyEmailPending} className="underline">
               request a new verification email
             </Link>
             .

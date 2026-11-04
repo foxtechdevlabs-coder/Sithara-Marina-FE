@@ -101,7 +101,7 @@ at `<base URL>/docs-json`). Implemented in `src/services/user/auth.service.ts` (
 | ------------------------ | -------------------------------- | ---------------------------------------- |
 | `registerUser()`         | `POST /auth/register`            | `/register`                              |
 | `verifyEmail()`          | `POST /auth/verify-email`        | `/verify-email?token=…`                  |
-| `resendVerification()`   | `POST /auth/resend-verification` | `/verify-email` "Resend"                 |
+| `resendVerification()`   | `POST /auth/resend-verification` | `/verify-email/{failed,pending}`, bad link |
 | `loginUser()`            | `POST /auth/login`               | `/login` (then `?next=` or home)         |
 | `requestPasswordReset()` | `POST /auth/forgot-password`     | `/forgot-password`, "Request a new link" |
 | `verifyResetLink()`      | `POST /auth/verify-reset-link`   | `/reset-password?token=…`                |
@@ -125,6 +125,27 @@ at `<base URL>/docs-json`). Implemented in `src/services/user/auth.service.ts` (
   `/reset-password?token=<id>.<secret>` (link format to be confirmed by the backend team). Each
   page reads the token, removes it from the address bar and posts it exactly once. The
   short-lived `reset_token` (`expires_in`, currently 600 s) is kept in memory only.
+
+### Email verification routes
+
+These are frontend pages, not API endpoints. The backend exposes only `POST` JSON endpoints and
+performs **no redirects**: the emailed link opens the frontend directly, and the frontend picks
+the status page from the `POST /auth/register` result.
+
+| Route                   | Reached from                                       | Query params         |
+| ----------------------- | -------------------------------------------------- | -------------------- |
+| `/verify-email`         | Link in the verification email (callback)          | `token=<id>.<secret>` |
+| `/verify-email/success` | Register 201 (email accepted for sending)          | None                 |
+| `/verify-email/failed`  | Register 503 `EMAIL_DELIVERY_FAILED`               | None                 |
+| `/verify-email/pending` | Sign-in 401 link, register 429, `/verify-email` with no token | None      |
+
+- The email address reaches the status pages through `sessionStorage`, never the URL. `success`
+  and `failed` hand over to `pending` when this tab has no registration.
+- `/verify-email` shows the Welcome screen (Continue → home) only after a 200. It is local state,
+  not a route.
+- Register 503 `SERVICE_UNAVAILABLE` stays on the form: the spec does not say the account was
+  saved, so resubmitting (not resending) is the safe retry.
+- Resend answers 200 even when the email could not be sent, so its success text stays neutral.
 
 ### Session and refresh
 
@@ -151,8 +172,8 @@ at `<base URL>/docs-json`). Implemented in `src/services/user/auth.service.ts` (
 
 ### Known backend gaps
 
-1. **CORS:** only `http://localhost:5173` is allowed. `http://localhost:3000` (this app's dev
-   port) and the production frontend origin must be added.
+1. **CORS:** `http://localhost:3001` (this app's dev port) is allowed. The production frontend
+   origin must be confirmed.
 2. `Retry-After` is sent but not listed in `Access-Control-Expose-Headers`, so browsers can't read
    it; the UI falls back to the documented 60 s cooldown (or "up to an hour" for
    `TOO_MANY_EMAILS`).

@@ -1,6 +1,7 @@
 "use client";
 
 import { BRAND_NAME } from "@/constants/brand";
+
 import { ArrowRight, UserRound, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";

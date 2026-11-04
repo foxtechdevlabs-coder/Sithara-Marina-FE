@@ -113,8 +113,9 @@ function fieldErrorsFromBackend(messages: string[]): { fields: FieldErrors; unma
 
 /**
  * Customer registration form → POST /auth/register. On 201 the account is
- * saved but unverified: the email (never the password) is handed to
- * /verify-email, which explains the emailed link and offers "Resend".
+ * saved but unverified: the email (never the password) is handed to a
+ * /verify-email/* status page, chosen here from the response because the
+ * backend does not redirect: 201 → success, `EMAIL_DELIVERY_FAILED` → failed.
  */
 export function SignUpForm() {
   const formId = useId();
@@ -128,13 +129,19 @@ export function SignUpForm() {
     if (firstInvalid) document.getElementById(`${formId}-${firstInvalid.name}`)?.focus();
   };
 
-  const goToVerification = (email: string, cooldownSeconds: number, deliveryFailed = false) => {
+  const goToEmailStatus = (
+    route:
+      | typeof userRoutes.verifyEmailSuccess
+      | typeof userRoutes.verifyEmailFailed
+      | typeof userRoutes.verifyEmailPending,
+    email: string,
+    cooldownSeconds: number,
+  ) => {
     savePendingVerification({
       email,
       resendAvailableAt: Date.now() + cooldownSeconds * 1000,
-      notice: deliveryFailed ? "delivery-failed" : undefined,
     });
-    router.push(userRoutes.verifyEmail);
+    router.push(route);
   };
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -161,7 +168,7 @@ export function SignUpForm() {
         password: String(data.get("password")),
         confirmPassword: String(data.get("confirmPassword")),
       });
-      goToVerification(email, VERIFICATION_EMAIL_COOLDOWN_SECONDS);
+      goToEmailStatus(userRoutes.verifyEmailSuccess, email, VERIFICATION_EMAIL_COOLDOWN_SECONDS);
       return; // keep the button disabled while navigating
     } catch (error) {
       const { code, messages } = getBackendErrorDetails(error);
@@ -170,7 +177,11 @@ export function SignUpForm() {
 
       if (code === "EMAIL_DELIVERY_FAILED") {
         // The account and link were saved; only the email failed.
-        goToVerification(email, retryAfter ?? VERIFICATION_EMAIL_COOLDOWN_SECONDS, true);
+        goToEmailStatus(
+          userRoutes.verifyEmailFailed,
+          email,
+          retryAfter ?? VERIFICATION_EMAIL_COOLDOWN_SECONDS,
+        );
         return;
       }
 
@@ -211,7 +222,11 @@ export function SignUpForm() {
               type="button"
               className="underline"
               onClick={() =>
-                goToVerification(email, retryAfter ?? VERIFICATION_EMAIL_COOLDOWN_SECONDS)
+                goToEmailStatus(
+                  userRoutes.verifyEmailPending,
+                  email,
+                  retryAfter ?? VERIFICATION_EMAIL_COOLDOWN_SECONDS,
+                )
               }
             >
               Go to email verification
