@@ -16,7 +16,7 @@ import { createHttpClient } from "./create-http-client";
  *   session itself is owned by the area that registered `auth-handlers`.
  */
 export const apiClient = createHttpClient({
-  baseUrl: () => getPublicEnv().NEXT_PUBLIC_API_BASE_URL,
+  baseUrl: () => getPublicEnv().NEXT_PUBLIC_API_URL,
   timeoutMs: 15_000,
   getAccessToken: () => getAuthHandlers()?.getAccessToken() ?? null,
   refreshAccessToken: async () => (await getAuthHandlers()?.refresh()) ?? false,

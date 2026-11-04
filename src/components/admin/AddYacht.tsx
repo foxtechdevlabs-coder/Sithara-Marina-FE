@@ -1,30 +1,64 @@
 "use client";
 
-import { ArrowRight, Check, ChevronDown, Clock, GripVertical, Plus, Upload } from "lucide-react";
+import { ArrowRight, Check, Clock, Plus } from "lucide-react";
+import type { Route } from "next";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  useEffect,
-  useRef,
-  useState,
-  type ChangeEvent,
-  type DragEvent,
-  type ReactNode,
-} from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { adminRoutes } from "@/constants/routes";
+import { YachtGallery, type QueuedPhoto } from "@/features/admin/fleet/components/yacht-gallery";
+import { useAdminQuery } from "@/features/admin/fleet/hooks/use-admin-query";
+import { usePublishBreadcrumbYacht } from "@/features/admin/fleet/hooks/use-breadcrumb-yacht";
+import { fleetErrorMessage } from "@/features/admin/fleet/utils/fleet-error-message";
+import {
+  EMPTY_FORM,
+  LIST_ITEM_MAX,
+  formFromTemplate,
+  formFromYacht,
+  toCreateInput,
+  toPatch,
+  validateYachtForm,
+  type YachtFormState,
+} from "@/features/admin/fleet/utils/yacht-form";
+import {
+  activateYacht,
+  attachPhotos,
+  createYacht,
+  deactivateYacht,
+  getYacht,
+  listActivePartners,
+  updateYacht,
+  type YachtDetail,
+  type YachtPhoto,
+} from "@/services/admin/fleet.service";
+import { uploadYachtPhoto } from "@/services/admin/media.service";
+import { isApiError } from "@/services/http/api-error";
 import { cx } from "@/lib/cx";
 
 import { BODY, GRADIENT, INK, MUTED, SAND } from "./admin-theme";
-import type { FleetRecord, YachtForm } from "./fleet-data";
+import {
+  ChipGroup,
+  FieldError,
+  Label,
+  LoadState,
+  NotSaved,
+  Section,
+  SelectBox,
+  Toggle,
+  chip,
+  errorProps,
+  input,
+} from "./form-parts";
 
 /* ------------------------------------------------------------------ */
-/* Options (DUMMY until the fleet API defines them)                    */
+/* Options                                                             */
 /* ------------------------------------------------------------------ */
 
+/** Suggestions only: the backend accepts any vessel type text and any amenity. */
 const VESSEL_TYPES = ["Superyacht", "Motor yacht", "Sailing yacht", "Houseboat"];
 const REGIONS = ["Kochi", "Lakshadweep", "Kerala Backwaters", "Malabar Coast", "The Maldives"];
-const DEFAULT_AMENITIES = [
+const SUGGESTED_AMENITIES = [
   "Private chef",
   "Sun deck",
   "Ocean-view suites",
@@ -51,16 +85,9 @@ const BOOKING_MODES = [
     text: "No online payment — concierge sends a quote.",
   },
 ] as const;
-const STATUSES = ["Active", "Inactive", "Under maintenance"];
+const STATUSES = ["Active", "Inactive", "Under maintenance"] as const;
+type Status = (typeof STATUSES)[number];
 const TAGLINE_MAX = 120;
-
-// Sample photos so the gallery matches the design; uploads are added after them.
-const SAMPLE_PHOTOS = [
-  { src: "/images/yachts/astra-one-arabian-sea.png", alt: "Yacht cruising off the coast" },
-  { src: "/images/yachts/astra-one-master-suite.png", alt: "Master suite" },
-  { src: "/images/yachts/astra-one-dining.png", alt: "Dining saloon" },
-  { src: "/images/yachts/astra-one-saloon.png", alt: "Main saloon" },
-];
 
 const TABS = [
   { id: "details", label: "Details" },
@@ -69,238 +96,196 @@ const TABS = [
   { id: "booking", label: "Booking" },
 ] as const;
 
-interface Photo {
-  id: string;
-  src: string;
-  alt: string;
-  /** Blob URL from an upload; revoked when removed. */
-  uploaded?: boolean;
+/** Fields in page order, to scroll to the first one with an error. */
+const FIELD_ORDER = [
+  "yacht-name",
+  "vessel-type",
+  "home-port",
+  "slug",
+  "departure-points",
+  "partner",
+  "length",
+  "capacity",
+  "suites",
+  "description",
+  "amenities",
+  "inclusions",
+  "policies",
+];
+
+/**
+ * Design fields the backend has no field for yet. They are shown (marked
+ * "Not saved yet") but never sent; see features/admin/fleet/README.md.
+ */
+interface UnsavedFields {
+  registration: string;
+  regions: string[];
+  crew: string;
+  built: string;
+  speed: string;
+  tagline: string;
+  rate: string;
+  minDays: string;
+  deposit: string;
+  embark: string;
+  disembark: string;
 }
 
-const INITIAL: YachtForm = {
-  name: "",
-  type: "Superyacht",
-  port: "",
+const UNSAVED_START: UnsavedFields = {
   registration: "",
-  regions: ["Kochi"],
-  ownership: "owned",
-  length: "",
-  guests: "",
-  suites: "",
+  regions: [],
   crew: "",
   built: "",
   speed: "",
   tagline: "",
-  description: "",
-  amenities: ["Private chef", "Sun deck"],
-  mode: "slots",
   rate: "",
   minDays: "",
   deposit: "",
   embark: "10:00",
   disembark: "17:00",
-  visible: true,
-  featured: false,
-  status: "Active",
 };
 
-/* ------------------------------------------------------------------ */
-/* Building blocks                                                     */
-/* ------------------------------------------------------------------ */
+const digits = (v: string) => v.replace(/\D/g, "");
 
-const input =
-  "h-[52px] w-full border border-[#dcdad5] bg-white px-[16px] text-[14px] text-[#0d1b2a] outline-none transition-colors placeholder:text-[#a3a6aa] focus:border-[#0d1b2a]";
-const chip =
-  "h-[44px] border px-[16px] text-[13px] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0d1b2a]";
-
-function Label({
-  htmlFor,
-  children,
-  required,
-  hint,
-  as: Tag = "label",
-}: {
-  htmlFor?: string;
-  children: ReactNode;
-  required?: boolean;
-  hint?: string;
-  as?: "label" | "p";
-}) {
-  return (
-    <Tag
-      {...(Tag === "label" ? { htmlFor } : {})}
-      className="mb-[8px] block text-[11px] leading-[16px]"
-      style={{ color: BODY }}
-    >
-      {children}
-      {required && <span aria-hidden="true"> *</span>}
-      {hint && <span className="text-[#8a8d91]"> — {hint}</span>}
-    </Tag>
-  );
-}
-
-function Section({
+/**
+ * Chips for a list of short texts (amenities, inclusions, departure points),
+ * ending with "+ Add …". That chip opens an input in place to type a new one.
+ */
+function ListField({
   id,
-  number,
-  title,
-  children,
+  label,
+  hint,
+  addLabel,
+  values,
+  options,
+  maxLength,
+  onChange,
+  onOptionsChange,
+  error,
+  placeholder,
 }: {
   id: string;
-  number: string;
-  title: string;
-  children: ReactNode;
-}) {
-  return (
-    <section
-      id={id}
-      aria-labelledby={`${id}-title`}
-      className="scroll-mt-[24px] border border-[#dcdad5] bg-white px-[20px] pt-[28px] pb-[32px] sm:px-[28px]"
-    >
-      <h2 id={`${id}-title`} className="flex items-baseline gap-[10px] text-[22px] leading-[28px]">
-        <span className="text-[11px]" style={{ color: MUTED }}>
-          {number}
-        </span>
-        {title}
-      </h2>
-      <div className="mt-[24px]">{children}</div>
-    </section>
-  );
-}
-
-function ChipGroup({
-  label,
-  required,
-  hint,
-  options,
-  selected,
-  onToggle,
-  multiple,
-  after,
-}: {
   label: string;
-  required?: boolean;
   hint?: string;
-  options: { value: string; label: string }[];
-  selected: string[];
-  onToggle: (value: string) => void;
-  multiple?: boolean;
-  after?: ReactNode;
+  addLabel: string;
+  values: string[];
+  options: string[];
+  maxLength: number;
+  onChange: (values: string[]) => void;
+  onOptionsChange: (options: string[]) => void;
+  error?: string;
+  placeholder: string;
 }) {
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (adding) inputRef.current?.focus();
+  }, [adding]);
+
+  const add = () => {
+    const value = draft.trim().slice(0, maxLength);
+    if (value) {
+      if (!options.includes(value)) onOptionsChange([...options, value]);
+      if (!values.includes(value)) onChange([...values, value]);
+    }
+    setDraft("");
+  };
+
   return (
-    <fieldset>
-      <legend className="contents">
-        <Label as="p" required={required} hint={hint}>
-          {label}
-        </Label>
-      </legend>
-      <div className="flex flex-wrap gap-[10px]" role={multiple ? "group" : "radiogroup"}>
-        {options.map((o) => {
-          const on = selected.includes(o.value);
-          return (
+    <div>
+      <ChipGroup
+        id={id}
+        label={label}
+        hint={hint}
+        multiple
+        options={options.map((o) => ({ value: o, label: o }))}
+        selected={values}
+        onToggle={(v) =>
+          onChange(values.includes(v) ? values.filter((x) => x !== v) : [...values, v])
+        }
+        after={
+          adding ? (
+            <span className="flex w-full max-w-[380px] gap-[8px]">
+              <input
+                ref={inputRef}
+                id={`${id}-add`}
+                aria-label={addLabel}
+                className={cx(input.replace("h-[52px]", "h-[44px]"), "min-w-0 flex-1 text-[13px]")}
+                placeholder={placeholder}
+                maxLength={maxLength}
+                value={draft}
+                onChange={(e) => setDraft(e.currentTarget.value)}
+                onKeyDown={(e) => {
+                  // Enter adds the item instead of submitting the whole form.
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    add();
+                  } else if (e.key === "Escape") {
+                    setDraft("");
+                    setAdding(false);
+                  }
+                }}
+              />
+              <button
+                type="button"
+                onClick={add}
+                disabled={!draft.trim()}
+                className={cx(
+                  chip,
+                  "shrink-0 border-[#0d1b2a] bg-white hover:bg-[#f2f1ee] disabled:cursor-not-allowed disabled:border-[#dcdad5] disabled:text-[#a3a6aa]",
+                )}
+              >
+                Add
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setDraft("");
+                  setAdding(false);
+                }}
+                className="shrink-0 px-[6px] text-[12px] underline underline-offset-2 hover:opacity-70"
+              >
+                Done
+              </button>
+            </span>
+          ) : (
             <button
-              key={o.value}
               type="button"
-              role={multiple ? undefined : "radio"}
-              aria-pressed={multiple ? on : undefined}
-              aria-checked={multiple ? undefined : on}
-              onClick={() => onToggle(o.value)}
+              onClick={() => setAdding(true)}
               className={cx(
                 chip,
-                on
-                  ? "border-[#0d1b2a] bg-[#0d1b2a] text-white"
-                  : "border-[#dcdad5] bg-white hover:border-[#0d1b2a]",
+                "flex items-center gap-[4px] border-[#dcdad5] bg-white hover:border-[#0d1b2a]",
               )}
             >
-              {o.label}
+              <Plus aria-hidden="true" strokeWidth={1.5} className="size-[13px]" />
+              {addLabel}
             </button>
-          );
-        })}
-        {after}
-      </div>
-    </fieldset>
-  );
-}
-
-function Toggle({
-  id,
-  label,
-  text,
-  checked,
-  onChange,
-}: {
-  id: string;
-  label: string;
-  text: string;
-  checked: boolean;
-  onChange: (value: boolean) => void;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-6 border-b border-[#eceae6] py-[16px] first:pt-0">
-      <div>
-        <label htmlFor={id} className="block text-[14px] leading-[20px]">
-          {label}
-        </label>
-        <p
-          id={`${id}-text`}
-          className="mt-[2px] text-[11px] leading-[16px]"
-          style={{ color: BODY }}
-        >
-          {text}
-        </p>
-      </div>
-      <button
-        id={id}
-        type="button"
-        role="switch"
-        aria-checked={checked}
-        aria-describedby={`${id}-text`}
-        onClick={() => onChange(!checked)}
-        className={cx(
-          "relative h-[26px] w-[46px] shrink-0 rounded-full transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0d1b2a]",
-          checked ? "bg-[#0d1b2a]" : "bg-[#d5d3cf]",
-        )}
-      >
-        <span
-          aria-hidden="true"
-          className={cx(
-            "absolute top-[3px] size-[20px] rounded-full bg-white transition-[left] motion-reduce:transition-none",
-            checked ? "left-[23px]" : "left-[3px]",
-          )}
-        />
-      </button>
-    </div>
-  );
-}
-
-function SelectBox({
-  id,
-  value,
-  onChange,
-  options,
-}: {
-  id: string;
-  value: string;
-  onChange: (v: string) => void;
-  options: string[];
-}) {
-  return (
-    <div className="relative">
-      <select
-        id={id}
-        value={value}
-        onChange={(e) => onChange(e.currentTarget.value)}
-        className={cx(input, "cursor-pointer appearance-none pr-10")}
-      >
-        {options.map((o) => (
-          <option key={o}>{o}</option>
-        ))}
-      </select>
-      <ChevronDown
-        aria-hidden="true"
-        strokeWidth={1.75}
-        className="pointer-events-none absolute top-1/2 right-[14px] size-4 -translate-y-1/2"
+          )
+        }
       />
+      <FieldError id={id} message={error} />
     </div>
+  );
+}
+
+function PageIntro({ title, status }: { title: string; status?: ReactNode }) {
+  return (
+    <>
+      <p className="text-[10px] tracking-[0.12em] uppercase" style={{ color: MUTED }}>
+        Sithara Marina / Admin
+      </p>
+      <h1 className="mt-[18px] text-[30px] leading-[1.15] font-normal tracking-[-0.8px] lg:mt-[24px] lg:text-[43px] lg:tracking-[-1.3px]">
+        {title}{" "}
+        <em
+          className="tracking-[-0.5px]"
+          style={{ fontFamily: "'Instrument Serif', Georgia, serif" }}
+        >
+          in detail.
+        </em>
+      </h1>
+      {status}
+    </>
   );
 }
 
@@ -309,55 +294,119 @@ function SelectBox({
 /* ------------------------------------------------------------------ */
 
 /**
- * "A new vessel, in detail." — the add-yacht form from the admin Figma design,
- * with a live website preview and a ready-to-publish checklist.
+ * "A new vessel, in detail." — the add/edit yacht form from the admin Figma
+ * design, with a live website preview and a ready-to-publish checklist.
  *
- * UI ONLY: nothing is sent anywhere yet. Publish checks the required items and
- * returns to the fleet; replace `publish` / `saveDraft` with the fleet API.
+ * Create: POST /admin/yachts, then uploads the queued photos. Edit: loads
+ * GET /admin/yachts/{id} and saves the changed fields with PATCH. Fields the
+ * backend has no field for yet are shown, marked "Not saved yet", and not sent.
  */
 export default function AddYacht({
-  yacht,
-  template,
+  yachtId,
+  duplicateId,
 }: {
   /** Existing yacht to edit. */
-  yacht?: FleetRecord;
+  yachtId?: string;
   /** Yacht to copy into a new one ("Duplicate as new yacht"). */
-  template?: FleetRecord;
+  duplicateId?: string;
 }) {
-  const editing = Boolean(yacht);
-  const start = yacht ?? template;
-  const doneHref = yacht ? adminRoutes.fleetYacht(yacht.id) : adminRoutes.fleet;
-  const router = useRouter();
-  const [form, setForm] = useState<YachtForm>(() =>
-    template
-      ? { ...template.form, name: `${template.form.name} (copy)`, featured: false }
-      : (yacht?.form ?? INITIAL),
+  const sourceId = yachtId ?? duplicateId;
+  const source = useAdminQuery<YachtDetail | null>(
+    (signal) => (sourceId ? getYacht(sourceId, signal) : Promise.resolve(null)),
+    sourceId ?? "new",
   );
-  const [amenityOptions, setAmenityOptions] = useState(() => [
-    ...DEFAULT_AMENITIES,
-    ...(start?.form.amenities.filter((a) => !DEFAULT_AMENITIES.includes(a)) ?? []),
-  ]);
-  const [photos, setPhotos] = useState<Photo[]>(() =>
-    (start?.photos ?? SAMPLE_PHOTOS).map((p, i) => ({ ...p, id: `photo-${i}` })),
-  );
-  const [dragId, setDragId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<string>("details");
-  const [draftState, setDraftState] = useState<"unsaved" | "saved" | "clean">(
-    editing ? "clean" : "unsaved",
-  );
-  const [savedAt, setSavedAt] = useState("");
-  const [problem, setProblem] = useState("");
-  const fileInput = useRef<HTMLInputElement>(null);
+  usePublishBreadcrumbYacht(yachtId ? (source.data ?? undefined) : undefined);
 
-  const set = <K extends keyof YachtForm>(key: K, value: YachtForm[K]) => {
-    setForm((f) => ({ ...f, [key]: value }));
-    setDraftState("unsaved");
-  };
-  const toggleIn = (key: "regions" | "amenities", value: string) =>
-    set(
-      key,
-      form[key].includes(value) ? form[key].filter((v) => v !== value) : [...form[key], value],
+  if (source.loading || source.error) {
+    return (
+      <div className="px-[20px] pt-[20px] pb-[40px] lg:pt-[33px] lg:pr-[47px] lg:pl-[46px]">
+        <PageIntro title={yachtId ? "Edit yacht," : "A new vessel,"} />
+        <LoadState
+          loading={source.loading}
+          label="Loading the yacht"
+          error={source.error ? `Couldn't load the yacht. ${fleetErrorMessage(source.error)}` : ""}
+          onRetry={
+            isApiError(source.error) && source.error.status === 404 ? undefined : source.reload
+          }
+        />
+        {Boolean(source.error) && (
+          <Link
+            href={adminRoutes.fleet}
+            className="text-[12px] underline underline-offset-2 hover:opacity-70"
+          >
+            Back to the fleet
+          </Link>
+        )}
+      </div>
     );
+  }
+
+  const yacht = yachtId ? (source.data ?? undefined) : undefined;
+  const template = duplicateId ? (source.data ?? undefined) : undefined;
+  return <YachtEditor key={sourceId ?? "new"} saved={yacht} template={template} />;
+}
+
+function YachtEditor({ saved, template }: { saved?: YachtDetail; template?: YachtDetail }) {
+  const editing = Boolean(saved);
+  const router = useRouter();
+  const doneHref = saved ? adminRoutes.fleetYacht(saved.id) : adminRoutes.fleet;
+
+  const [form, setForm] = useState<YachtFormState>(() =>
+    saved
+      ? formFromYacht(saved)
+      : template
+        ? formFromTemplate(template)
+        : { ...EMPTY_FORM, type: VESSEL_TYPES[0]! },
+  );
+  const [unsaved, setUnsaved] = useState<UnsavedFields>(UNSAVED_START);
+  const savedStatus: Status = saved && !saved.is_active ? "Inactive" : "Active";
+  const [status, setStatus] = useState<Status>(savedStatus);
+  const start = saved ?? template;
+  const [amenityOptions, setAmenityOptions] = useState(() => [
+    ...SUGGESTED_AMENITIES,
+    ...(start?.amenities.filter((a) => !SUGGESTED_AMENITIES.includes(a)) ?? []),
+  ]);
+  const [inclusionOptions, setInclusionOptions] = useState(() => [...(start?.inclusions ?? [])]);
+  const [pointOptions, setPointOptions] = useState(() => [...(start?.departure_points ?? [])]);
+  const [photos, setPhotos] = useState<YachtPhoto[]>(() => saved?.photos ?? []);
+  const [queued, setQueued] = useState<QueuedPhoto[]>([]);
+  const [activeTab, setActiveTab] = useState<string>("details");
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [problem, setProblem] = useState("");
+  const [notice, setNotice] = useState("");
+  const [submitting, setSubmitting] = useState("");
+  const submittingRef = useRef(false);
+
+  const partners = useAdminQuery(
+    (signal) => (form.ownership === "partner" ? listActivePartners(signal) : Promise.resolve(null)),
+    form.ownership,
+  );
+
+  const set = <K extends keyof YachtFormState>(key: K, value: YachtFormState[K]) => {
+    setForm((f) => ({ ...f, [key]: value }));
+    setNotice("");
+  };
+  const setExtra = <K extends keyof UnsavedFields>(key: K, value: UnsavedFields[K]) =>
+    setUnsaved((u) => ({ ...u, [key]: value }));
+  const clearError = (id: string) => {
+    if (!errors[id]) return;
+    setErrors((current) => {
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
+  };
+
+  // Show a message passed on from the create step (?notice=photos).
+  useEffect(() => {
+    const value = new URLSearchParams(window.location.search).get("notice");
+    if (value === "photos")
+      queueMicrotask(() =>
+        setProblem(
+          "The yacht was created, but some photos couldn't be uploaded. Add them again below.",
+        ),
+      );
+  }, []);
 
   // Highlight the tab of the section in view.
   useEffect(() => {
@@ -375,131 +424,162 @@ export default function AddYacht({
     return () => io.disconnect();
   }, []);
 
-  // Free blob URLs for uploaded photos when leaving the page.
-  const photosRef = useRef(photos);
-  useEffect(() => {
-    photosRef.current = photos;
-  }, [photos]);
-  useEffect(
-    () => () => photosRef.current.forEach((p) => p.uploaded && URL.revokeObjectURL(p.src)),
-    [],
-  );
+  const patch = useMemo(() => (saved ? toPatch(form, saved) : {}), [form, saved]);
+  /** Active / Inactive are saved with POST …/activate or …/deactivate. */
+  const statusChange = status !== "Under maintenance" && status !== savedStatus;
+  const dirty = editing ? Object.keys(patch).length > 0 || statusChange : true;
 
-  /* Gallery */
-  const onUpload = (e: ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.currentTarget.files ?? []).filter((f) =>
-      f.type.startsWith("image/"),
-    );
-    setPhotos((ps) => [
-      ...ps,
-      ...files.map((f, i) => ({
-        id: `upload-${Date.now()}-${i}`,
-        src: URL.createObjectURL(f),
-        alt: f.name,
-        uploaded: true,
-      })),
-    ]);
-    setDraftState("unsaved");
-    e.currentTarget.value = "";
-  };
-  const onDropFiles = (e: DragEvent<HTMLElement>) => {
-    e.preventDefault();
-    if (!e.dataTransfer.files.length) return;
-    const files = Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith("image/"));
-    setPhotos((ps) => [
-      ...ps,
-      ...files.map((f, i) => ({
-        id: `drop-${Date.now()}-${i}`,
-        src: URL.createObjectURL(f),
-        alt: f.name,
-        uploaded: true,
-      })),
-    ]);
-  };
-  const move = (fromId: string, toId: string) =>
-    setPhotos((ps) => {
-      const from = ps.findIndex((p) => p.id === fromId);
-      const to = ps.findIndex((p) => p.id === toId);
-      if (from < 0 || to < 0 || from === to) return ps;
-      const next = [...ps];
-      const [item] = next.splice(from, 1);
-      next.splice(to, 0, item!);
-      return next;
-    });
-  const makeCover = (id: string) => {
-    const target = photos[0];
-    if (target && target.id !== id) move(id, target.id);
-    setDraftState("unsaved");
-  };
-
-  /* Ready to publish */
+  /* Ready to publish — the items from the design. */
+  const photoCount = editing ? photos.length : queued.length;
   const checks = [
-    { label: "Yacht name", done: form.name.trim() !== "", field: "yacht-name" },
-    { label: "At least one region", done: form.regions.length > 0, field: "details" },
-    { label: "Maximum guests", done: Number(form.guests) > 0, field: "guests" },
-    { label: "Card tagline", done: form.tagline.trim() !== "", field: "tagline" },
-    { label: "3+ photos with a cover", done: photos.length >= 3, field: "gallery" },
-    { label: "Day rate", done: Number(form.rate) > 0, field: "rate" },
+    { label: "Yacht name", done: form.name.trim() !== "" },
+    { label: "At least one region", done: unsaved.regions.length > 0, notSaved: true },
+    { label: "Maximum guests", done: Number(form.capacity) > 0 },
+    { label: "Card tagline", done: unsaved.tagline.trim() !== "", notSaved: true },
+    { label: "3+ photos with a cover", done: photoCount >= 3 },
+    { label: "Day rate", done: Number(unsaved.rate) > 0, notSaved: true },
   ];
   const doneCount = checks.filter((c) => c.done).length;
 
-  function publish() {
-    const missing = checks.filter((c) => !c.done);
-    if (missing.length) {
-      setProblem(
-        `Finish ${missing.length} ${missing.length === 1 ? "item" : "items"} before publishing: ${missing.map((m) => m.label.toLowerCase()).join(", ")}.`,
-      );
-      const el = document.getElementById(missing[0]!.field);
-      el?.scrollIntoView({ behavior: "smooth", block: "center" });
-      if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)
-        el.focus({ preventScroll: true });
-      return;
-    }
-    // TODO: POST the yacht and photos to the fleet API.
-    router.push(doneHref);
-  }
-  function saveDraft() {
-    // TODO: save the draft through the fleet API.
-    setDraftState("saved");
-    setSavedAt(new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }));
-    setProblem("");
+  function focusField(id: string) {
+    const el = document.getElementById(id);
+    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    const target = el?.matches("input, textarea, select, button")
+      ? el
+      : el?.querySelector("button");
+    (target as HTMLElement | null | undefined)?.focus({ preventScroll: true });
   }
 
-  const rate = Number(form.rate);
-  const cover = photos[0];
+  function showErrors(found: Record<string, string>) {
+    setErrors(found);
+    const count = Object.keys(found).length;
+    setProblem(`Check ${count} ${count === 1 ? "field" : "fields"} before saving.`);
+    const first = FIELD_ORDER.find((id) => found[id]);
+    if (first) focusField(first);
+  }
+
+  /** Puts a backend refusal next to the field it is about, when it is about one. */
+  function showSaveError(err: unknown) {
+    const code = isApiError(err) ? err.code : undefined;
+    if (code === "SLUG_EXISTS") return showErrors({ slug: fleetErrorMessage(err) });
+    if (code === "INVALID_PARTNER") return showErrors({ partner: fleetErrorMessage(err) });
+    setProblem(`Couldn't save the yacht. ${fleetErrorMessage(err)}`);
+  }
+
+  async function uploadQueued(yachtId: string): Promise<boolean> {
+    let done = 0;
+    setSubmitting(`Uploading photos 0 of ${queued.length}…`);
+    const results = await Promise.allSettled(
+      queued.map(async (p) => {
+        const mediaId = await uploadYachtPhoto(p.file);
+        done += 1;
+        setSubmitting(`Uploading photos ${done} of ${queued.length}…`);
+        return mediaId;
+      }),
+    );
+    const mediaIds = results.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
+    if (mediaIds.length) {
+      try {
+        await attachPhotos(yachtId, mediaIds);
+      } catch {
+        return false;
+      }
+    }
+    return mediaIds.length === queued.length;
+  }
+
+  /**
+   * "Publish yacht" and "Save as draft" both create the yacht hidden (the
+   * backend refuses a visible new yacht, and a yacht needs a priced slot type
+   * to be visible). Publish then continues to Slots & pricing.
+   */
+  async function save(intent: "publish" | "draft" | "update") {
+    if (submittingRef.current) return;
+    const found = validateYachtForm(form, editing);
+    if (Object.keys(found).length) return showErrors(found);
+    if (editing && !dirty) {
+      setProblem("");
+      setNotice("No changes to save.");
+      return;
+    }
+
+    submittingRef.current = true;
+    setProblem("");
+    setNotice("");
+    setSubmitting(
+      intent === "update" ? "Saving…" : intent === "publish" ? "Publishing…" : "Saving draft…",
+    );
+    try {
+      if (saved) {
+        if (Object.keys(patch).length) await updateYacht(saved.id, patch);
+        if (statusChange) {
+          await (status === "Active" ? activateYacht(saved.id) : deactivateYacht(saved.id));
+        }
+        router.push(`${adminRoutes.fleetYacht(saved.id)}?notice=saved` as Route);
+        return;
+      }
+      const created = await createYacht(toCreateInput(form));
+      // The yacht exists from here on; later steps never create it again.
+      const photosOk = queued.length === 0 || (await uploadQueued(created.id));
+      if (status === "Inactive") {
+        await deactivateYacht(created.id).catch(() => undefined);
+      }
+      router.push(
+        (!photosOk
+          ? `${adminRoutes.fleetYachtEdit(created.id)}?notice=photos`
+          : intent === "publish"
+            ? `${adminRoutes.fleetYachtPricing(created.id)}?notice=publish`
+            : `${adminRoutes.fleetYacht(created.id)}?notice=created`) as Route,
+      );
+    } catch (err) {
+      showSaveError(err);
+      submittingRef.current = false;
+      setSubmitting("");
+    }
+  }
+
+  const cover = editing ? photos[0]?.url : queued[0]?.src;
+  const rate = Number(unsaved.rate);
+  const partnerOptions = (() => {
+    const list = partners.data ?? [];
+    const current = saved?.partner;
+    const all =
+      current && !list.some((p) => p.id === current.id)
+        ? [...list, { ...current, is_active: false }]
+        : list;
+    return [
+      { value: "", label: partners.loading ? "Loading partners…" : "Choose a partner" },
+      ...all.map((p) => ({ value: p.id, label: p.is_active ? p.name : `${p.name} (inactive)` })),
+    ];
+  })();
+  const typeOptions = [
+    ...VESSEL_TYPES,
+    ...(form.type && !VESSEL_TYPES.includes(form.type) ? [form.type] : []),
+  ].map((t) => ({ value: t, label: t }));
+  const statusLabel = editing ? (dirty ? "Unsaved changes" : "All changes saved") : "Unsaved draft";
 
   return (
     <div>
       <div className="px-[20px] pt-[20px] pb-[40px] lg:pt-[33px] lg:pr-[47px] lg:pl-[46px]">
-        <p className="text-[10px] tracking-[0.12em] uppercase" style={{ color: MUTED }}>
-          Sithara Marina / Admin
-        </p>
-        <h1 className="mt-[18px] text-[30px] leading-[1.15] font-normal tracking-[-0.8px] lg:mt-[24px] lg:text-[43px] lg:tracking-[-1.3px]">
-          {editing ? `${yacht!.form.name},` : "A new vessel,"}{" "}
-          <em
-            className="tracking-[-0.5px]"
-            style={{ fontFamily: "'Instrument Serif', Georgia, serif" }}
-          >
-            in detail.
-          </em>
-        </h1>
-        <p className="mt-[10px] flex items-center gap-[6px] text-[12px]" style={{ color: BODY }}>
-          {editing ? "Edit yacht" : "Add yacht"}
-          <span aria-hidden="true">·</span>
-          <span
-            role="status"
-            className="border border-[#dcdad5] px-[7px] py-[2px] text-[11px]"
-            style={{ backgroundColor: SAND }}
-          >
-            {draftState === "saved"
-              ? `Draft saved ${savedAt}`
-              : draftState === "clean"
-                ? "All changes saved"
-                : editing
-                  ? "Unsaved changes"
-                  : "Unsaved draft"}
-          </span>
-        </p>
+        <PageIntro
+          title={saved ? `${saved.name},` : "A new vessel,"}
+          status={
+            <p
+              className="mt-[10px] flex items-center gap-[6px] text-[12px]"
+              style={{ color: BODY }}
+            >
+              {editing ? "Edit yacht" : "Add yacht"}
+              <span aria-hidden="true">·</span>
+              <span
+                role="status"
+                className="border border-[#dcdad5] px-[7px] py-[2px] text-[11px]"
+                style={{ backgroundColor: SAND }}
+              >
+                {statusLabel}
+              </span>
+            </p>
+          }
+        />
 
         <nav aria-label="Form sections" className="mt-[28px] flex flex-wrap gap-[12px]">
           {TABS.map((t) => {
@@ -524,9 +604,10 @@ export default function AddYacht({
 
         <form
           noValidate
+          aria-busy={Boolean(submitting)}
           onSubmit={(e) => {
             e.preventDefault();
-            publish();
+            void save(editing ? "update" : "publish");
           }}
           className="mt-[32px] grid gap-[24px] xl:grid-cols-[minmax(0,1fr)_304px] xl:gap-[31px]"
         >
@@ -542,9 +623,15 @@ export default function AddYacht({
                     id="yacht-name"
                     className={input}
                     placeholder="e.g. Astra Two"
+                    maxLength={100}
                     value={form.name}
-                    onChange={(e) => set("name", e.currentTarget.value)}
+                    onChange={(e) => {
+                      set("name", e.currentTarget.value);
+                      clearError("yacht-name");
+                    }}
+                    {...errorProps("yacht-name", errors["yacht-name"])}
                   />
+                  <FieldError id="yacht-name" message={errors["yacht-name"]} />
                 </div>
                 <div>
                   <Label htmlFor="vessel-type">Vessel type</Label>
@@ -552,7 +639,7 @@ export default function AddYacht({
                     id="vessel-type"
                     value={form.type}
                     onChange={(v) => set("type", v)}
-                    options={VESSEL_TYPES}
+                    options={typeOptions}
                   />
                 </div>
                 <div>
@@ -561,18 +648,26 @@ export default function AddYacht({
                     id="home-port"
                     className={input}
                     placeholder="e.g. Kochi Marina"
-                    value={form.port}
-                    onChange={(e) => set("port", e.currentTarget.value)}
+                    maxLength={100}
+                    value={form.departureCity}
+                    onChange={(e) => {
+                      set("departureCity", e.currentTarget.value);
+                      clearError("home-port");
+                    }}
+                    {...errorProps("home-port", errors["home-port"])}
                   />
+                  <FieldError id="home-port" message={errors["home-port"]} />
                 </div>
                 <div>
-                  <Label htmlFor="registration">Registration no.</Label>
+                  <Label htmlFor="registration" notSaved>
+                    Registration no.
+                  </Label>
                   <input
                     id="registration"
                     className={input}
                     placeholder="Shown to staff only"
-                    value={form.registration}
-                    onChange={(e) => set("registration", e.currentTarget.value)}
+                    value={unsaved.registration}
+                    onChange={(e) => setExtra("registration", e.currentTarget.value)}
                   />
                 </div>
               </div>
@@ -581,10 +676,18 @@ export default function AddYacht({
                   label="Cruising regions"
                   required
                   hint="choose all that apply"
+                  notSaved
                   multiple
                   options={REGIONS.map((r) => ({ value: r, label: r }))}
-                  selected={form.regions}
-                  onToggle={(v) => toggleIn("regions", v)}
+                  selected={unsaved.regions}
+                  onToggle={(v) =>
+                    setExtra(
+                      "regions",
+                      unsaved.regions.includes(v)
+                        ? unsaved.regions.filter((x) => x !== v)
+                        : [...unsaved.regions, v],
+                    )
+                  }
                 />
               </div>
               <div className="mt-[24px]">
@@ -592,13 +695,91 @@ export default function AddYacht({
                   label="Ownership"
                   required
                   options={[
-                    { value: "owned", label: "Owned" },
+                    { value: "own", label: "Owned" },
                     { value: "partner", label: "Partner-owned" },
                   ]}
                   selected={[form.ownership]}
-                  onToggle={(v) => set("ownership", v as YachtForm["ownership"])}
+                  onToggle={(v) => {
+                    set("ownership", v as YachtFormState["ownership"]);
+                    clearError("partner");
+                  }}
                 />
               </div>
+              {form.ownership === "partner" && (
+                <div className="mt-[22px] max-w-[365px]">
+                  <Label htmlFor="partner" required>
+                    Partner
+                  </Label>
+                  <SelectBox
+                    id="partner"
+                    value={form.partnerId}
+                    onChange={(v) => {
+                      set("partnerId", v);
+                      clearError("partner");
+                    }}
+                    options={partnerOptions}
+                    disabled={partners.loading}
+                    invalid={errors["partner"]}
+                  />
+                  <FieldError id="partner" message={errors["partner"]} />
+                  {Boolean(partners.error) && (
+                    <p className="mt-[6px] text-[11px] leading-[16px] text-[#9b2c2c]">
+                      Couldn&rsquo;t load partners. {fleetErrorMessage(partners.error, "This list")}{" "}
+                      <button type="button" onClick={partners.reload} className="underline">
+                        Try again
+                      </button>
+                    </p>
+                  )}
+                  {partners.data?.length === 0 && (
+                    <p className="mt-[6px] text-[11px] leading-[16px]" style={{ color: BODY }}>
+                      There are no active partners yet. Add one under Partners first.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Saved fields the design doesn't show; editable on existing yachts. */}
+              {editing && (
+                <>
+                  <div className="mt-[24px] max-w-[365px]">
+                    <Label htmlFor="slug" required hint="used in the yacht's web address">
+                      URL name
+                    </Label>
+                    <input
+                      id="slug"
+                      className={input}
+                      maxLength={100}
+                      autoCapitalize="none"
+                      spellCheck={false}
+                      value={form.slug}
+                      onChange={(e) => {
+                        set("slug", e.currentTarget.value.toLowerCase());
+                        clearError("slug");
+                      }}
+                      {...errorProps("slug", errors["slug"])}
+                    />
+                    <FieldError id="slug" message={errors["slug"]} />
+                  </div>
+                  <div className="mt-[24px]">
+                    <ListField
+                      id="departure-points"
+                      label="Departure points"
+                      hint="jetties guests can board from"
+                      addLabel="Add departure point"
+                      placeholder="e.g. Marina Mall Jetty"
+                      values={form.departurePoints}
+                      options={pointOptions}
+                      maxLength={LIST_ITEM_MAX.departurePoints}
+                      onChange={(v) => {
+                        set("departurePoints", v);
+                        clearError("departure-points");
+                      }}
+                      onOptionsChange={setPointOptions}
+                      error={errors["departure-points"]}
+                    />
+                  </div>
+                </>
+              )}
             </Section>
 
             {/* 02 Specs & story */}
@@ -607,9 +788,8 @@ export default function AddYacht({
                 {(
                   [
                     ["length", "Length (metres)", "46", false],
-                    ["guests", "Maximum guests", "12", true],
+                    ["capacity", "Maximum guests", "12", true],
                     ["suites", "Suites", "6", false],
-                    ["crew", "Crew", "9", false],
                   ] as const
                 ).map(([key, label, ph, req]) => (
                   <div key={key}>
@@ -621,41 +801,67 @@ export default function AddYacht({
                       inputMode="numeric"
                       className={input}
                       placeholder={ph}
+                      maxLength={4}
                       value={form[key]}
-                      onChange={(e) => set(key, e.currentTarget.value.replace(/[^\d.]/g, ""))}
+                      onChange={(e) => {
+                        set(key, digits(e.currentTarget.value));
+                        clearError(key);
+                      }}
+                      {...errorProps(key, errors[key])}
                     />
+                    <FieldError id={key} message={errors[key]} />
                   </div>
                 ))}
                 <div>
-                  <Label htmlFor="built">Built / refit</Label>
+                  <Label htmlFor="crew" notSaved>
+                    Crew
+                  </Label>
+                  <input
+                    id="crew"
+                    inputMode="numeric"
+                    className={input}
+                    placeholder="9"
+                    maxLength={3}
+                    value={unsaved.crew}
+                    onChange={(e) => setExtra("crew", digits(e.currentTarget.value))}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="built" notSaved>
+                    Built / refit
+                  </Label>
                   <input
                     id="built"
                     className={input}
                     placeholder="2019 / 2024"
-                    value={form.built}
-                    onChange={(e) => set("built", e.currentTarget.value)}
+                    value={unsaved.built}
+                    onChange={(e) => setExtra("built", e.currentTarget.value)}
                   />
                 </div>
                 <div>
-                  <Label htmlFor="speed">Cruising speed (kn)</Label>
+                  <Label htmlFor="speed" notSaved>
+                    Cruising speed (kn)
+                  </Label>
                   <input
                     id="speed"
                     inputMode="numeric"
                     className={input}
                     placeholder="12"
-                    value={form.speed}
-                    onChange={(e) => set("speed", e.currentTarget.value.replace(/[^\d.]/g, ""))}
+                    value={unsaved.speed}
+                    onChange={(e) =>
+                      setExtra("speed", e.currentTarget.value.replace(/[^\d.]/g, ""))
+                    }
                   />
                 </div>
               </div>
 
               <div className="mt-[24px]">
                 <div className="flex items-baseline justify-between gap-4">
-                  <Label htmlFor="tagline" required hint="shown on yacht cards and search">
+                  <Label htmlFor="tagline" required hint="shown on yacht cards and search" notSaved>
                     Card tagline
                   </Label>
                   <span className="text-[11px]" style={{ color: MUTED }} aria-live="polite">
-                    {form.tagline.length}/{TAGLINE_MAX}
+                    {unsaved.tagline.length}/{TAGLINE_MAX}
                   </span>
                 </div>
                 <input
@@ -663,8 +869,8 @@ export default function AddYacht({
                   maxLength={TAGLINE_MAX}
                   className={input}
                   placeholder="Spacious suites, open-air living, and the freedom to venture further."
-                  value={form.tagline}
-                  onChange={(e) => set("tagline", e.currentTarget.value)}
+                  value={unsaved.tagline}
+                  onChange={(e) => setExtra("tagline", e.currentTarget.value)}
                 />
               </div>
 
@@ -678,144 +884,83 @@ export default function AddYacht({
                 <textarea
                   id="description"
                   rows={6}
+                  maxLength={10_000}
                   className={cx(input, "h-auto min-h-[156px] resize-y py-[14px] leading-[22px]")}
                   placeholder="A world of your own, with the horizon as its only boundary…"
                   value={form.description}
                   onChange={(e) => set("description", e.currentTarget.value)}
+                  {...errorProps("description", errors["description"])}
                 />
+                <FieldError id="description" message={errors["description"]} />
               </div>
 
               <div className="mt-[24px]">
-                <ChipGroup
+                <ListField
+                  id="amenities"
                   label="Amenities"
-                  multiple
-                  options={amenityOptions.map((a) => ({ value: a, label: a }))}
-                  selected={form.amenities}
-                  onToggle={(v) => toggleIn("amenities", v)}
-                  after={
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const name = window.prompt("New amenity")?.trim();
-                        if (!name) return;
-                        if (!amenityOptions.includes(name)) setAmenityOptions((a) => [...a, name]);
-                        if (!form.amenities.includes(name))
-                          set("amenities", [...form.amenities, name]);
-                      }}
-                      className={cx(
-                        chip,
-                        "flex items-center gap-[4px] border-[#dcdad5] bg-white hover:border-[#0d1b2a]",
-                      )}
-                    >
-                      <Plus aria-hidden="true" strokeWidth={1.5} className="size-[13px]" />
-                      Add amenity
-                    </button>
-                  }
+                  addLabel="Add amenity"
+                  placeholder="e.g. Jacuzzi"
+                  values={form.amenities}
+                  options={amenityOptions}
+                  maxLength={LIST_ITEM_MAX.amenities}
+                  onChange={(v) => set("amenities", v)}
+                  onOptionsChange={setAmenityOptions}
+                  error={errors["amenities"]}
                 />
               </div>
+
+              {/* Saved fields the design doesn't show; editable on existing yachts. */}
+              {editing && (
+                <>
+                  <div className="mt-[24px]">
+                    <ListField
+                      id="inclusions"
+                      label="Inclusions"
+                      hint="included in every charter"
+                      addLabel="Add inclusion"
+                      placeholder="e.g. Soft drinks"
+                      values={form.inclusions}
+                      options={inclusionOptions}
+                      maxLength={LIST_ITEM_MAX.inclusions}
+                      onChange={(v) => set("inclusions", v)}
+                      onOptionsChange={setInclusionOptions}
+                      error={errors["inclusions"]}
+                    />
+                  </div>
+                  <div className="mt-[24px]">
+                    <Label htmlFor="policies" hint="shown to guests before they book">
+                      Policies
+                    </Label>
+                    <textarea
+                      id="policies"
+                      rows={4}
+                      maxLength={10_000}
+                      className={cx(
+                        input,
+                        "h-auto min-h-[112px] resize-y py-[14px] leading-[22px]",
+                      )}
+                      value={form.policies}
+                      onChange={(e) => set("policies", e.currentTarget.value)}
+                      {...errorProps("policies", errors["policies"])}
+                    />
+                    <FieldError id="policies" message={errors["policies"]} />
+                  </div>
+                </>
+              )}
             </Section>
 
             {/* 03 Gallery */}
             <Section id="gallery" number="03" title="Gallery">
-              <p className="-mt-[12px] text-[12px] leading-[18px]" style={{ color: BODY }}>
-                Drag to reorder; choose the image used in yacht search. At least 3 photos,
-                landscape, 2400px wide or more.
-              </p>
-              <ul className="mt-[18px] grid grid-cols-1 gap-[16px] sm:grid-cols-2 md:grid-cols-3">
-                {photos.map((p, i) => (
-                  <li
-                    key={p.id}
-                    draggable
-                    onDragStart={() => setDragId(p.id)}
-                    onDragEnd={() => setDragId(null)}
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      if (dragId) move(dragId, p.id);
-                      else onDropFiles(e);
-                    }}
-                    className={cx(
-                      "border bg-white transition-opacity",
-                      i === 0 ? "border-[#0d1b2a] border-2" : "border-[#eceae6]",
-                      dragId === p.id && "opacity-50",
-                    )}
-                  >
-                    <div className="relative">
-                      {/* eslint-disable-next-line @next/next/no-img-element -- local previews, including blob URLs from uploads */}
-                      <img
-                        src={p.src}
-                        alt={p.alt}
-                        draggable={false}
-                        className="aspect-[4/3] w-full object-cover"
-                      />
-                      {i === 0 && (
-                        <span className="absolute top-[8px] left-[8px] bg-[#0d1b2a] px-[8px] py-[3px] text-[9px] tracking-[0.12em] text-white uppercase">
-                          Cover
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex h-[38px] items-center justify-between px-[10px]">
-                      <span className="flex items-center gap-[2px]">
-                        <GripVertical
-                          aria-hidden="true"
-                          strokeWidth={1.5}
-                          className="size-[14px] cursor-grab text-[#b5b8bc]"
-                        />
-                        <span className="sr-only">
-                          Photo {i + 1} of {photos.length}
-                        </span>
-                        {i > 0 && (
-                          <button
-                            type="button"
-                            onClick={() => move(p.id, photos[i - 1]!.id)}
-                            className="ml-1 px-1 text-[11px] text-[#8a8d91] hover:text-[#0d1b2a]"
-                            aria-label={`Move photo ${i + 1} earlier`}
-                          >
-                            ←
-                          </button>
-                        )}
-                      </span>
-                      {i === 0 ? (
-                        <span className="text-[11px] underline underline-offset-2">
-                          Search image
-                        </span>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => makeCover(p.id)}
-                          className="text-[11px] underline underline-offset-2 hover:opacity-70"
-                        >
-                          Use in search
-                        </button>
-                      )}
-                    </div>
-                  </li>
-                ))}
-                <li>
-                  <button
-                    type="button"
-                    onClick={() => fileInput.current?.click()}
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={onDropFiles}
-                    className="flex aspect-[4/3] w-full flex-col items-center justify-center gap-[4px] border border-[#dcdad5] text-center transition-colors hover:border-[#0d1b2a]"
-                    style={{ backgroundColor: "#f5f3ee" }}
-                  >
-                    <Upload aria-hidden="true" strokeWidth={1.5} className="mb-[6px] size-[16px]" />
-                    <span className="text-[13px]">Upload photos</span>
-                    <span className="text-[11px]" style={{ color: MUTED }}>
-                      or drop files here
-                    </span>
-                  </button>
-                  <input
-                    ref={fileInput}
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    hidden
-                    onChange={onUpload}
-                  />
-                </li>
-              </ul>
+              {saved ? (
+                <YachtGallery
+                  mode="live"
+                  yachtId={saved.id}
+                  photos={photos}
+                  onPhotosChange={setPhotos}
+                />
+              ) : (
+                <YachtGallery mode="queued" queued={queued} onQueuedChange={setQueued} />
+              )}
             </Section>
 
             {/* 04 Booking & pricing */}
@@ -872,7 +1017,7 @@ export default function AddYacht({
 
               <div className="mt-[24px] grid grid-cols-2 gap-x-[20px] gap-y-[22px] md:grid-cols-3">
                 <div className="col-span-2 md:col-span-1">
-                  <Label htmlFor="rate" required>
+                  <Label htmlFor="rate" required notSaved>
                     Day rate (₹)
                   </Label>
                   <input
@@ -880,32 +1025,34 @@ export default function AddYacht({
                     inputMode="numeric"
                     className={input}
                     placeholder="450000"
-                    value={form.rate}
-                    onChange={(e) => set("rate", e.currentTarget.value.replace(/\D/g, ""))}
+                    value={unsaved.rate}
+                    onChange={(e) => setExtra("rate", digits(e.currentTarget.value))}
                   />
                 </div>
                 <div>
-                  <Label htmlFor="min-days">Minimum days</Label>
+                  <Label htmlFor="min-days" notSaved>
+                    Minimum days
+                  </Label>
                   <input
                     id="min-days"
                     inputMode="numeric"
                     className={input}
                     placeholder="1"
-                    value={form.minDays}
-                    onChange={(e) => set("minDays", e.currentTarget.value.replace(/\D/g, ""))}
+                    value={unsaved.minDays}
+                    onChange={(e) => setExtra("minDays", digits(e.currentTarget.value))}
                   />
                 </div>
                 <div>
-                  <Label htmlFor="deposit">Deposit (%)</Label>
+                  <Label htmlFor="deposit" notSaved>
+                    Deposit (%)
+                  </Label>
                   <input
                     id="deposit"
                     inputMode="numeric"
                     className={input}
                     placeholder="30"
-                    value={form.deposit}
-                    onChange={(e) =>
-                      set("deposit", e.currentTarget.value.replace(/\D/g, "").slice(0, 3))
-                    }
+                    value={unsaved.deposit}
+                    onChange={(e) => setExtra("deposit", digits(e.currentTarget.value).slice(0, 3))}
                   />
                 </div>
                 {(
@@ -915,7 +1062,9 @@ export default function AddYacht({
                   ] as const
                 ).map(([key, label]) => (
                   <div key={key}>
-                    <Label htmlFor={key}>{label}</Label>
+                    <Label htmlFor={key} notSaved>
+                      {label}
+                    </Label>
                     <div className="relative">
                       <input
                         id={key}
@@ -924,8 +1073,8 @@ export default function AddYacht({
                           input,
                           "pr-10 [&::-webkit-calendar-picker-indicator]:opacity-0",
                         )}
-                        value={form[key]}
-                        onChange={(e) => set(key, e.currentTarget.value)}
+                        value={unsaved[key]}
+                        onChange={(e) => setExtra(key, e.currentTarget.value)}
                       />
                       <Clock
                         aria-hidden="true"
@@ -938,9 +1087,21 @@ export default function AddYacht({
               </div>
               <p className="mt-[22px] text-[12px]" style={{ color: BODY }} aria-live="polite">
                 {rate > 0
-                  ? `Guests will see: from ₹ ${rate.toLocaleString("en-IN")} per day${form.deposit ? ` · ${form.deposit}% deposit to confirm` : ""}.`
+                  ? `Guests will see: from ₹ ${rate.toLocaleString("en-IN")} per day${unsaved.deposit ? ` · ${unsaved.deposit}% deposit to confirm` : ""}.`
                   : "Set a day rate to preview what guests will see."}
               </p>
+              {saved && (
+                <p className="mt-[10px] text-[12px] leading-[18px]" style={{ color: BODY }}>
+                  Bookable slots and their prices are saved on{" "}
+                  <Link
+                    href={adminRoutes.fleetYachtPricing(saved.id)}
+                    className="underline underline-offset-2 hover:opacity-70"
+                  >
+                    Slots &amp; pricing
+                  </Link>
+                  .
+                </p>
+              )}
             </Section>
 
             {/* 05 Publishing */}
@@ -948,8 +1109,13 @@ export default function AddYacht({
               <Toggle
                 id="visible"
                 label="Visible on website"
-                text="Appears in yacht search and the collection."
-                checked={form.visible}
+                text={
+                  editing
+                    ? "Appears in yacht search and the collection."
+                    : "Appears in yacht search and the collection. New yachts start hidden: switch this on once the yacht has a priced slot on Slots & pricing."
+                }
+                checked={editing ? form.visible : false}
+                disabled={!editing}
                 onChange={(v) => set("visible", v)}
               />
               <Toggle
@@ -960,12 +1126,14 @@ export default function AddYacht({
                 onChange={(v) => set("featured", v)}
               />
               <div className="mt-[22px] max-w-[365px]">
-                <Label htmlFor="status">Operational status</Label>
+                <Label htmlFor="status" notSaved={status === "Under maintenance"}>
+                  Operational status
+                </Label>
                 <SelectBox
                   id="status"
-                  value={form.status}
-                  onChange={(v) => set("status", v)}
-                  options={STATUSES}
+                  value={status}
+                  onChange={(v) => setStatus(v as Status)}
+                  options={[...STATUSES]}
                 />
               </div>
             </Section>
@@ -983,30 +1151,30 @@ export default function AddYacht({
               <div className="relative mt-[12px]">
                 {cover ? (
                   // eslint-disable-next-line @next/next/no-img-element -- live preview of the chosen cover
-                  <img src={cover.src} alt="" className="aspect-[264/156] w-full object-cover" />
+                  <img src={cover} alt="" className="aspect-[264/156] w-full object-cover" />
                 ) : (
                   <div className="aspect-[264/156] w-full bg-[#eceae6]" />
                 )}
-                {form.regions[0] && (
+                {(unsaved.regions[0] || form.departureCity.trim()) && (
                   <span className="absolute top-[8px] left-[8px] bg-white px-[7px] py-[2px] text-[11px]">
-                    {form.regions[0]}
+                    {unsaved.regions[0] || form.departureCity.trim()}
                   </span>
                 )}
               </div>
               <p
                 className={cx(
-                  "mt-[16px] text-[26px] leading-[32px] tracking-[-0.5px]",
+                  "mt-[16px] text-[26px] leading-[32px] tracking-[-0.5px] break-words",
                   !form.name && "text-[#b8bbbf]",
                 )}
               >
                 {form.name || "Yacht name"}
               </p>
               <p className="mt-[4px] text-[11px]" style={{ color: MUTED }}>
-                {form.length || "—"} metres | {form.guests || "—"} guests | {form.suites || "—"}{" "}
+                {form.length || "—"} metres | {form.capacity || "—"} guests | {form.suites || "—"}{" "}
                 suites
               </p>
               <p className="mt-[10px] text-[13px] leading-[19px]">
-                {form.tagline || "Your card tagline appears here."}
+                {unsaved.tagline || "Your card tagline appears here."}
               </p>
               <span className="mt-[14px] inline-flex items-center gap-[6px] border-b border-current pb-[3px] text-[11px] tracking-[0.12em] uppercase">
                 Discover yacht
@@ -1035,13 +1203,16 @@ export default function AddYacht({
                     <span
                       aria-hidden="true"
                       className={cx(
-                        "flex size-[18px] items-center justify-center rounded-full border",
+                        "flex size-[18px] shrink-0 items-center justify-center rounded-full border",
                         c.done ? "border-[#0d1b2a] bg-[#0d1b2a] text-white" : "border-[#c4c7cb]",
                       )}
                     >
                       {c.done && <Check className="size-[11px]" strokeWidth={3} />}
                     </span>
-                    {c.label}
+                    <span>
+                      {c.label}
+                      {c.notSaved && <NotSaved />}
+                    </span>
                     <span className="sr-only">{c.done ? "(done)" : "(to do)"}</span>
                   </li>
                 ))}
@@ -1054,27 +1225,34 @@ export default function AddYacht({
             className="sticky bottom-0 z-10 -mx-[20px] border-t border-[#dcdad5] px-[20px] py-[16px] xl:col-span-2 lg:-mr-[47px] lg:-ml-[46px] lg:pr-[47px] lg:pl-[46px]"
             style={{ backgroundColor: "#f8f7f4" }}
           >
-            {problem && (
-              <p role="alert" className="mb-[12px] text-[12px] text-[#9b2c2c]">
-                {problem}
+            {(problem || notice) && (
+              <p
+                role={problem ? "alert" : "status"}
+                className={cx("mb-[12px] text-[12px]", problem && "text-[#9b2c2c]")}
+              >
+                {problem || notice}
               </p>
             )}
             <div className="flex flex-wrap items-center gap-[16px]">
               <button
                 type="submit"
-                className="flex h-[52px] w-[176px] items-center justify-center text-[12px] transition-opacity hover:opacity-90"
+                disabled={Boolean(submitting)}
+                className="flex h-[52px] min-w-[176px] items-center justify-center px-[20px] text-[12px] transition-opacity hover:opacity-90 disabled:cursor-wait disabled:opacity-70"
                 style={{ background: GRADIENT }}
               >
-                {editing ? "Save changes" : "Publish yacht"}
+                {submitting || (editing ? "Save changes" : "Publish yacht")}
               </button>
-              <button
-                type="button"
-                onClick={saveDraft}
-                className="flex h-[52px] w-[166px] items-center justify-center border bg-white text-[12px] transition-colors hover:bg-[#f2f1ee]"
-                style={{ borderColor: INK }}
-              >
-                Save as draft
-              </button>
+              {!editing && (
+                <button
+                  type="button"
+                  disabled={Boolean(submitting)}
+                  onClick={() => void save("draft")}
+                  className="flex h-[52px] w-[166px] items-center justify-center border bg-white text-[12px] transition-colors hover:bg-[#f2f1ee] disabled:cursor-wait disabled:opacity-60"
+                  style={{ borderColor: INK }}
+                >
+                  Save as draft
+                </button>
+              )}
               <Link
                 href={doneHref}
                 className="ml-[12px] text-[12px] underline underline-offset-2 hover:opacity-70"

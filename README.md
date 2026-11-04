@@ -35,7 +35,7 @@ npm run dev                       # http://localhost:3000  (admin: /admin)
 
 | Command                | What it does                                               |
 | ---------------------- | ---------------------------------------------------------- |
-| `npm run dev`          | Development server on port 3000                            |
+| `npm run dev`          | Development server on port 3001 (backend uses 3000)        |
 | `npm run build`        | Production build (fails if required env vars are missing)  |
 | `npm run start`        | Serve the production build (port 3000, or `-- --port <n>`) |
 | `npm run lint`         | ESLint, including user/admin import boundaries             |
@@ -52,9 +52,9 @@ Details: [docs/testing.md](docs/testing.md).
 
 ## Environment
 
-| Variable                   | Required | Exposed to browser | Purpose                      |
-| -------------------------- | -------- | ------------------ | ---------------------------- |
-| `NEXT_PUBLIC_API_BASE_URL` | Yes      | Yes                | Absolute base URL of the API |
+| Variable              | Required | Exposed to browser | Purpose                      |
+| --------------------- | -------- | ------------------ | ---------------------------- |
+| `NEXT_PUBLIC_API_URL` | Yes      | Yes                | Absolute base URL of the API |
 
 Set `NEXT_PUBLIC_API_BASE_URL` in the root `.env` file (git-ignored; create it from
 `.env.example`, which is only a template). `.env` is the single place the backend URL is
@@ -63,7 +63,7 @@ Restart `npm run dev` after changing it. Never put secrets in `NEXT_PUBLIC_*` va
 
 ## Deployment (overview)
 
-One install, one build, one Node.js server: `npm ci` → set `NEXT_PUBLIC_API_BASE_URL` →
+One install, one build, one Node.js server: `npm ci` → set `NEXT_PUBLIC_API_URL` →
 `npm run check` → `npm run build` → `npm run start`. Full guide and smoke checks:
 [docs/deployment.md](docs/deployment.md).
 

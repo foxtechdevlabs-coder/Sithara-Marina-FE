@@ -2,19 +2,28 @@
 
 **Scope:** Overview statistics and summary widgets.
 
-**Routes:** `/admin/dashboard`
+**Routes:** `/admin/dashboard` (UI: `src/components/admin/admin-dashboard.tsx`)
 
-Not implemented yet. When building this feature, add only the folders you need:
+## Backend contract: `GET /admin/dashboard` (see the backend's `/docs`)
 
-```
-dashboard/
-├── components/   UI used only by this feature
-├── hooks/        React hooks for this feature
-├── types/        Types for this feature's data
-└── utils/        Pure helpers for this feature
-```
+Called with `from` and `to` for the selected reporting period (the last three calendar months).
+API function: `src/services/admin/dashboard.service.ts`.
 
-API calls for this feature belong in `src/services/admin/dashboard.service.ts`, which uses
-`src/services/http/api-client.ts`. Route files in `src/app` stay thin and render components
-from this folder.
-See [docs/folder-structure.md](../../../../docs/folder-structure.md).
+| Block              | Source                                 | Needs permission |
+| ------------------ | -------------------------------------- | ---------------- |
+| Confirmed bookings | `activity.confirmed`                   | `bookings:read`  |
+| Revenue booked     | `revenue.booked_amount`                | `reports:read`   |
+| Utilisation        | `utilisation.percent`                  | `reports:read`   |
+| Upcoming bookings  | `charters.today` + `charters.upcoming` | `bookings:read`  |
+| Needs attention    | `pending_payments` + `alerts`          | `bookings:read`  |
+| Revenue over time  | Not in the API yet, so it stays empty  | —                |
+
+## Notes
+
+- A block is null when the account lacks its permission. It then shows "—" or an access message.
+- `revenue.booked_amount` is booked value, not collected money, so the design's "Revenue collected"
+  card reads "Revenue booked". The backend marks revenue and utilisation as provisional (OQ-19).
+- `charters` and `pending_payments` aren't limited to the selected period: today's and upcoming
+  charters, and all bookings awaiting payment.
+- `yacht_id` and `ownership` filters exist in the API but have no control in the design yet.
+- Dates are shown in `Asia/Kolkata`. The API says "business time zone" without naming it.

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 import { BRAND_NAME } from "@/constants/brand";
+import { AdminSessionProvider } from "@/features/admin/auth/components/admin-session-provider";
 
 export const metadata: Metadata = {
   title: {
@@ -17,9 +18,9 @@ export const metadata: Metadata = {
 
 /**
  * Admin area root. Renders no UI so that `/admin/login` does not get the
- * dashboard chrome: the sign-in screen lives in `(auth)`, the dashboard in
- * `(console)`.
+ * dashboard chrome: the sign-in screens live in `(auth)`, the dashboard in
+ * `(console)`. Provides the admin session to both.
  */
 export default function AdminLayout({ children }: { children: ReactNode }) {
-  return children;
+  return <AdminSessionProvider>{children}</AdminSessionProvider>;
 }

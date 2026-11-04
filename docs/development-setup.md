@@ -32,7 +32,7 @@ The root `.env` is the single source of this value: it is git-ignored, `.env.exa
 template, and the variable must not also be set in `.env.local` (Next.js would use that one
 instead).
 
-Open <http://localhost:3000> (user area) and <http://localhost:3000/admin> (admin area).
+Open <http://localhost:3001> (user area) and <http://localhost:3001/admin> (admin area). Port 3000 is left free for the local backend API.
 
 For end-to-end tests, also run once: `npx playwright install chromium`.
 
