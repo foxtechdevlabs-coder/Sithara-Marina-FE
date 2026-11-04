@@ -100,7 +100,7 @@ at `<base URL>/docs-json`). Implemented in `src/services/user/auth.service.ts` (
 | Function                 | Endpoint                         | Used by                                  |
 | ------------------------ | -------------------------------- | ---------------------------------------- |
 | `registerUser()`         | `POST /auth/register`            | `/register`                              |
-| `verifyEmail()`          | `POST /auth/verify-email`        | `/verify-email?token=…`                  |
+| `verifyEmail()`          | `POST /auth/verify-email`        | `/verify-email#token=…` or `?token=…`    |
 | `resendVerification()`   | `POST /auth/resend-verification` | `/verify-email/{failed,pending}`, bad link |
 | `loginUser()`            | `POST /auth/login`               | `/login` (then `?next=` or home)         |
 | `requestPasswordReset()` | `POST /auth/forgot-password`     | `/forgot-password`, "Request a new link" |
@@ -121,7 +121,8 @@ at `<base URL>/docs-json`). Implemented in `src/services/user/auth.service.ts` (
   `{ statusCode, message, error? }`. Read them with `getBackendErrorDetails()`.
   `ApiError.retryAfterSeconds` reads `Retry-After`. Login returns the same 401 "Invalid email or
   password" for wrong credentials **and for unverified accounts**.
-- **Links are token-based**, not six-digit codes: `/verify-email?token=<id>.<secret>` and
+- **Links are token-based**, not six-digit codes: `/verify-email#token=<id>.<secret>` (`?token=` is
+  also accepted) and
   `/reset-password?token=<id>.<secret>` (link format to be confirmed by the backend team). Each
   page reads the token, removes it from the address bar and posts it exactly once. The
   short-lived `reset_token` (`expires_in`, currently 600 s) is kept in memory only.
@@ -134,7 +135,7 @@ the status page from the `POST /auth/register` result.
 
 | Route                   | Reached from                                       | Query params         |
 | ----------------------- | -------------------------------------------------- | -------------------- |
-| `/verify-email`         | Link in the verification email (callback)          | `token=<id>.<secret>` |
+| `/verify-email`         | Link in the verification email (callback)          | `#token=<id>.<secret>` or `?token=` |
 | `/verify-email/success` | Register 201 (email accepted for sending)          | None                 |
 | `/verify-email/failed`  | Register 503 `EMAIL_DELIVERY_FAILED`               | None                 |
 | `/verify-email/pending` | Sign-in 401 link, register 429, `/verify-email` with no token | None      |
