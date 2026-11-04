@@ -20,11 +20,17 @@ Windows (PowerShell or Command Prompt):
 
 ```powershell
 npm install
-copy .env.example .env.local
+copy .env.example .env
 npm run dev
 ```
 
-macOS / Linux / Git Bash: same, with `cp .env.example .env.local`.
+macOS / Linux / Git Bash: same, with `cp .env.example .env`.
+
+Before `npm run dev`, open the root `.env` file and set `NEXT_PUBLIC_API_BASE_URL` to the backend
+base URL (an absolute URL, e.g. the hosted backend whose Swagger docs are at `<base URL>/docs`).
+The root `.env` is the single source of this value: it is git-ignored, `.env.example` is only a
+template, and the variable must not also be set in `.env.local` (Next.js would use that one
+instead).
 
 Open <http://localhost:3000> (user area) and <http://localhost:3000/admin> (admin area).
 
@@ -42,7 +48,7 @@ the Next.js TypeScript plugin works.
 | ------------------ | ----------------------------------------------------------------------- |
 | `npm run dev`      | Turbopack dev server, port 3000. `npm run dev -- --port 3005` to change |
 | `npm run check`    | typecheck + lint + format:check + unit/integration tests                |
-| `npm run build`    | Needs `.env.local` (or real env vars) — fails otherwise                 |
+| `npm run build`    | Needs `NEXT_PUBLIC_API_BASE_URL` in `.env` — fails otherwise            |
 | `npm run start`    | Serve the last build                                                    |
 | `npm run test:e2e` | Build first; starts `next start` on port 3100 automatically             |
 
@@ -74,9 +80,9 @@ for the installed version are in `node_modules/next/dist/docs/`.
 
 ## Troubleshooting
 
-- **Build fails with `Invalid public environment configuration`** — create `.env.local` from
-  `.env.example`, or set `NEXT_PUBLIC_API_BASE_URL` in the environment. Restart `next dev` after
-  changing env files.
+- **Build fails with `Invalid public environment configuration`** — create the root `.env` from
+  `.env.example` and set `NEXT_PUBLIC_API_BASE_URL` to an absolute URL (in deployed environments,
+  set it in the platform's environment settings). Restart `next dev` after changing `.env`.
 - **`Port 3000 is in use`** — PowerShell: `Get-NetTCPConnection -LocalPort 3000 | Select OwningProcess`,
   then `Stop-Process -Id <pid>`.
 - **`Cannot find name 'PageProps'`** in the editor — run `npm run typecheck` (or `npm run dev`) once.

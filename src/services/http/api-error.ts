@@ -21,15 +21,38 @@ export class ApiError extends Error {
   /** HTTP status code, or `undefined` when no response was received. */
   readonly status: number | undefined;
   readonly body: unknown;
+  /** Response headers, when a response was received. */
+  readonly headers: Headers | undefined;
 
   constructor(
     message: string,
-    options: { kind: ApiErrorKind; status?: number; body?: unknown; cause?: unknown },
+    options: {
+      kind: ApiErrorKind;
+      status?: number;
+      body?: unknown;
+      headers?: Headers;
+      cause?: unknown;
+    },
   ) {
     super(message, { cause: options.cause });
     this.kind = options.kind;
     this.status = options.status;
     this.body = options.body;
+    this.headers = options.headers;
+  }
+
+  /**
+   * Seconds to wait from the `Retry-After` header (delta-seconds or HTTP date),
+   * or `undefined` when absent or unreadable. Cross-origin, browsers expose this
+   * header only if the backend lists it in `Access-Control-Expose-Headers`.
+   */
+  get retryAfterSeconds(): number | undefined {
+    const value = this.headers?.get("Retry-After")?.trim();
+    if (!value) return undefined;
+    if (/^\d+$/.test(value)) return Number(value);
+    const date = Date.parse(value);
+    if (Number.isNaN(date)) return undefined;
+    return Math.max(0, Math.ceil((date - Date.now()) / 1000));
   }
 
   /** 401 — not signed in, or the session has expired. */

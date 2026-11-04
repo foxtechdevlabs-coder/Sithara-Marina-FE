@@ -13,10 +13,18 @@ export interface HttpClientOptions {
    */
   getHeaders?: () => HeadersInit | Promise<HeadersInit>;
   /**
-   * Called when the backend answers 401, before the error is thrown. The
-   * single place to react to an expired session (e.g. redirect to sign-in).
+   * Called when the backend answers 401 and the session could not be
+   * refreshed, before the error is thrown. The single place to react to an
+   * expired session (e.g. clear it and redirect to sign-in).
    */
   onUnauthorized?: (error: ApiError) => void | Promise<void>;
+  /** Current access token, sent as `Authorization: Bearer …` on `auth` requests. */
+  getAccessToken?: () => string | null;
+  /**
+   * Obtains a new access token. Resolves `true` when the session was renewed.
+   * The client runs at most one refresh at a time and retries a request once.
+   */
+  refreshAccessToken?: () => Promise<boolean>;
 }
 
 type MethodCall = <TResponse = unknown>(
@@ -86,11 +94,28 @@ export function createHttpClient({
   timeoutMs: defaultTimeoutMs,
   getHeaders,
   onUnauthorized,
+  getAccessToken,
+  refreshAccessToken,
 }: HttpClientOptions): HttpClient {
-  async function request<TResponse = unknown>(
+  /** One shared refresh at a time; concurrent 401s and new requests wait for it. */
+  let refreshInFlight: Promise<boolean> | null = null;
+
+  function refreshOnce(): Promise<boolean> {
+    if (!refreshAccessToken) return Promise.resolve(false);
+    refreshInFlight ??= refreshAccessToken()
+      .catch(() => false)
+      .finally(() => {
+        refreshInFlight = null;
+      });
+    return refreshInFlight;
+  }
+
+  /** Sends one HTTP request (no auth retry logic). */
+  async function send<TResponse>(
     method: HttpMethod,
     path: string,
-    options: RequestOptions<TResponse> = {},
+    options: RequestOptions<TResponse>,
+    accessToken: string | null,
   ): Promise<TResponse> {
     const { query, body, headers, signal, schema, init } = options;
     const timeoutMs =
@@ -100,6 +125,7 @@ export function createHttpClient({
     const finalHeaders = new Headers(getHeaders ? await getHeaders() : undefined);
     new Headers(headers).forEach((value, key) => finalHeaders.set(key, value));
     if (!finalHeaders.has("Accept")) finalHeaders.set("Accept", "application/json");
+    if (accessToken) finalHeaders.set("Authorization", `Bearer ${accessToken}`);
 
     let requestBody: BodyInit | undefined;
     if (body !== undefined) {
@@ -164,8 +190,8 @@ export function createHttpClient({
         kind: "http",
         status: response.status,
         body: data,
+        headers: response.headers,
       });
-      if (error.isUnauthorized && onUnauthorized) await onUnauthorized(error);
       throw error;
     }
 
@@ -181,6 +207,41 @@ export function createHttpClient({
       });
     }
     return parsed.data;
+  }
+
+  async function request<TResponse = unknown>(
+    method: HttpMethod,
+    path: string,
+    options: RequestOptions<TResponse> = {},
+  ): Promise<TResponse> {
+    const useAuth = options.auth !== false;
+    if (useAuth && refreshInFlight) await refreshInFlight; // queue behind a running refresh
+    const sentToken = useAuth ? (getAccessToken?.() ?? null) : null;
+
+    try {
+      return await send(method, path, options, sentToken);
+    } catch (error) {
+      if (!(error instanceof ApiError) || !error.isUnauthorized || !useAuth) throw error;
+
+      let finalError = error;
+      if (sentToken && options.refreshOnUnauthorized !== false) {
+        // Another request may already have renewed the token; otherwise refresh once.
+        const current = getAccessToken?.() ?? null;
+        const renewed = current !== null && current !== sentToken ? true : await refreshOnce();
+        const retryToken = renewed ? (getAccessToken?.() ?? null) : null;
+        if (retryToken) {
+          try {
+            return await send(method, path, options, retryToken); // single retry, never loops
+          } catch (retryError) {
+            if (!(retryError instanceof ApiError) || !retryError.isUnauthorized) throw retryError;
+            finalError = retryError;
+          }
+        }
+      }
+
+      if (onUnauthorized) await onUnauthorized(finalError);
+      throw finalError;
+    }
   }
 
   return {

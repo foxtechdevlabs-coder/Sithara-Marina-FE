@@ -2,9 +2,10 @@
 
 import { useSyncExternalStore } from "react";
 
-import { readPendingVerificationEmail } from "../utils/pending-verification";
-
-const noopSubscribe = () => () => {};
+import {
+  readPendingVerificationEmail,
+  subscribePendingVerification,
+} from "../utils/pending-verification";
 
 /**
  * "Verify <email> to keep your journeys together." using the address saved by
@@ -12,7 +13,11 @@ const noopSubscribe = () => () => {};
  * falls back to generic copy rather than showing a placeholder address.
  */
 export function VerifyEmailSubtitle() {
-  const email = useSyncExternalStore(noopSubscribe, readPendingVerificationEmail, () => null);
+  const email = useSyncExternalStore(
+    subscribePendingVerification,
+    readPendingVerificationEmail,
+    () => null,
+  );
 
   return email ? (
     <>

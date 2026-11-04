@@ -1,12 +1,21 @@
 "use client";
 
 import { ArrowRight } from "lucide-react";
+import type { Route } from "next";
 import Link from "next/link";
-import { useId, useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
 
 import { userRoutes } from "@/constants/routes";
 import { cx } from "@/lib/cx";
+import { isApiError } from "@/services/http/api-error";
+import { getBackendErrorDetails } from "@/services/http/backend-error";
+import { loginUser } from "@/services/user/auth.service";
 import { emailSchema } from "@/validation/email";
+
+import { safeNextPath, saveAuthSession } from "../session";
+import { commonAuthErrorMessage } from "../utils/auth-error-message";
+import { consumeAuthFlash } from "../utils/auth-flash";
 
 import {
   fieldErrorClass,
@@ -18,7 +27,11 @@ import {
   secondaryButtonClass,
 } from "./auth-form-styles";
 
-type Status = { kind: "idle" } | { kind: "submitting" } | { kind: "error"; message: string };
+type Status =
+  | { kind: "idle" }
+  | { kind: "submitting" }
+  | { kind: "error"; message: ReactNode }
+  | { kind: "notice"; message: string };
 
 interface FieldErrors {
   email?: string;
@@ -26,18 +39,32 @@ interface FieldErrors {
 }
 
 /**
- * Customer sign-in form. Validates on submit; submission is not wired to a
- * backend yet because the customer auth contract (endpoint, cookie/session
- * handling) is still undefined, see docs/api-integration.md. Once
- * `src/services/user/auth.service.ts` exists, call it where marked below.
+ * Customer sign-in form → POST /auth/login. On success the session is stored
+ * (../session) and the user returns to `?next=` (same-site paths only) or the
+ * home page. The backend answers 401 "Invalid email or password" for wrong
+ * credentials and for unverified accounts alike, so the message covers both.
  */
 export function SignInForm() {
   const formId = useId();
+  const router = useRouter();
+  const isSubmittingRef = useRef(false);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [errors, setErrors] = useState<FieldErrors>({});
 
-  const onSubmit = (event: FormEvent<HTMLFormElement>) => {
+  useEffect(() => {
+    // One-time notice from a redirect (password reset done, session expired).
+    // Deferred so StrictMode's double effect run reads (and removes) it once.
+    const timer = window.setTimeout(() => {
+      const flash = consumeAuthFlash();
+      if (flash) setStatus({ kind: "notice", message: flash });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (isSubmittingRef.current) return; // ignore double submits
+
     const data = new FormData(event.currentTarget);
     const email = emailSchema.safeParse(data.get("email") ?? "");
     const password = String(data.get("password") ?? "");
@@ -47,18 +74,49 @@ export function SignInForm() {
       nextErrors.email = email.error.issues[0]?.message ?? "Enter a valid email address.";
     if (!password) nextErrors.password = "Enter your password.";
     setErrors(nextErrors);
-    if (nextErrors.email || nextErrors.password) {
+    if (nextErrors.email || nextErrors.password || !email.success) {
       setStatus({ kind: "idle" });
+      document.getElementById(`${formId}-${nextErrors.email ? "email" : "password"}`)?.focus();
       return;
     }
 
+    isSubmittingRef.current = true;
     setStatus({ kind: "submitting" });
-    // TODO(auth): replace with the auth service call once the backend contract exists.
-    setStatus({
-      kind: "error",
-      message:
-        "Online sign-in isn’t available yet. You can continue booking as a guest, or speak to our concierge.",
-    });
+    try {
+      const response = await loginUser({ email: email.data, password });
+      saveAuthSession(response);
+      const next = safeNextPath(new URLSearchParams(window.location.search).get("next"));
+      router.replace((next ?? userRoutes.home) as Route);
+      return; // keep the form locked while navigating
+    } catch (error) {
+      let message: ReactNode = commonAuthErrorMessage(error);
+      if (isApiError(error) && error.status === 401) {
+        message = (
+          <>
+            The email or password is incorrect. If you registered recently, confirm your email first
+            using the link we sent —{" "}
+            <Link href={userRoutes.verifyEmail} className="underline">
+              request a new verification email
+            </Link>
+            .
+          </>
+        );
+      } else if (isApiError(error) && error.status === 400) {
+        const fieldErrors: FieldErrors = {};
+        for (const text of getBackendErrorDetails(error).messages) {
+          const property = text.split(" ")[0];
+          if (property === "email") fieldErrors.email = "Enter a valid email address.";
+          else if (property === "password") fieldErrors.password = "Enter your password.";
+        }
+        setErrors(fieldErrors);
+        message = "Please check your email and password.";
+      }
+      isSubmittingRef.current = false;
+      setStatus({
+        kind: "error",
+        message: message ?? "We couldn’t sign you in. Please try again.",
+      });
+    }
   };
 
   const isSubmitting = status.kind === "submitting";
@@ -82,6 +140,7 @@ export function SignInForm() {
           type="email"
           autoComplete="email"
           inputMode="email"
+          disabled={isSubmitting}
           placeholder="ananya@example.com"
           aria-invalid={errors.email ? true : undefined}
           aria-describedby={errors.email ? emailErrorId : undefined}
@@ -104,6 +163,7 @@ export function SignInForm() {
           name="password"
           type="password"
           autoComplete="current-password"
+          disabled={isSubmitting}
           placeholder="••••••••••••"
           aria-invalid={errors.password ? true : undefined}
           aria-describedby={errors.password ? passwordErrorId : undefined}
@@ -118,6 +178,11 @@ export function SignInForm() {
 
       {status.kind === "error" ? (
         <p role="alert" className={formAlertClass}>
+          {status.message}
+        </p>
+      ) : null}
+      {status.kind === "notice" ? (
+        <p role="status" className={cx(formAlertClass, "border-[#0d1b2a]")}>
           {status.message}
         </p>
       ) : null}

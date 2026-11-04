@@ -2,12 +2,17 @@
 
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useId, useRef, useState, type FormEvent } from "react";
 
 import { userRoutes } from "@/constants/routes";
 import { cx } from "@/lib/cx";
+import { isApiError } from "@/services/http/api-error";
+import { AUTH_EMAIL_COOLDOWN_SECONDS, requestPasswordReset } from "@/services/user/auth.service";
 import { emailSchema } from "@/validation/email";
 
+import { commonAuthErrorMessage } from "../utils/auth-error-message";
+import { savePendingPasswordReset } from "../utils/pending-password-reset";
 import {
   fieldErrorClass,
   formAlertClass,
@@ -22,21 +27,21 @@ import { InfoPanel } from "./info-panel";
 type Status = { kind: "idle" } | { kind: "sending" } | { kind: "message"; message: string };
 
 /**
- * Asks for the account email to send a password-reset link. Not wired to a
- * backend yet: the reset-request contract is undefined (docs/api-integration.md).
- * Once `src/services/user/auth.service.ts` exists, call it where marked and
- * then show /reset-password ("Check your inbox") whatever the response, so the
- * page never reveals whether an address has an account.
+ * Asks for the account email → POST /auth/forgot-password. The backend gives
+ * the same neutral answer whether or not the address has an account; that
+ * message is shown on /reset-password ("Check your inbox"), so the page never
+ * reveals whether an account exists.
  */
 export function ForgotPasswordForm() {
   const formId = useId();
+  const router = useRouter();
   const inputId = `${formId}-email`;
   const errorId = `${inputId}-error`;
   const isSendingRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
 
-  const onSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (isSendingRef.current) return; // ignore double submits
 
@@ -51,13 +56,31 @@ export function ForgotPasswordForm() {
 
     isSendingRef.current = true;
     setStatus({ kind: "sending" });
-    // TODO(auth): request the reset email, then router.push(userRoutes.resetPassword).
-    isSendingRef.current = false;
-    setStatus({
-      kind: "message",
-      message:
-        "Password reset emails aren’t available online yet, so no link has been sent. Please speak to our concierge for help with your account.",
-    });
+    try {
+      const response = await requestPasswordReset({ email: email.data });
+      savePendingPasswordReset({
+        email: email.data,
+        message: response.message,
+        resendAvailableAt: Date.now() + AUTH_EMAIL_COOLDOWN_SECONDS * 1000,
+      });
+      router.push(userRoutes.resetPassword);
+      return; // keep the form locked while navigating
+    } catch (caught) {
+      if (isApiError(caught) && caught.status === 400) {
+        setError("Enter a valid email address.");
+        document.getElementById(inputId)?.focus();
+        isSendingRef.current = false;
+        setStatus({ kind: "idle" });
+        return;
+      }
+      isSendingRef.current = false;
+      setStatus({
+        kind: "message",
+        message:
+          commonAuthErrorMessage(caught) ??
+          "We couldn’t send a reset link right now. Please try again.",
+      });
+    }
   };
 
   const isSending = status.kind === "sending";
@@ -79,6 +102,7 @@ export function ForgotPasswordForm() {
           type="email"
           autoComplete="email"
           inputMode="email"
+          disabled={isSending}
           placeholder="ananya@example.com"
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? errorId : undefined}

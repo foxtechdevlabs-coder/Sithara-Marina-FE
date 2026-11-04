@@ -30,5 +30,15 @@ export interface RequestOptions<TResponse = unknown> {
    * Recommended once the backend contract for an endpoint is confirmed.
    */
   schema?: ZodType<TResponse>;
+  /**
+   * Attach `Authorization: Bearer <access token>` when signed in (default
+   * `true`). Set `false` for public auth endpoints (login, register, refresh…).
+   */
+  auth?: boolean;
+  /**
+   * On a 401, refresh the session once and retry (default `true`; only applies
+   * when `auth` is on). Set `false` where a retry would be wrong, e.g. logout.
+   */
+  refreshOnUnauthorized?: boolean;
   init?: Omit<RequestInit, "body" | "method" | "headers" | "signal">;
 }

@@ -2,10 +2,14 @@
 
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
-import { useId, useRef, useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
+import { useId, useRef, useState, type FormEvent, type ReactNode } from "react";
 
 import { userRoutes } from "@/constants/routes";
 import { cx } from "@/lib/cx";
+import { isApiError } from "@/services/http/api-error";
+import { getBackendErrorDetails } from "@/services/http/backend-error";
+import { registerUser, VERIFICATION_EMAIL_COOLDOWN_SECONDS } from "@/services/user/auth.service";
 import { emailSchema } from "@/validation/email";
 
 import {
@@ -17,12 +21,19 @@ import {
   primaryButtonClass,
   secondaryButtonClass,
 } from "./auth-form-styles";
+import { formatWait } from "../utils/format-wait";
+import { savePendingVerification } from "../utils/pending-verification";
 import { InfoPanel } from "./info-panel";
 
 type FieldName = "fullName" | "email" | "password" | "confirmPassword";
 type FieldErrors = Partial<Record<FieldName, string>>;
 
-type Status = { kind: "idle" } | { kind: "submitting" } | { kind: "error"; message: string };
+type Status = { kind: "idle" } | { kind: "submitting" } | { kind: "error"; message: ReactNode };
+
+/** Password length documented by POST /auth/register. */
+const PASSWORD_MIN = 8;
+const PASSWORD_MAX = 128;
+const PASSWORD_RULE = `Use between ${PASSWORD_MIN} and ${PASSWORD_MAX} characters.`;
 
 const FIELDS: readonly {
   name: FieldName;
@@ -69,52 +80,166 @@ function validate(data: FormData): FieldErrors {
   const email = emailSchema.safeParse(text("email"));
   if (!email.success)
     errors.email = email.error.issues[0]?.message ?? "Enter a valid email address.";
-  // Password strength rules belong to the backend contract (not defined yet);
-  // only presence and confirmation are checked here.
-  if (!text("password")) errors.password = "Choose a password.";
+  const password = text("password");
+  if (!password) errors.password = "Choose a password.";
+  else if (password.length < PASSWORD_MIN || password.length > PASSWORD_MAX)
+    errors.password = PASSWORD_RULE;
   if (!text("confirmPassword")) errors.confirmPassword = "Re-enter your password.";
-  else if (text("confirmPassword") !== text("password"))
-    errors.confirmPassword = "Passwords don’t match.";
+  else if (text("confirmPassword") !== password) errors.confirmPassword = "Passwords don’t match.";
 
   return errors;
 }
 
 /**
- * Customer registration form. Validates on submit and keeps entered values.
- * Not wired to a backend yet: the registration / email-verification contract
- * is undefined (docs/api-integration.md). Once `src/services/user/auth.service.ts`
- * exists, call it where marked below and surface its errors in `status`.
+ * Maps the backend's 400 validation messages ("fullName must not be blank",
+ * "property phone should not exist", …) onto the form's fields.
+ */
+function fieldErrorsFromBackend(messages: string[]): { fields: FieldErrors; unmapped: boolean } {
+  const fields: FieldErrors = {};
+  let unmapped = false;
+  for (const message of messages) {
+    const property = message.split(" ")[0];
+    if (property === "fullName") fields.fullName ??= "Enter your full name.";
+    else if (property === "email") fields.email ??= "Enter a valid email address.";
+    else if (property === "password") fields.password ??= PASSWORD_RULE;
+    else if (property === "confirmPassword")
+      fields.confirmPassword ??= message.includes("match")
+        ? "Passwords don’t match."
+        : PASSWORD_RULE;
+    else unmapped = true;
+  }
+  return { fields, unmapped };
+}
+
+/**
+ * Customer registration form → POST /auth/register. On 201 the account is
+ * saved but unverified: the email (never the password) is handed to
+ * /verify-email, which explains the emailed link and offers "Resend".
  */
 export function SignUpForm() {
   const formId = useId();
+  const router = useRouter();
   const isSubmittingRef = useRef(false);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [errors, setErrors] = useState<FieldErrors>({});
 
-  const onSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const focusFirstInvalid = (fieldErrors: FieldErrors) => {
+    const firstInvalid = FIELDS.find((field) => fieldErrors[field.name]);
+    if (firstInvalid) document.getElementById(`${formId}-${firstInvalid.name}`)?.focus();
+  };
+
+  const goToVerification = (email: string, cooldownSeconds: number, deliveryFailed = false) => {
+    savePendingVerification({
+      email,
+      resendAvailableAt: Date.now() + cooldownSeconds * 1000,
+      notice: deliveryFailed ? "delivery-failed" : undefined,
+    });
+    router.push(userRoutes.verifyEmail);
+  };
+
+  const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (isSubmittingRef.current) return; // ignore double submits
 
-    const nextErrors = validate(new FormData(event.currentTarget));
+    const data = new FormData(event.currentTarget);
+    const nextErrors = validate(data);
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) {
       setStatus({ kind: "idle" });
-      const firstInvalid = FIELDS.find((field) => nextErrors[field.name]);
-      if (firstInvalid) document.getElementById(`${formId}-${firstInvalid.name}`)?.focus();
+      focusFirstInvalid(nextErrors);
       return;
     }
 
+    const email = emailSchema.parse(String(data.get("email")));
     isSubmittingRef.current = true;
     setStatus({ kind: "submitting" });
-    // TODO(auth): call the registration service here once the backend contract exists.
-    // On success, if email verification is required: savePendingVerificationEmail(email)
-    // (../utils/pending-verification) and router.push(userRoutes.verifyEmail).
-    isSubmittingRef.current = false;
-    setStatus({
-      kind: "error",
-      message:
-        "Online accounts aren’t available yet, so no account has been created. You can continue booking as a guest, or speak to our concierge.",
-    });
+
+    try {
+      await registerUser({
+        fullName: String(data.get("fullName")).trim(),
+        email,
+        password: String(data.get("password")),
+        confirmPassword: String(data.get("confirmPassword")),
+      });
+      goToVerification(email, VERIFICATION_EMAIL_COOLDOWN_SECONDS);
+      return; // keep the button disabled while navigating
+    } catch (error) {
+      const { code, messages } = getBackendErrorDetails(error);
+      const httpStatus = isApiError(error) ? error.status : undefined;
+      const retryAfter = isApiError(error) ? error.retryAfterSeconds : undefined;
+
+      if (code === "EMAIL_DELIVERY_FAILED") {
+        // The account and link were saved; only the email failed.
+        goToVerification(email, retryAfter ?? VERIFICATION_EMAIL_COOLDOWN_SECONDS, true);
+        return;
+      }
+
+      let message: ReactNode;
+      if (httpStatus === 400) {
+        const { fields, unmapped } = fieldErrorsFromBackend(messages);
+        setErrors(fields);
+        focusFirstInvalid(fields);
+        message = unmapped
+          ? "Some details couldn’t be accepted. Please check the form and try again."
+          : "Please correct the highlighted fields.";
+      } else if (code === "EMAIL_EXISTS" || httpStatus === 409) {
+        message = (
+          <>
+            An account with this email is already verified.{" "}
+            <Link href={userRoutes.login} className="underline">
+              Sign in
+            </Link>{" "}
+            or{" "}
+            <Link href={userRoutes.forgotPassword} className="underline">
+              reset your password
+            </Link>
+            .
+          </>
+        );
+      } else if (code === "RESEND_COOLDOWN" || code === "TOO_MANY_EMAILS" || httpStatus === 429) {
+        const wait =
+          retryAfter !== undefined
+            ? formatWait(retryAfter)
+            : code === "TOO_MANY_EMAILS"
+              ? "up to an hour"
+              : "a minute";
+        message = (
+          <>
+            We’ve recently sent a verification email to this address. Check your inbox, or try again
+            in {wait}.{" "}
+            <button
+              type="button"
+              className="underline"
+              onClick={() =>
+                goToVerification(email, retryAfter ?? VERIFICATION_EMAIL_COOLDOWN_SECONDS)
+              }
+            >
+              Go to email verification
+            </button>
+          </>
+        );
+      } else if (httpStatus === 503) {
+        message =
+          "Our email service is temporarily unavailable, so we couldn’t complete your registration. Please try again in a few minutes.";
+      } else if (isApiError(error) && error.kind === "timeout") {
+        // The server may have saved the account before the response was lost.
+        message =
+          "Our server took too long to respond, so we couldn’t confirm your registration. If a verification email arrives, use its link; otherwise please try again in a moment.";
+      } else if (isApiError(error) && error.kind === "network") {
+        // No response reached the page: offline, DNS, server down, or the request was
+        // blocked by the backend's CORS policy. Browsers do not let scripts tell these
+        // apart, so the message covers them without guessing.
+        message =
+          typeof navigator !== "undefined" && !navigator.onLine
+            ? "You appear to be offline, so your registration wasn’t sent. Check your internet connection and try again."
+            : "We couldn’t connect to the Sithara Marina server, so your registration didn’t go through. Please check your connection and try again. If this keeps happening, the service may be temporarily unavailable.";
+      } else {
+        message = "Something went wrong while creating your account. Please try again.";
+      }
+
+      isSubmittingRef.current = false;
+      setStatus({ kind: "error", message });
+    }
   };
 
   const isSubmitting = status.kind === "submitting";
@@ -142,6 +267,7 @@ export function SignUpForm() {
                 type={field.type}
                 autoComplete={field.autoComplete}
                 inputMode={field.type === "email" ? "email" : undefined}
+                disabled={isSubmitting}
                 placeholder={field.placeholder}
                 aria-invalid={error ? true : undefined}
                 aria-describedby={error ? errorId : undefined}

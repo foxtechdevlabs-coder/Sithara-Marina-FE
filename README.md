@@ -26,7 +26,8 @@ Zod 4 · Lucide icons · ESLint 9 · Prettier 3 · Vitest 4 · Playwright 1.63 �
 
 ```bash
 npm install
-cp .env.example .env.local        # Windows Command Prompt: copy .env.example .env.local
+cp .env.example .env              # Windows Command Prompt: copy .env.example .env
+# then set NEXT_PUBLIC_API_BASE_URL in .env
 npm run dev                       # http://localhost:3000  (admin: /admin)
 ```
 
@@ -55,8 +56,10 @@ Details: [docs/testing.md](docs/testing.md).
 | -------------------------- | -------- | ------------------ | ---------------------------- |
 | `NEXT_PUBLIC_API_BASE_URL` | Yes      | Yes                | Absolute base URL of the API |
 
-The value in `.env.example` is a placeholder; the backend team must confirm the real URL. Never
-put secrets in `NEXT_PUBLIC_*` variables. See [docs/api-integration.md](docs/api-integration.md).
+Set `NEXT_PUBLIC_API_BASE_URL` in the root `.env` file (git-ignored; create it from
+`.env.example`, which is only a template). `.env` is the single place the backend URL is
+configured — don't add it to `.env.local` as well, because Next.js gives `.env.local` priority.
+Restart `npm run dev` after changing it. Never put secrets in `NEXT_PUBLIC_*` variables. See [docs/api-integration.md](docs/api-integration.md).
 
 ## Deployment (overview)
 
