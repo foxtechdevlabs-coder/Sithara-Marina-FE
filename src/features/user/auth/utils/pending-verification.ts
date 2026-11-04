@@ -1,5 +1,6 @@
 /**
- * Hands the just-registered email address from /register to /verify-email.
+ * Hands the just-registered email address from /register to the
+ * /verify-email/* status pages.
  * Kept in sessionStorage (this tab only, cleared when it closes) rather than
  * the URL, so the address does not end up in history or server logs.
  * The password is never stored.
@@ -10,8 +11,6 @@ export interface PendingVerification {
   email: string;
   /** Epoch ms before which "Resend" stays locked (backend cooldown / Retry-After). */
   resendAvailableAt?: number;
-  /** Set when the account was saved but the first email could not be delivered. */
-  notice?: "delivery-failed";
 }
 
 const listeners = new Set<() => void>();
