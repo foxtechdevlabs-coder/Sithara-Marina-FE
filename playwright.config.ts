@@ -20,6 +20,13 @@ export default defineConfig({
   use: {
     baseURL: externalBaseUrl ?? `http://localhost:${port}`,
     trace: "retain-on-failure",
+    // Third-party font servers fail fast here: their stylesheets block page load and
+    // navigation, so a slow response would otherwise fail unrelated tests at random.
+    launchOptions: {
+      args: [
+        "--host-resolver-rules=MAP api.fontshare.com ~NOTFOUND, MAP fonts.googleapis.com ~NOTFOUND",
+      ],
+    },
   },
   projects: [
     { name: "desktop-chromium", use: { ...devices["Desktop Chrome"] } },

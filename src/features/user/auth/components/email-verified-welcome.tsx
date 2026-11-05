@@ -11,7 +11,7 @@ export interface EmailVerifiedWelcomeProps {
   onContinue: () => void;
 }
 
-/** Rendered by the verification callback, and only after POST /auth/verify-email → 200. */
+/** Rendered by /verify-email/success for the session saved after POST /auth/verify-email → 200. */
 export function EmailVerifiedWelcome({ user, onContinue }: EmailVerifiedWelcomeProps) {
   const firstName = user.fullName.trim().split(/\s+/)[0];
 

@@ -24,9 +24,10 @@ export const userRoutes = {
   resetPassword: "/reset-password",
   /** Link in the verification email: `<this>#token=<id>.<secret>` (`?token=` also works). */
   verifyEmail: "/verify-email",
-  /** After registering: the email was accepted for sending (not "verified"). */
+  /** After POST /auth/verify-email → 200: the email is verified and the user signed in. */
   verifyEmailSuccess: "/verify-email/success",
   verifyEmailFailed: "/verify-email/failed",
+  /** After registering: "Check your inbox", until the emailed link is opened. */
   verifyEmailPending: "/verify-email/pending",
 
   planCharter: "/plan-your-charter",

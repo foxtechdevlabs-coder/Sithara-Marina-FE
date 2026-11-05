@@ -69,6 +69,8 @@ export function Logo({ light = false, size = "sm" }: { light?: boolean; size?: "
 export function MarinaFooter() {
   return (
     <footer
+      // Explicit: on the standalone pages this sits inside <main>, which drops the implicit role.
+      role="contentinfo"
       className="mx-auto w-full max-w-[1728px] text-white"
       style={{ background: "linear-gradient(180deg, #061527 0%, #0a223d 55%, #0e2f52 100%)" }}
     >

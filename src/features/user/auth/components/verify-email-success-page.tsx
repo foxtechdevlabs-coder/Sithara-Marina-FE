@@ -1,59 +1,34 @@
-import { ArrowRight } from "lucide-react";
-import Link from "next/link";
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 
 import { userRoutes } from "@/constants/routes";
-import { cx } from "@/lib/cx";
 
-import { AccountPageShell } from "./account-page-shell";
-import { PRIMARY_GRADIENT, primaryButtonClass } from "./auth-form-styles";
-import { InfoPanel } from "./info-panel";
-import { PendingEmail } from "./pending-email";
-import { RequirePendingVerification } from "./require-pending-verification";
+import { readAuthSession, useAuthSession } from "../session";
+import { EmailVerifiedWelcome } from "./email-verified-welcome";
 
-/** Shown after POST /auth/register → 201: the backend accepted the verification email. */
+/**
+ * Reached from the verification callback after POST /auth/verify-email → 200,
+ * which saves the session and its user first. Without a session nothing has been
+ * verified in this tab, so the page hands over to the pending page instead of
+ * claiming success. A login session has no user and no verification to report,
+ * so it goes home.
+ */
 export function VerifyEmailSuccessPage() {
-  return (
-    <AccountPageShell
-      headingId="verify-email-success-heading"
-      heading="Check your"
-      headingSerif="inbox."
-      subtitle={
-        <>
-          We’ve sent a verification email to <PendingEmail />.
-        </>
-      }
-    >
-      <RequirePendingVerification />
+  const router = useRouter();
+  const session = useAuthSession();
+  const user = session?.user;
 
-      <p className="mt-10 max-w-[35rem] text-[1rem] leading-snug text-[#0d1b2a] lg:mt-[calc(var(--r)*37)] lg:w-[calc(var(--rw)*560)] lg:max-w-none">
-        Open the email and click the verification link to confirm your address. The link signs you
-        in automatically.
-      </p>
+  useEffect(() => {
+    // Reads storage directly: the hook's value is `null` until hydration finishes.
+    // Re-runs when the session changes, so logging out here leaves the page too.
+    const stored = readAuthSession();
+    if (!stored) router.replace(userRoutes.verifyEmailPending);
+    else if (!stored.user) router.replace(userRoutes.home);
+  }, [router, session]);
 
-      <div className="mt-10 flex flex-col items-start gap-6 sm:flex-row sm:items-center lg:mt-[calc(var(--r)*41)]">
-        <Link
-          href={userRoutes.login}
-          className={cx(
-            primaryButtonClass,
-            "w-full max-w-[20rem] lg:w-[calc(var(--rw)*319)] lg:max-w-none lg:min-w-72",
-          )}
-          style={{ background: PRIMARY_GRADIENT }}
-        >
-          Back to sign in
-          <ArrowRight aria-hidden="true" strokeWidth={1.5} className="size-3.5 shrink-0" />
-        </Link>
-        <Link
-          href={userRoutes.verifyEmailPending}
-          className="text-[0.8125rem] leading-none text-[#0d1b2a] hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0d1b2a]"
-        >
-          Didn’t receive it? Resend the email
-        </Link>
-      </div>
+  if (!user) return null;
 
-      <InfoPanel title="Can’t find the email?" className="mt-14 lg:mt-[calc(var(--r)*52)]">
-        Check your spam folder. You’ll be able to sign in with your password once your email is
-        verified.
-      </InfoPanel>
-    </AccountPageShell>
-  );
+  return <EmailVerifiedWelcome user={user} onContinue={() => router.replace(userRoutes.home)} />;
 }

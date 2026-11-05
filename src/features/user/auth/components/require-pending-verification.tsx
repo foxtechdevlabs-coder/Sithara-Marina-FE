@@ -8,9 +8,9 @@ import { userRoutes } from "@/constants/routes";
 import { readPendingVerification } from "../utils/pending-verification";
 
 /**
- * The "email sent" and "email failed" pages report what happened to this tab's
- * registration. Opened without one they would be reporting nothing, so they
- * hand over to the pending page, which works for any address.
+ * The "email failed" page reports what happened to this tab's registration.
+ * Opened without one it would be reporting nothing, so it hands over to the
+ * pending page, which works for any address.
  */
 export function RequirePendingVerification() {
   const router = useRouter();

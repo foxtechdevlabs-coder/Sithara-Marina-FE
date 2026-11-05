@@ -1,6 +1,7 @@
 "use client";
 
 import { ArrowRight } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   useCallback,
@@ -36,6 +37,7 @@ import {
   savePendingPasswordReset,
   subscribePendingPasswordReset,
 } from "../utils/pending-password-reset";
+import { AccountPageShell } from "./account-page-shell";
 import {
   fieldErrorClass,
   formAlertClass,
@@ -65,6 +67,24 @@ const FIELDS: readonly { name: FieldName; label: string; placeholder: string }[]
   { name: "confirmPassword", label: "Confirm new password", placeholder: "Re-enter your password" },
 ];
 
+const SECURE_RETURN = { heading: "A secure", headingSerif: "return." };
+const CHECKING_LINK = {
+  ...SECURE_RETURN,
+  subtitle: "We’re preparing your secure password reset.",
+};
+const PAGE_COPY: Record<Mode, { heading: string; headingSerif: string; subtitle: string }> = {
+  loading: CHECKING_LINK,
+  verifying: CHECKING_LINK,
+  inbox: {
+    heading: "Check your",
+    headingSerif: "inbox.",
+    subtitle: "If an account is associated with that address, a password reset link is on its way.",
+  },
+  ready: { ...SECURE_RETURN, subtitle: "Choose a new password for your account." },
+  invalid: { ...SECURE_RETURN, subtitle: "This password reset link can’t be used." },
+  failed: { ...SECURE_RETURN, subtitle: "We couldn’t check your reset link." },
+};
+
 const PASSWORD_RULE = `Use between ${PASSWORD_MIN_LENGTH} and ${PASSWORD_MAX_LENGTH} characters.`;
 const INVALID_LINK =
   "This password reset link is invalid or has expired. Each link works once — request a new one below.";
@@ -93,12 +113,31 @@ function verifyLinkOnce(token: string): Promise<VerifyResetLinkResponse> {
 }
 
 /**
- * New-password form for the emailed reset link, which opens this page as
- * `/reset-password?token=<id>.<secret>`:
+ * Reads the emailed token from `#token=…`, or from `?token=…`, then removes it
+ * from the address bar to keep the secret out of history, bookmarks and the
+ * Referer header. Returns `null` when the URL has no token, and `""` when the
+ * link carries an empty one (a broken link, never sent to the backend).
+ */
+function takeTokenFromUrl(): string | null {
+  const url = new URL(window.location.href);
+  const fragmentToken = new URLSearchParams(url.hash.slice(1)).get("token");
+  const queryToken = url.searchParams.get("token");
+  if (fragmentToken === null && queryToken === null) return null;
+  url.searchParams.delete("token");
+  window.history.replaceState(null, "", url.pathname + url.search);
+  return fragmentToken || queryToken || "";
+}
+
+/**
+ * Reset-password page. Sent here from /forgot-password it says to check the
+ * inbox; the emailed link opens it as `/reset-password#token=<id>.<secret>`
+ * (`?token=` is also accepted):
  * 1. the link token is read, removed from the address bar and sent once to
  *    POST /auth/verify-reset-link → `reset_token` + `expires_in`;
- * 2. the reset token is kept in memory only (never stored) until it expires;
+ * 2. only then are the password fields shown; the reset token is kept in memory
+ *    only (never stored) until it expires;
  * 3. POST /auth/reset-password, then on to /login with the backend's message.
+ *    The user signs in there: the backend returns no session here.
  */
 export function ResetPasswordForm() {
   const formId = useId();
@@ -120,10 +159,13 @@ export function ResetPasswordForm() {
   const resendSecondsLeft = useCooldown(pending?.resendAvailableAt ?? 0);
 
   const checkLink = useCallback(async (token: string) => {
+    resetTokenRef.current = null;
     setMode("verifying");
     setNotice(null);
+    setErrors({});
     try {
       const { reset_token, expires_in } = await verifyLinkOnce(token);
+      if (linkTokenRef.current !== token) return; // a newer link took over
       resetTokenRef.current = reset_token;
       setExpiresAt(Date.now() + expires_in * 1000);
       setMode("ready");
@@ -133,6 +175,7 @@ export function ResetPasswordForm() {
       });
     } catch (error) {
       inFlight.delete(token); // allow a manual retry for transient failures
+      if (linkTokenRef.current !== token) return; // a newer link took over
       if (isApiError(error) && error.status === 400) {
         setMode("invalid");
         setNotice({ tone: "error", text: INVALID_LINK });
@@ -147,25 +190,43 @@ export function ResetPasswordForm() {
     }
   }, []);
 
+  const openLink = useCallback(
+    (token: string) => {
+      linkTokenRef.current = token || null;
+      if (token) {
+        void checkLink(token);
+        return;
+      }
+      resetTokenRef.current = null;
+      setMode("invalid");
+      setNotice({ tone: "error", text: INVALID_LINK });
+    },
+    [checkLink],
+  );
+
   useEffect(() => {
     // Deferred so React StrictMode's double effect run (mount → cleanup → mount)
     // cancels the first pass: the link is read and submitted exactly once.
     const timer = window.setTimeout(() => {
       if (linkTokenRef.current) return;
-      const url = new URL(window.location.href);
-      const token = url.searchParams.get("token");
-      if (!token) {
-        setMode("inbox");
-        return;
-      }
-      // Keep the secret out of history, bookmarks and the Referer header.
-      url.searchParams.delete("token");
-      window.history.replaceState(null, "", url.pathname + url.search + url.hash);
-      linkTokenRef.current = token;
-      void checkLink(token);
+      const token = takeTokenFromUrl();
+      if (token === null) setMode("inbox");
+      else openLink(token);
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [checkLink]);
+  }, [openLink]);
+
+  useEffect(() => {
+    // A link opened in a tab already showing this page only changes the
+    // #fragment, so the page does not reload. Nothing may race a password save.
+    const onHashChange = () => {
+      const token = takeTokenFromUrl();
+      if (token === null || token === linkTokenRef.current || isBusyRef.current) return;
+      openLink(token);
+    };
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, [openLink]);
 
   // The reset token is short-lived (`expires_in`); lock the form when it lapses.
   useEffect(() => {
@@ -264,7 +325,8 @@ export function ResetPasswordForm() {
         message: response.message,
         resendAvailableAt: Date.now() + AUTH_EMAIL_COOLDOWN_SECONDS * 1000,
       });
-      setNotice({ tone: "info", text: response.message });
+      linkTokenRef.current = null;
+      setMode("inbox");
     } catch (error) {
       if (isApiError(error) && error.status === 429) {
         savePendingPasswordReset({
@@ -285,6 +347,7 @@ export function ResetPasswordForm() {
   };
 
   const canEdit = mode === "ready" && !isSaving;
+  const canRequestLink = mode === "inbox" || mode === "invalid" || mode === "failed";
   const busy = isSaving || isRequesting;
   const shownNotice: Notice =
     notice ??
@@ -298,104 +361,138 @@ export function ResetPasswordForm() {
       : null);
 
   return (
-    <form
-      noValidate
-      onSubmit={onSubmit}
-      aria-busy={busy || mode === "verifying"}
-      className="mt-11 lg:mt-[calc(var(--r)*44)]"
-    >
-      <div className="max-w-[35rem] lg:w-[calc(var(--rw)*560)] lg:max-w-none">
-        {FIELDS.map((field, index) => {
-          const id = `${formId}-${field.name}`;
-          const errorId = `${id}-error`;
-          const error = errors[field.name];
-          return (
-            <div key={field.name} className={cx(index > 0 && "mt-8 lg:mt-[calc(var(--r)*71)]")}>
-              <label htmlFor={id} className={labelClass}>
-                {field.label}
-              </label>
-              <input
-                id={id}
-                name={field.name}
-                type="password"
-                autoComplete="new-password"
-                placeholder={field.placeholder}
-                disabled={!canEdit}
-                aria-invalid={error ? true : undefined}
-                aria-describedby={error ? errorId : undefined}
-                className={cx(
-                  inputClass,
-                  "mt-3.5 disabled:cursor-not-allowed disabled:bg-[#f4f5f6] lg:mt-[calc(var(--r)*14)]",
-                )}
-              />
-              {error ? (
-                <p id={errorId} className={fieldErrorClass}>
-                  {error}
-                </p>
-              ) : null}
-            </div>
-          );
-        })}
-      </div>
-
-      <div aria-live="polite">
-        {mode === "verifying" ? (
-          <p className={cx(formAlertClass, "border-[#0d1b2a]")}>Checking your reset link…</p>
-        ) : null}
-        {shownNotice ? (
-          <p
-            role={shownNotice.tone === "error" ? "alert" : undefined}
-            className={cx(formAlertClass, shownNotice.tone === "info" && "border-[#0d1b2a]")}
-          >
-            {shownNotice.text}
-          </p>
-        ) : null}
-      </div>
-
-      <div className="mt-10 flex flex-col gap-4 min-[420px]:flex-row lg:mt-[calc(var(--r)*58)] lg:gap-[calc(var(--rw)*16)]">
-        {mode === "failed" ? (
-          <button
-            type="button"
-            onClick={() => linkTokenRef.current && void checkLink(linkTokenRef.current)}
-            className={cx(
-              primaryButtonClass,
-              "w-full min-[420px]:w-56 lg:w-[calc(var(--rw)*223)] lg:min-w-52",
-            )}
-            style={{ background: PRIMARY_GRADIENT }}
-          >
-            Check the link again
-            <ArrowRight aria-hidden="true" strokeWidth={1.5} className="size-3.5 shrink-0" />
-          </button>
-        ) : (
-          <button
-            type="submit"
-            disabled={!canEdit || busy}
-            className={cx(
-              primaryButtonClass,
-              "w-full disabled:cursor-not-allowed min-[420px]:w-56 lg:w-[calc(var(--rw)*223)] lg:min-w-52",
-            )}
-            style={{ background: PRIMARY_GRADIENT }}
-          >
-            {isSaving ? "Saving password…" : "Save password & sign in"}
-            <ArrowRight aria-hidden="true" strokeWidth={1.5} className="size-3.5 shrink-0" />
-          </button>
-        )}
-        <button
-          type="button"
-          onClick={() => void onRequestNewLink()}
-          disabled={busy || resendSecondsLeft > 0}
-          className={cx(
-            secondaryButtonClass,
-            "w-full disabled:cursor-wait disabled:opacity-60 min-[420px]:w-44 lg:w-[calc(var(--rw)*175)] lg:min-w-40",
-          )}
+    <AccountPageShell headingId="reset-password-heading" {...PAGE_COPY[mode]}>
+      {mode === "inbox" ? (
+        <section
+          aria-labelledby="secure-return-heading"
+          className="mt-11 border border-[#d6d9dc] px-5 py-6 lg:mt-[calc(var(--r)*36)] lg:px-[calc(var(--rw)*25)] lg:pt-[calc(var(--r)*24)] lg:pb-[calc(var(--r)*26)]"
         >
-          {isRequesting
-            ? "Requesting…"
-            : resendSecondsLeft > 0
-              ? `New link · ${formatCountdown(resendSecondsLeft)}`
-              : "Request a new link"}
-        </button>
-      </div>
-    </form>
+          <h2
+            id="secure-return-heading"
+            className="text-[1.375rem] leading-tight font-normal tracking-[-0.01em] lg:text-[max(calc(var(--r)*23),20px)]"
+          >
+            A secure return.
+          </h2>
+          <p className="mt-3 text-[0.8125rem] leading-snug text-[#3d434a] lg:mt-[calc(var(--r)*20)] lg:text-[max(calc(var(--r)*13),12px)]">
+            Follow the link in your email to choose a new password. If the link has expired or was
+            already used, request another.
+          </p>
+        </section>
+      ) : null}
+
+      <form
+        noValidate
+        onSubmit={onSubmit}
+        aria-busy={busy || mode === "verifying"}
+        className="mt-11 lg:mt-[calc(var(--r)*44)]"
+      >
+        {mode === "ready" ? (
+          <div className="max-w-[35rem] lg:w-[calc(var(--rw)*560)] lg:max-w-none">
+            {FIELDS.map((field, index) => {
+              const id = `${formId}-${field.name}`;
+              const errorId = `${id}-error`;
+              const error = errors[field.name];
+              return (
+                <div key={field.name} className={cx(index > 0 && "mt-8 lg:mt-[calc(var(--r)*71)]")}>
+                  <label htmlFor={id} className={labelClass}>
+                    {field.label}
+                  </label>
+                  <input
+                    id={id}
+                    name={field.name}
+                    type="password"
+                    autoComplete="new-password"
+                    placeholder={field.placeholder}
+                    disabled={!canEdit}
+                    aria-invalid={error ? true : undefined}
+                    aria-describedby={error ? errorId : undefined}
+                    className={cx(
+                      inputClass,
+                      "mt-3.5 disabled:cursor-not-allowed disabled:bg-[#f4f5f6] lg:mt-[calc(var(--r)*14)]",
+                    )}
+                  />
+                  {error ? (
+                    <p id={errorId} className={fieldErrorClass}>
+                      {error}
+                    </p>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
+
+        <div aria-live="polite">
+          {mode === "verifying" ? (
+            <p className={cx(formAlertClass, "border-[#0d1b2a]")}>Checking your reset link…</p>
+          ) : null}
+          {shownNotice ? (
+            <p
+              role={shownNotice.tone === "error" ? "alert" : undefined}
+              className={cx(formAlertClass, shownNotice.tone === "info" && "border-[#0d1b2a]")}
+            >
+              {shownNotice.text}
+            </p>
+          ) : null}
+        </div>
+
+        <div className="mt-10 flex flex-col flex-wrap gap-4 min-[420px]:flex-row lg:mt-[calc(var(--r)*58)] lg:gap-[calc(var(--rw)*16)]">
+          {mode === "failed" ? (
+            <button
+              type="button"
+              onClick={() => linkTokenRef.current && void checkLink(linkTokenRef.current)}
+              className={cx(
+                primaryButtonClass,
+                "w-full min-[420px]:w-56 lg:w-[calc(var(--rw)*223)] lg:min-w-52",
+              )}
+              style={{ background: PRIMARY_GRADIENT }}
+            >
+              Check the link again
+              <ArrowRight aria-hidden="true" strokeWidth={1.5} className="size-3.5 shrink-0" />
+            </button>
+          ) : null}
+          {mode === "ready" ? (
+            <button
+              type="submit"
+              disabled={!canEdit || busy}
+              className={cx(
+                primaryButtonClass,
+                "w-full disabled:cursor-not-allowed min-[420px]:w-56 lg:w-[calc(var(--rw)*223)] lg:min-w-52",
+              )}
+              style={{ background: PRIMARY_GRADIENT }}
+            >
+              {isSaving ? "Saving password…" : "Save password"}
+              <ArrowRight aria-hidden="true" strokeWidth={1.5} className="size-3.5 shrink-0" />
+            </button>
+          ) : null}
+          {canRequestLink ? (
+            <button
+              type="button"
+              onClick={() => void onRequestNewLink()}
+              disabled={busy || resendSecondsLeft > 0}
+              className={cx(
+                secondaryButtonClass,
+                "w-full disabled:cursor-wait disabled:opacity-60 min-[420px]:w-44 lg:w-[calc(var(--rw)*175)] lg:min-w-40",
+              )}
+            >
+              {isRequesting
+                ? "Requesting…"
+                : resendSecondsLeft > 0
+                  ? `New link · ${formatCountdown(resendSecondsLeft)}`
+                  : "Request a new link"}
+            </button>
+          ) : null}
+          <Link
+            href={userRoutes.login}
+            className={cx(
+              secondaryButtonClass,
+              "w-full min-[420px]:w-44 lg:w-[calc(var(--rw)*176)] lg:min-w-40",
+            )}
+          >
+            Back to sign in
+          </Link>
+        </div>
+      </form>
+    </AccountPageShell>
   );
 }

@@ -115,7 +115,7 @@ function fieldErrorsFromBackend(messages: string[]): { fields: FieldErrors; unma
  * Customer registration form → POST /auth/register. On 201 the account is
  * saved but unverified: the email (never the password) is handed to a
  * /verify-email/* status page, chosen here from the response because the
- * backend does not redirect: 201 → success, `EMAIL_DELIVERY_FAILED` → failed.
+ * backend does not redirect: 201 → pending, `EMAIL_DELIVERY_FAILED` → failed.
  */
 export function SignUpForm() {
   const formId = useId();
@@ -130,10 +130,7 @@ export function SignUpForm() {
   };
 
   const goToEmailStatus = (
-    route:
-      | typeof userRoutes.verifyEmailSuccess
-      | typeof userRoutes.verifyEmailFailed
-      | typeof userRoutes.verifyEmailPending,
+    route: typeof userRoutes.verifyEmailFailed | typeof userRoutes.verifyEmailPending,
     email: string,
     cooldownSeconds: number,
   ) => {
@@ -168,7 +165,7 @@ export function SignUpForm() {
         password: String(data.get("password")),
         confirmPassword: String(data.get("confirmPassword")),
       });
-      goToEmailStatus(userRoutes.verifyEmailSuccess, email, VERIFICATION_EMAIL_COOLDOWN_SECONDS);
+      goToEmailStatus(userRoutes.verifyEmailPending, email, VERIFICATION_EMAIL_COOLDOWN_SECONDS);
       return; // keep the button disabled while navigating
     } catch (error) {
       const { code, messages } = getBackendErrorDetails(error);

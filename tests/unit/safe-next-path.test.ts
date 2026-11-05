@@ -16,6 +16,10 @@ describe("safeNextPath (post-login redirect)", () => {
       "https://evil.example",
       "//evil.example",
       `/${BACKSLASH}evil.example`, // browsers treat "/\" like "//"
+      "/\t/evil.example", // browsers drop tabs and newlines, leaving "//"
+      "/\n/evil.example",
+      "/\r/evil.example",
+      "\t//evil.example",
       "javascript:alert(1)",
       "",
       null,
