@@ -13,7 +13,7 @@ import { getBackendErrorDetails } from "@/services/http/backend-error";
 import { loginUser } from "@/services/user/auth.service";
 import { emailSchema } from "@/validation/email";
 
-import { safeNextPath, saveAuthSession } from "../session";
+import { safeNextPath, saveAuthSession, useAuthSession } from "../session";
 import { commonAuthErrorMessage } from "../utils/auth-error-message";
 import { consumeAuthFlash } from "../utils/auth-flash";
 
@@ -30,6 +30,7 @@ import {
 type Status =
   | { kind: "idle" }
   | { kind: "submitting" }
+  | { kind: "signedIn" }
   | { kind: "error"; message: ReactNode }
   | { kind: "notice"; message: string };
 
@@ -47,6 +48,7 @@ interface FieldErrors {
 export function SignInForm() {
   const formId = useId();
   const router = useRouter();
+  const session = useAuthSession();
   const isSubmittingRef = useRef(false);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [errors, setErrors] = useState<FieldErrors>({});
@@ -87,7 +89,9 @@ export function SignInForm() {
       saveAuthSession(response);
       const next = safeNextPath(new URLSearchParams(window.location.search).get("next"));
       router.replace((next ?? userRoutes.home) as Route);
-      return; // keep the form locked while navigating
+      isSubmittingRef.current = false;
+      setStatus({ kind: "signedIn" });
+      return;
     } catch (error) {
       let message: ReactNode = commonAuthErrorMessage(error);
       if (isApiError(error) && error.status === 401) {
@@ -95,7 +99,7 @@ export function SignInForm() {
           <>
             The email or password is incorrect. If you registered recently, confirm your email first
             using the link we sent —{" "}
-            <Link href={userRoutes.verifyEmail} className="underline">
+            <Link href={userRoutes.verifyEmailPending} className="underline">
               request a new verification email
             </Link>
             .
@@ -119,7 +123,10 @@ export function SignInForm() {
     }
   };
 
-  const isSubmitting = status.kind === "submitting";
+  // Stays locked while navigating away, unless Logout in the header ended the
+  // session first: that cancels the redirect and leaves the visitor on this form.
+  const isSubmitting =
+    status.kind === "submitting" || (status.kind === "signedIn" && session !== null);
   const emailErrorId = `${formId}-email-error`;
   const passwordErrorId = `${formId}-password-error`;
 

@@ -10,14 +10,15 @@ import {
   refreshSession,
   type AuthResponse,
   type AuthUser,
+  type RefreshResponse,
 } from "@/services/user/auth.service";
 
 import { saveAuthFlash } from "./utils/auth-flash";
 
 /**
- * Customer auth session: the tokens and user returned by the backend after
- * login (POST /auth/login) or email verification (POST /auth/verify-email),
- * renewed through POST /auth/refresh.
+ * Customer auth session: the tokens returned by the backend after login
+ * (POST /auth/login) or email verification (POST /auth/verify-email), renewed
+ * through POST /auth/refresh. Only email verification also returns the user.
  *
  * Storage decision: the backend returns both tokens in the JSON body and sets
  * no cookies, so the frontend must hold them. They are kept in
@@ -30,7 +31,8 @@ import { saveAuthFlash } from "./utils/auth-flash";
 export interface AuthSession {
   accessToken: string;
   refreshToken: string;
-  user: AuthUser;
+  /** Present after email verification; POST /auth/login returns no user. */
+  user?: AuthUser;
 }
 
 const STORAGE_KEY = "sithara-marina:auth-session";
@@ -79,7 +81,7 @@ export function readAuthSession(): AuthSession | null {
 }
 
 /** Stores the session returned by login or email verification. */
-export function saveAuthSession(response: AuthResponse): void {
+export function saveAuthSession(response: Omit<AuthResponse, "user"> & { user?: AuthUser }): void {
   write({
     accessToken: response.access_token,
     refreshToken: response.refresh_token,
@@ -98,18 +100,37 @@ export function useAuthSession(): AuthSession | null {
 
 // ── Refresh, expiry and sign-out ────────────────────────────────────────────
 
-let signingOut = false;
+/** Treat the access token as expired this early: a sleeping backend can take a minute to answer. */
+const TOKEN_EXPIRY_MARGIN_MS = 60_000;
+
+/** The refresh request running now. */
+let renewal: { refreshToken: string; promise: Promise<RefreshResponse> } | null = null;
+
+/**
+ * POST /auth/refresh, shared by everyone asking to renew the same token: it is
+ * single use, and a logout must receive the pair a running refresh produces.
+ */
+function renewTokens(refreshToken: string): Promise<RefreshResponse> {
+  if (renewal?.refreshToken !== refreshToken) {
+    const promise = refreshSession({ refresh_token: refreshToken }).finally(() => {
+      if (renewal?.refreshToken === refreshToken) renewal = null;
+    });
+    renewal = { refreshToken, promise };
+  }
+  return renewal.promise;
+}
 
 /**
  * Renews the session with the stored refresh token (single use, rotated).
- * Called by the shared HTTP client, which guarantees one refresh at a time.
  * An invalid/revoked token clears the session; a network failure keeps it.
  */
 async function refreshStoredSession(): Promise<boolean> {
   const session = readAuthSession();
   if (!session) return false;
   try {
-    const response = await refreshSession({ refresh_token: session.refreshToken });
+    const response = await renewTokens(session.refreshToken);
+    // Signed out (or in again) meanwhile: never bring the old session back.
+    if (readAuthSession()?.refreshToken !== session.refreshToken) return false;
     write({
       accessToken: response.access_token,
       refreshToken: response.refresh_token,
@@ -120,24 +141,31 @@ async function refreshStoredSession(): Promise<boolean> {
     const unrecoverable =
       isApiError(error) &&
       (error.status === 401 || error.status === 400 || error.kind === "validation");
-    if (unrecoverable) clearAuthSession();
+    if (unrecoverable && readAuthSession()?.refreshToken === session.refreshToken) {
+      clearAuthSession();
+    }
     return false;
   }
 }
 
 /** Only accept same-site relative paths, to avoid open redirects via `?next=`. */
 export function safeNextPath(value: string | null | undefined): string | null {
-  if (!value || !value.startsWith("/") || value.startsWith("//") || value.includes("\\")) {
+  if (!value || !value.startsWith("/") || value.includes("\\")) return null;
+  // Resolved the way a browser will: it drops tabs and newlines, so a value like
+  // "/\t/evil.example" looks relative here but really means "//evil.example".
+  const base = "https://same-site.invalid";
+  try {
+    return new URL(value, base).origin === base ? value : null;
+  } catch {
     return null;
   }
-  return value;
 }
 
 /** A protected request failed with 401 and could not be refreshed. */
 function handleSessionExpired(): void {
   const hadSession = readAuthSession() !== null;
   clearAuthSession();
-  if (signingOut || typeof window === "undefined") return;
+  if (typeof window === "undefined") return;
   if (window.location.pathname === userRoutes.login) return;
 
   if (hadSession) saveAuthFlash("Your session has expired. Please sign in again.");
@@ -147,21 +175,65 @@ function handleSessionExpired(): void {
 }
 
 /**
- * Signs out: revokes the refresh token on the backend (best effort; the
- * backend answers 204 even when there was nothing to end) and always clears
- * the local session.
+ * The tokens to revoke `session` with: the pair from a running refresh, a new
+ * pair when the access token has expired, otherwise its own. `null` means the
+ * refresh token is already invalid, so there is nothing left to revoke.
  */
-export async function signOut(): Promise<void> {
-  const session = readAuthSession();
-  signingOut = true;
+async function tokensToRevoke(session: AuthSession): Promise<AuthSession | null> {
+  const isRenewing = renewal?.refreshToken === session.refreshToken;
+  if (!isRenewing && !isAccessTokenExpired(session.accessToken)) return session;
   try {
-    if (session) await logoutSession({ refresh_token: session.refreshToken });
-  } catch {
-    // Offline or token already expired: the local session is cleared regardless.
-  } finally {
-    clearAuthSession();
-    signingOut = false;
+    const response = await renewTokens(session.refreshToken);
+    return { accessToken: response.access_token, refreshToken: response.refresh_token };
+  } catch (error) {
+    if (isApiError(error) && (error.status === 401 || error.status === 400)) return null;
+    throw error;
   }
+}
+
+/**
+ * Signs out. The local session is cleared at once, without waiting for the
+ * backend, which can take up to a minute to wake. It is then revoked with the
+ * captured tokens, so this never touches a session started in the meantime.
+ * Resolves `false` when the backend could not confirm the revocation.
+ */
+export async function signOut(): Promise<boolean> {
+  const session = readAuthSession();
+  clearAuthSession();
+  if (!session) return true;
+  try {
+    const tokens = await tokensToRevoke(session);
+    if (tokens) await logoutSession({ refresh_token: tokens.refreshToken }, tokens.accessToken);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** True unless the access token's JWT `exp` claim shows it is still valid. */
+function isAccessTokenExpired(token: string): boolean {
+  try {
+    const payload = token.split(".")[1]?.replace(/-/g, "+").replace(/_/g, "/") ?? "";
+    const { exp } = JSON.parse(atob(payload)) as { exp?: unknown };
+    return typeof exp !== "number" || exp * 1000 - TOKEN_EXPIRY_MARGIN_MS <= Date.now();
+  } catch {
+    return true;
+  }
+}
+
+let storedSessionChecked = false;
+
+/**
+ * Runs once per page load. A session restored with an expired access token is
+ * renewed through POST /auth/refresh, which also clears it if the refresh token
+ * is no longer valid, so an expired session does not stay signed in. Reading the
+ * JWT is a local UX check only; the backend still authorizes every request.
+ */
+export function checkStoredSession(): void {
+  if (storedSessionChecked) return; // refresh tokens are single use
+  storedSessionChecked = true;
+  const session = readAuthSession();
+  if (session && isAccessTokenExpired(session.accessToken)) void refreshStoredSession();
 }
 
 registerAuthHandlers({

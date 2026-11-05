@@ -8,8 +8,9 @@ import { apiClient } from "@/services/http/api-client";
  * Paths are relative to the configured base URL. Request bodies are sent
  * exactly as documented — the backend rejects any extra field with 400.
  *
- * Every call here is a public endpoint (`auth: false`) except logout, so a
- * 401 from e.g. a wrong password is never mistaken for an expired session.
+ * Every call here skips the session's token handling (`auth: false`), so a 401
+ * from e.g. a wrong password is never mistaken for an expired session. Logout
+ * is the one authenticated call, and is given its access token explicitly.
  */
 
 export const AUTH_PATHS = {
@@ -227,12 +228,16 @@ export interface LoginRequest {
 }
 
 /**
- * UNCONFIRMED SHAPE: Swagger declares no response schema for POST /auth/login.
- * It is validated against `AuthResponseDto` (documented for verify-email, which
- * the docs describe as the same signed-in session). A different shape fails
- * validation instead of creating a half-formed session.
+ * Swagger declares no response schema for POST /auth/login; this is the body
+ * observed from the backend. Unlike verify-email it contains no `user`.
  */
-export type LoginResponse = AuthResponse;
+const loginResponseSchema = z.object({
+  access_token: z.string(),
+  refresh_token: z.string(),
+  /** Access-token lifetime in seconds. */
+  expires_in: z.number(),
+});
+export type LoginResponse = z.infer<typeof loginResponseSchema>;
 
 /**
  * POST /auth/login. Observed errors: 401 "Invalid email or password" (also for
@@ -240,7 +245,7 @@ export type LoginResponse = AuthResponse;
  */
 export function loginUser(request: LoginRequest): Promise<LoginResponse> {
   const body: LoginRequest = { email: request.email, password: request.password };
-  return apiClient.post(AUTH_PATHS.login, { ...PUBLIC, body, schema: authResponseSchema });
+  return apiClient.post(AUTH_PATHS.login, { ...PUBLIC, body, schema: loginResponseSchema });
 }
 
 // ── Refresh ─────────────────────────────────────────────────────────────────
@@ -267,14 +272,14 @@ export function refreshSession(request: RefreshRequest): Promise<RefreshResponse
 
 /**
  * POST /auth/logout (bearer) → 204, also when there was nothing to end.
- * Sent with the current access token and never retried through a refresh
- * (that would rotate the very token being revoked).
+ * The caller passes the tokens because the local session is cleared before this
+ * runs; a 401 here therefore never reaches the session-expiry handling.
  */
-export async function logoutSession(request: RefreshRequest): Promise<void> {
+export async function logoutSession(request: RefreshRequest, accessToken: string): Promise<void> {
   const body: RefreshRequest = { refresh_token: request.refresh_token };
   await apiClient.post(AUTH_PATHS.logout, {
+    ...PUBLIC,
     body,
-    timeoutMs: AUTH_TIMEOUT_MS,
-    refreshOnUnauthorized: false,
+    headers: { Authorization: `Bearer ${accessToken}` },
   });
 }

@@ -97,34 +97,65 @@ Backend: `NEXT_PUBLIC_API_BASE_URL` from the root `.env` (NestJS; spec at `<base
 at `<base URL>/docs-json`). Implemented in `src/services/user/auth.service.ts` (paths in
 `AUTH_PATHS`):
 
-| Function                 | Endpoint                         | Used by                                  |
-| ------------------------ | -------------------------------- | ---------------------------------------- |
-| `registerUser()`         | `POST /auth/register`            | `/register`                              |
-| `verifyEmail()`          | `POST /auth/verify-email`        | `/verify-email?token=…`                  |
-| `resendVerification()`   | `POST /auth/resend-verification` | `/verify-email` "Resend"                 |
-| `loginUser()`            | `POST /auth/login`               | `/login` (then `?next=` or home)         |
-| `requestPasswordReset()` | `POST /auth/forgot-password`     | `/forgot-password`, "Request a new link" |
-| `verifyResetLink()`      | `POST /auth/verify-reset-link`   | `/reset-password?token=…`                |
-| `resetPassword()`        | `POST /auth/reset-password`      | `/reset-password` (then `/login`)        |
-| `refreshSession()`       | `POST /auth/refresh`             | HTTP client, automatically on 401        |
-| `logoutSession()`        | `POST /auth/logout` (bearer)     | `signOut()` in `session.ts` (no UI yet)  |
+| Function                 | Endpoint                         | Used by                                    |
+| ------------------------ | -------------------------------- | ------------------------------------------ |
+| `registerUser()`         | `POST /auth/register`            | `/register`                                |
+| `verifyEmail()`          | `POST /auth/verify-email`        | `/verify-email#token=…` or `?token=…`      |
+| `resendVerification()`   | `POST /auth/resend-verification` | `/verify-email/{failed,pending}`, bad link |
+| `loginUser()`            | `POST /auth/login`               | `/login` (then `?next=` or home)           |
+| `requestPasswordReset()` | `POST /auth/forgot-password`     | `/forgot-password`, "Request a new link"   |
+| `verifyResetLink()`      | `POST /auth/verify-reset-link`   | `/reset-password#token=…` or `?token=…`    |
+| `resetPassword()`        | `POST /auth/reset-password`      | `/reset-password` (then `/login`)          |
+| `refreshSession()`       | `POST /auth/refresh`             | HTTP client, automatically on 401          |
+| `logoutSession()`        | `POST /auth/logout` (bearer)     | `signOut()` in `session.ts`, header Logout |
 
 - Request bodies contain exactly the documented fields (the backend rejects extra fields).
   Responses are validated with Zod. Auth calls use a 60 s timeout (the Render instance can take
   ~40 s to wake up) and `auth: false`, so a 401 from e.g. a wrong password never triggers a refresh.
-- **Unconfirmed response shapes:** Swagger declares no response schema for `/auth/login`,
-  `/auth/refresh` or `/auth/me`. Login is validated against `AuthResponseDto` (documented for
-  verify-email); refresh requires a new `access_token` and `refresh_token` (`user` optional).
+- **Login response:** Swagger declares no schema for `/auth/login`. The observed 200 body is
+  `{ access_token, refresh_token, expires_in }` (900 s observed), with **no `user`**, and login is
+  validated against exactly that. A login session therefore has no user details;
+  `/auth/me` is not called.
+- **Unconfirmed response shapes:** Swagger declares no response schema for `/auth/refresh` or
+  `/auth/me`. Refresh requires a new `access_token` and `refresh_token` (`user` optional).
   A different shape fails validation instead of creating a broken session.
 - Error bodies (observed, not in the spec): domain errors `{ statusCode, code, message }`;
   validation errors `{ statusCode: 400, error, message: string[] }`; 401s
   `{ statusCode, message, error? }`. Read them with `getBackendErrorDetails()`.
   `ApiError.retryAfterSeconds` reads `Retry-After`. Login returns the same 401 "Invalid email or
   password" for wrong credentials **and for unverified accounts**.
-- **Links are token-based**, not six-digit codes: `/verify-email?token=<id>.<secret>` and
-  `/reset-password?token=<id>.<secret>` (link format to be confirmed by the backend team). Each
-  page reads the token, removes it from the address bar and posts it exactly once. The
-  short-lived `reset_token` (`expires_in`, currently 600 s) is kept in memory only.
+- **Links are token-based**, not six-digit codes: `/verify-email#token=<id>.<secret>` and
+  `/reset-password#token=<id>.<secret>` (observed from the real reset email; `?token=` is also
+  accepted on both). Each page reads the token, removes it from the address bar and posts it
+  exactly once. An empty reset token is never sent. The short-lived `reset_token` (`expires_in`,
+  currently 600 s) is kept in memory only.
+- **`/reset-password` follows the link state:** "Check your inbox" with no link; the password fields
+  only after `POST /auth/verify-reset-link` → 200; invalid, expired and used links share one
+  message, because the backend gives one answer for all of them. A saved password goes to `/login`:
+  `POST /auth/reset-password` returns only `{ message }`, so the user is not signed in.
+
+### Email verification routes
+
+These are frontend pages, not API endpoints. The backend exposes only `POST` JSON endpoints and
+performs **no redirects**: the emailed link opens the frontend directly, and the frontend picks
+the status page from the `POST /auth/register` result.
+
+| Route                   | Reached from                                                                                             | Query params                        |
+| ----------------------- | -------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| `/verify-email`         | Link in the verification email (callback)                                                                | `#token=<id>.<secret>` or `?token=` |
+| `/verify-email/pending` | Register 201 (email accepted for sending), sign-in 401 link, register 429, `/verify-email` with no token | None                                |
+| `/verify-email/failed`  | Register 503 `EMAIL_DELIVERY_FAILED`                                                                     | None                                |
+| `/verify-email/success` | `POST /auth/verify-email` 200 (session saved)                                                            | None                                |
+
+- The email address reaches the status pages through `sessionStorage`, never the URL. `failed`
+  hands over to `pending` when this tab has no registration.
+- `/verify-email/pending` is the "Check your inbox" page. "Resend the email" posts straight away
+  for this tab's registration; with no registration in this tab it first asks for the address.
+- `/verify-email/success` is the Welcome screen (Continue → home). It requires a saved session and
+  otherwise hands over to `pending`. Invalid or expired links stay on `/verify-email`.
+- Register 503 `SERVICE_UNAVAILABLE` stays on the form: the spec does not say the account was
+  saved, so resubmitting (not resending) is the safe retry.
+- Resend answers 200 even when the email could not be sent, so its success text stays neutral.
 
 ### Session and refresh
 
@@ -140,8 +171,18 @@ at `<base URL>/docs-json`). Implemented in `src/services/user/auth.service.ts` (
 - **Failure:** an invalid/revoked refresh token (401/400) clears the session and redirects to
   `/login?next=<current page>` with a "session expired" notice. A network failure during refresh
   keeps the session. `?next=` only accepts same-site paths (open-redirect guard).
-- **Logout:** `signOut()` calls `POST /auth/logout` (never retried via refresh) and always clears
-  the local session. No sign-out button exists yet (the header was not changed).
+- **Logout:** the header's Logout button calls `signOut()`, which clears the local session at once
+  and then calls `POST /auth/logout` (204, no body) with the tokens it captured. If the access token
+  has expired it refreshes first and revokes the new pair; a refresh already running is shared, so
+  its new token is revoked too. A 400/401 from that refresh means there is nothing left to revoke.
+  Any other failure shows a message that the session could not be confirmed as revoked; the user
+  stays signed out on this device either way.
+- **UI state:** the header and Home hero read `useAuthSession()`, so login and logout update them
+  without a refresh. On each page load an expired access token (JWT `exp`) is renewed through
+  `POST /auth/refresh`, which clears the session if the refresh token is no longer valid. A token
+  revoked before it expires is not detected on load: that needs a confirmed `GET /auth/me`.
+- **User name:** only `POST /auth/verify-email` returns a user. A login session shows no name until
+  the `GET /auth/me` response shape is confirmed; it is neither called nor guessed.
 - **Moving to httpOnly cookies** needs backend changes: set the refresh (and ideally access) token
   as `HttpOnly; Secure; SameSite` cookies on login / verify-email / refresh, read the refresh token
   from the cookie in `/auth/refresh` and `/auth/logout`, add CSRF protection, and keep CORS
@@ -151,13 +192,13 @@ at `<base URL>/docs-json`). Implemented in `src/services/user/auth.service.ts` (
 
 ### Known backend gaps
 
-1. **CORS:** only `http://localhost:5173` is allowed. `http://localhost:3000` (this app's dev
-   port) and the production frontend origin must be added.
+1. **CORS:** `http://localhost:3001` (this app's dev port) is allowed. The production frontend
+   origin must be confirmed.
 2. `Retry-After` is sent but not listed in `Access-Control-Expose-Headers`, so browsers can't read
    it; the UI falls back to the documented 60 s cooldown (or "up to an hour" for
    `TOO_MANY_EMAILS`).
-3. No response schemas for `/auth/login`, `/auth/refresh`, `/auth/me`; the link formats (and the
-   frontend URL used in emails) are not documented.
+3. No response schemas for `/auth/login` (shape observed, see above), `/auth/refresh`, `/auth/me`;
+   the link formats (and the frontend URL used in emails) are not documented.
 4. Registering an `@example.com` address returned `503 EMAIL_DELIVERY_FAILED`; delivery to real
    inboxes was not verified.
 

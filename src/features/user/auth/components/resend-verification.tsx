@@ -1,6 +1,13 @@
 "use client";
 
-import { useId, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
+import {
+  useId,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 
 import { cx } from "@/lib/cx";
 import { isApiError } from "@/services/http/api-error";
@@ -30,8 +37,11 @@ type Feedback = { tone: "info" | "error"; text: string } | null;
  * Uses the address from registration; when there is none (link opened in
  * another browser) it asks for it. The success message is deliberately
  * neutral: the API answers the same whether or not the email has an account.
+ *
+ * With `inlineAction` it renders as the text link beside that action, and only
+ * asks for an address once the link is used.
  */
-export function ResendVerification() {
+export function ResendVerification({ inlineAction }: { inlineAction?: ReactNode }) {
   const inputId = useId();
   const errorId = `${inputId}-error`;
   const isBusyRef = useRef(false);
@@ -40,6 +50,7 @@ export function ResendVerification() {
     readPendingVerification,
     () => null,
   );
+  const [askForEmail, setAskForEmail] = useState(!inlineAction);
   const [typedEmail, setTypedEmail] = useState("");
   const [emailError, setEmailError] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
@@ -65,6 +76,10 @@ export function ResendVerification() {
 
     let email = pending?.email;
     if (!email) {
+      if (!askForEmail) {
+        setAskForEmail(true);
+        return;
+      }
       const parsed = emailSchema.safeParse(typedEmail);
       if (!parsed.success) {
         setEmailError(parsed.error.issues[0]?.message ?? "Enter a valid email address.");
@@ -127,6 +142,26 @@ export function ResendVerification() {
 
   const disabled = isSending || secondsLeft > 0;
 
+  const submitButton = (
+    <button
+      type="submit"
+      disabled={disabled}
+      className={
+        inlineAction
+          ? "cursor-pointer text-[0.8125rem] leading-none text-[#0d1b2a] enabled:hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0d1b2a] disabled:cursor-not-allowed disabled:text-[#0d1b2a]/60"
+          : "flex h-[3.4375rem] w-full max-w-[20rem] items-center justify-center bg-[#d9d9d9] px-4 text-[0.8125rem] text-[#0d1b2a] transition-colors enabled:hover:bg-[#cdcfd1] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0d1b2a] disabled:cursor-not-allowed disabled:text-[#0d1b2a]/60 lg:h-[max(calc(var(--r)*55),2.75rem)] lg:w-[calc(var(--rw)*319)] lg:max-w-none lg:min-w-72"
+      }
+    >
+      {isSending
+        ? "Sending a new email…"
+        : secondsLeft > 0
+          ? `Resend email · ${formatCountdown(secondsLeft)}`
+          : inlineAction
+            ? "Didn’t receive it? Resend the email"
+            : "Resend verification email"}
+    </button>
+  );
+
   return (
     <form
       noValidate
@@ -134,7 +169,7 @@ export function ResendVerification() {
       aria-busy={isSending}
       className="mt-10 lg:mt-[calc(var(--r)*41)]"
     >
-      {pending ? null : (
+      {pending || !askForEmail ? null : (
         <div className="mb-6 max-w-[35rem] lg:w-[calc(var(--rw)*560)] lg:max-w-none">
           <label htmlFor={inputId} className={labelClass}>
             Email address
@@ -144,6 +179,7 @@ export function ResendVerification() {
             type="email"
             autoComplete="email"
             inputMode="email"
+            autoFocus={Boolean(inlineAction)}
             value={typedEmail}
             onChange={(event) => setTypedEmail(event.target.value)}
             placeholder="ananya@example.com"
@@ -159,17 +195,14 @@ export function ResendVerification() {
         </div>
       )}
 
-      <button
-        type="submit"
-        disabled={disabled}
-        className="flex h-[3.4375rem] w-full max-w-[20rem] items-center justify-center bg-[#d9d9d9] px-4 text-[0.8125rem] text-[#0d1b2a] transition-colors enabled:hover:bg-[#cdcfd1] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0d1b2a] disabled:cursor-not-allowed disabled:text-[#0d1b2a]/60 lg:h-[max(calc(var(--r)*55),2.75rem)] lg:w-[calc(var(--rw)*319)] lg:max-w-none lg:min-w-72"
-      >
-        {isSending
-          ? "Sending a new email…"
-          : secondsLeft > 0
-            ? `Resend email · ${formatCountdown(secondsLeft)}`
-            : "Resend verification email"}
-      </button>
+      {inlineAction ? (
+        <div className="flex flex-col items-start gap-6 sm:flex-row sm:items-center">
+          {inlineAction}
+          {submitButton}
+        </div>
+      ) : (
+        submitButton
+      )}
 
       <div aria-live="polite">
         {feedback ? (

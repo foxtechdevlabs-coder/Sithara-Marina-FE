@@ -1,7 +1,8 @@
 "use client";
 
 import { BRAND_NAME } from "@/constants/brand";
-import { ArrowRight, UserRound, X } from "lucide-react";
+
+import { ArrowRight, LogOut, UserRound, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -9,6 +10,7 @@ import { useEffect, useId, useRef, useState } from "react";
 
 import { bookingNav, primaryNav } from "@/config/user-navigation";
 import { userRoutes } from "@/constants/routes";
+import { signOut, useAuthSession } from "@/features/user/auth/session";
 import { cx } from "@/lib/cx";
 
 /** White artwork for the home hero; navy artwork for the light header on every other page. */
@@ -17,16 +19,25 @@ const LOGO_MARK_DARK_SRC = "/images/brand/sithara-marina-mark.svg";
 
 const focusRingBase = "focus-visible:outline-2 focus-visible:outline-offset-4";
 
+const accountButtonClass =
+  "hidden h-[3.3125rem] w-11 items-center justify-center gap-2.5 border border-[#0d1b2a] bg-white text-[0.875rem] text-[#0d1b2a] transition-colors duration-300 hover:bg-[#0d1b2a] hover:text-white sm:inline-flex lg:w-[11.75rem]";
+const accountMenuItemClass =
+  "flex items-center gap-3 py-3 font-serif text-[1.625rem] leading-tight opacity-90 transition-opacity duration-300 hover:opacity-100 aria-[current=page]:italic";
+
 /**
  * Site-wide header: menu toggle on the left, logo centred, booking button on
  * the right. On the home page it floats transparently over the hero video with
  * white text and logo; on every other page it is a white bar with dark text,
- * as in the Figma designs.
+ * as in the Figma designs. Signed in, Logout replaces Sign in, next to the
+ * user's name when the session has one (POST /auth/login returns no user).
  */
 export function SiteHeader() {
+  const session = useAuthSession();
+  const userName = session?.user?.fullName;
   const pathname = usePathname();
   const isOverlay = pathname === userRoutes.home;
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [logoutFailed, setLogoutFailed] = useState(false);
   const menuId = useId();
   const headerRef = useRef<HTMLElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
@@ -57,6 +68,11 @@ export function SiteHeader() {
   }, [isMenuOpen]);
 
   const closeMenu = () => setIsMenuOpen(false);
+  const logOut = () => {
+    closeMenu();
+    setLogoutFailed(false);
+    void signOut().then((confirmed) => setLogoutFailed(!confirmed));
+  };
   const isCurrent = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
 
   return (
@@ -123,20 +139,44 @@ export function SiteHeader() {
         </Link>
 
         <div className="flex gap-1.5 md:gap-2.5 lg:gap-[1.125rem]">
-          {/* Sign in: full button from lg, icon-only from sm; inside the menu on phones. */}
-          <Link
-            href={userRoutes.login}
-            onClick={closeMenu}
-            aria-label="Sign in"
-            aria-current={isCurrent(userRoutes.login) ? "page" : undefined}
-            className={cx(
-              "hidden h-[3.3125rem] w-11 items-center justify-center gap-2.5 border border-[#0d1b2a] bg-white text-[0.875rem] text-[#0d1b2a] transition-colors duration-300 hover:bg-[#0d1b2a] hover:text-white sm:inline-flex lg:w-[11.75rem]",
-              focusRing,
-            )}
-          >
-            <UserRound aria-hidden="true" strokeWidth={1.5} className="size-[1.125rem] shrink-0" />
-            <span className="hidden lg:inline">Sign in</span>
-          </Link>
+          {/* Sign in / Logout: full button from lg, icon-only from sm; inside the menu on phones. */}
+          {session ? (
+            <>
+              {/* From xl only: narrower headers would run into the logo; the menu shows it there. */}
+              {userName ? (
+                <span
+                  title={userName}
+                  className="hidden max-w-36 self-center truncate text-[0.875rem] xl:block"
+                >
+                  {userName}
+                </span>
+              ) : null}
+              <button
+                type="button"
+                onClick={logOut}
+                aria-label="Logout"
+                className={cx(accountButtonClass, focusRing)}
+              >
+                <LogOut aria-hidden="true" strokeWidth={1.5} className="size-[1.125rem] shrink-0" />
+                <span className="hidden lg:inline">Logout</span>
+              </button>
+            </>
+          ) : (
+            <Link
+              href={userRoutes.login}
+              onClick={closeMenu}
+              aria-label="Sign in"
+              aria-current={isCurrent(userRoutes.login) ? "page" : undefined}
+              className={cx(accountButtonClass, focusRing)}
+            >
+              <UserRound
+                aria-hidden="true"
+                strokeWidth={1.5}
+                className="size-[1.125rem] shrink-0"
+              />
+              <span className="hidden lg:inline">Sign in</span>
+            </Link>
+          )}
 
           <Link
             href={bookingNav.href}
@@ -154,6 +194,27 @@ export function SiteHeader() {
           </Link>
         </div>
       </div>
+
+      {/* Not shown once signed in again: it is about the session that was ended. */}
+      {logoutFailed && !session ? (
+        <div
+          role="alert"
+          className="absolute top-full right-4 z-30 flex max-w-[min(24rem,calc(100vw-2rem))] items-start gap-3 border border-[#0d1b2a] bg-white px-4 py-3 text-[0.8125rem] leading-snug text-[#0d1b2a] sm:right-7"
+        >
+          <p>
+            You’re signed out on this device, but we couldn’t confirm your session was revoked on
+            the server.
+          </p>
+          <button
+            type="button"
+            aria-label="Dismiss"
+            onClick={() => setLogoutFailed(false)}
+            className="focus-visible:outline-brand-950 shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2"
+          >
+            <X aria-hidden="true" className="size-4" strokeWidth={1.5} />
+          </button>
+        </div>
+      ) : null}
 
       <nav
         id={menuId}
@@ -179,21 +240,38 @@ export function SiteHeader() {
               </Link>
             </li>
           ))}
-          {/* Phones have no room for the header's Sign in button. */}
+          {userName ? (
+            <li title={userName} className="truncate py-3 text-[0.875rem] opacity-90 xl:hidden">
+              {userName}
+            </li>
+          ) : null}
+          {/* Phones have no room for the header's Sign in / Logout button. */}
           <li className="sm:hidden">
-            <Link
-              href={userRoutes.login}
-              onClick={closeMenu}
-              aria-current={isCurrent(userRoutes.login) ? "page" : undefined}
-              className={cx(
-                "flex items-center gap-3 py-3 font-serif text-[1.625rem] leading-tight opacity-90 transition-opacity duration-300 hover:opacity-100 aria-[current=page]:italic",
-                focusRingBase,
-                "focus-visible:outline-white",
-              )}
-            >
-              <UserRound aria-hidden="true" strokeWidth={1.25} className="size-5" />
-              Sign in
-            </Link>
+            {session ? (
+              <button
+                type="button"
+                onClick={logOut}
+                className={cx(
+                  accountMenuItemClass,
+                  "w-full",
+                  focusRingBase,
+                  "focus-visible:outline-white",
+                )}
+              >
+                <LogOut aria-hidden="true" strokeWidth={1.25} className="size-5" />
+                Logout
+              </button>
+            ) : (
+              <Link
+                href={userRoutes.login}
+                onClick={closeMenu}
+                aria-current={isCurrent(userRoutes.login) ? "page" : undefined}
+                className={cx(accountMenuItemClass, focusRingBase, "focus-visible:outline-white")}
+              >
+                <UserRound aria-hidden="true" strokeWidth={1.25} className="size-5" />
+                Sign in
+              </Link>
+            )}
           </li>
         </ul>
       </nav>
