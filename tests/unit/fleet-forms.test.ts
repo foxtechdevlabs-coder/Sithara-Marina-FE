@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import { parseRate } from "@/features/admin/fleet/components/commission-panel";
 import {
   fleetErrorMessage,
   isPhotoUploadDown,
@@ -19,6 +18,7 @@ import {
   validateForPublish,
   validateYachtForm,
 } from "@/features/admin/fleet/utils/yacht-form";
+import { parseRate as parseCommissionRate } from "@/features/admin/fleet/utils/yacht-form";
 import {
   draftFromRule,
   formatPaise,
@@ -359,10 +359,10 @@ describe("pricing form → API", () => {
   });
 
   it("parses the commission rate like the backend (0–100, 2 decimals, empty removes)", () => {
-    expect(parseRate("12.5")).toBe(12.5);
-    expect(parseRate("")).toBeNull();
-    expect(parseRate("100.01")).toBeUndefined();
-    expect(parseRate("1.234")).toBeUndefined();
+    expect(parseCommissionRate("12.5")).toBe(12.5);
+    expect(parseCommissionRate("")).toBeNull();
+    expect(parseCommissionRate("100.01")).toBeUndefined();
+    expect(parseCommissionRate("1.234")).toBeUndefined();
   });
 });
 

@@ -1,17 +1,15 @@
-import { RoutePlaceholder } from "@/components/shared/route-placeholder";
 import type { Metadata } from "next";
+
+import { PartnerEditor } from "@/features/admin/partners/components/partner-editor";
 
 export const metadata: Metadata = { title: "Partner" };
 
+// `?notice=created` shows the confirmation after adding a partner.
 export default async function PartnerDetailPage({
   params,
+  searchParams,
 }: PageProps<"/admin/partners/[partnerId]">) {
   const { partnerId } = await params;
-
-  return (
-    <RoutePlaceholder
-      title="Partner"
-      description={`A single partner. Feature module: features/admin/partners. (partnerId: ${partnerId})`}
-    />
-  );
+  const { notice } = await searchParams;
+  return <PartnerEditor key={partnerId} partnerId={partnerId} created={notice === "created"} />;
 }

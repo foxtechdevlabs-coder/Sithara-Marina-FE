@@ -27,6 +27,7 @@ function pageLabel(pathname: string, yacht: { id: string; name: string } | null)
     const sub = yachtMatch[2] === "/edit" ? " / Edit" : yachtMatch[2] ? " / Slots & pricing" : "";
     return `Operations / Yachts / ${name}${sub}`;
   }
+  if (pathname.startsWith(adminRoutes.staff)) return "Workspace / Settings & staff";
   for (const section of adminNav)
     for (const item of section.items)
       if (pathname === item.href || pathname.startsWith(`${item.href}/`))

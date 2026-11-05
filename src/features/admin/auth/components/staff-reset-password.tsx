@@ -2,6 +2,7 @@
 
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode, type SubmitEvent } from "react";
 
 import {
@@ -20,9 +21,35 @@ import { resetPassword, verifyResetLink, type ResetToken } from "@/services/admi
 import { isApiError } from "@/services/http/api-error";
 
 import { authErrorMessage } from "../utils/auth-error-message";
+import { PASSWORD_MAX, PASSWORD_MIN, passwordProblem } from "../utils/password-rules";
 
-const MIN = 8;
-const MAX = 128;
+/** How long "Your password is set" shows before the invited staff member goes to sign in. */
+const REDIRECT_MS = 2500;
+
+const COPY = {
+  reset: {
+    title: "Set a new",
+    intro: "Choose a new password for your staff account.",
+    checking: "Checking your reset link…",
+    missing: "This page needs the link from your password reset email.",
+    expired: "This reset session has expired.",
+    invalid: "This reset link is invalid, has already been used or has expired.",
+    passwordLabel: "New password",
+    confirmLabel: "Confirm new password",
+    submit: "Set new password",
+  },
+  invite: {
+    title: "Set your",
+    intro: "Welcome to Sithara Marina. Choose a password to activate your staff account.",
+    checking: "Checking your invitation link…",
+    missing: "This page needs the link from your staff invitation email.",
+    expired: "This session has expired.",
+    invalid: "This invitation link is invalid, has already been used or has expired.",
+    passwordLabel: "Password",
+    confirmLabel: "Confirm password",
+    submit: "Set password",
+  },
+};
 
 /**
  * Emailed links are single use, so each one is verified at most once per page
@@ -59,12 +86,16 @@ type State =
   | { step: "done"; message: string };
 
 /**
- * Staff password reset, opened from the emailed link
- * (`<this page>#token=…`). Exchanges the link for a short-lived reset token
- * (POST /admin/auth/verify-reset-link), then sets the new password
- * (POST /admin/auth/reset-password). Afterwards the staff member signs in.
+ * Staff password reset, and first password after an invitation (`purpose`
+ * "invite"), opened from the emailed link (`<this page>#token=…`). Both emails
+ * carry the same kind of link: it is exchanged for a short-lived reset token
+ * (POST /admin/auth/verify-reset-link), then the password is set
+ * (POST /admin/auth/reset-password). Afterwards the staff member signs in; an
+ * invited one is taken to the sign-in page.
  */
-export function StaffResetPassword() {
+export function StaffResetPassword({ purpose = "reset" }: { purpose?: "reset" | "invite" }) {
+  const copy = COPY[purpose];
+  const router = useRouter();
   const [state, setState] = useState<State>({ step: "verifying" });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -109,14 +140,22 @@ export function StaffResetPassword() {
     };
   }, []);
 
+  const finished = state.step === "done";
+  useEffect(() => {
+    if (!finished || purpose !== "invite") return;
+    const timer = setTimeout(() => router.replace(adminRoutes.login), REDIRECT_MS);
+    return () => clearTimeout(timer);
+  }, [finished, purpose, router]);
+
   async function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (state.step !== "form") return;
     const data = new FormData(event.currentTarget);
     const newPassword = String(data.get("new_password") ?? "");
     const confirmPassword = String(data.get("confirm_password") ?? "");
-    if (newPassword !== confirmPassword) {
-      setError("The two passwords don't match.");
+    const problem = passwordProblem(newPassword, confirmPassword);
+    if (problem) {
+      setError(problem);
       return;
     }
     if (Date.now() >= state.expiresAt) {
@@ -131,7 +170,10 @@ export function StaffResetPassword() {
         newPassword,
         confirmPassword,
       });
-      setState({ step: "done", message });
+      setState({
+        step: "done",
+        message: purpose === "invite" ? "Your password is set. Taking you to sign in…" : message,
+      });
     } catch (err) {
       if (isApiError(err) && err.code === "INVALID_RESET_TOKEN") {
         setState({ step: "invalid", reason: "expired" });
@@ -159,7 +201,7 @@ export function StaffResetPassword() {
     case "verifying":
       body = (
         <p role="status" className="mt-[28px] text-[14px]" style={{ color: AUTH_BODY }}>
-          Checking your reset link…
+          {copy.checking}
         </p>
       );
       break;
@@ -168,10 +210,10 @@ export function StaffResetPassword() {
         <div role="alert" className="mt-[28px] max-w-[560px]">
           <p className="text-[15px] leading-[24px]">
             {state.reason === "missing"
-              ? "This page needs the link from your password reset email."
+              ? copy.missing
               : state.reason === "expired"
-                ? "This reset session has expired."
-                : "This reset link is invalid, has already been used or has expired."}{" "}
+                ? copy.expired
+                : copy.invalid}{" "}
             Request a new link and open it from the latest email.
           </p>
           {requestNewLink}
@@ -207,36 +249,33 @@ export function StaffResetPassword() {
       body = (
         <form
           onSubmit={handleSubmit}
-          aria-label="Set a new password"
+          noValidate
+          aria-label={copy.submit}
           aria-busy={submitting}
           className="mt-[28px] max-w-[560px] lg:mt-[30px]"
         >
-          <AuthLabel htmlFor="new_password">New password</AuthLabel>
+          <AuthLabel htmlFor="new_password">{copy.passwordLabel}</AuthLabel>
           <input
             id="new_password"
             name="new_password"
             type="password"
             required
-            minLength={MIN}
-            maxLength={MAX}
             autoComplete="new-password"
             aria-describedby="password-rules"
             className={cx(authField, "mt-[10px]")}
             style={{ borderColor: AUTH_BORDER }}
           />
           <p id="password-rules" className="mt-[8px] text-[12px]" style={{ color: AUTH_BODY }}>
-            {MIN}–{MAX} characters.
+            {PASSWORD_MIN}–{PASSWORD_MAX} characters.
           </p>
 
           <div className="mt-[32px]">
-            <AuthLabel htmlFor="confirm_password">Confirm new password</AuthLabel>
+            <AuthLabel htmlFor="confirm_password">{copy.confirmLabel}</AuthLabel>
             <input
               id="confirm_password"
               name="confirm_password"
               type="password"
               required
-              minLength={MIN}
-              maxLength={MAX}
               autoComplete="new-password"
               className={cx(authField, "mt-[10px]")}
               style={{ borderColor: AUTH_BORDER }}
@@ -251,7 +290,7 @@ export function StaffResetPassword() {
             className={cx(authPrimaryButton, "mt-[40px]")}
             style={{ background: AUTH_GRADIENT }}
           >
-            {submitting ? "Saving…" : "Set new password"}
+            {submitting ? "Saving…" : copy.submit}
           </button>
         </form>
       );
@@ -261,9 +300,9 @@ export function StaffResetPassword() {
   return (
     <AdminAuthLayout
       eyebrow="Sithara Marina / Staff"
-      title="Set a new"
+      title={copy.title}
       titleAccent="password."
-      intro={<p>Choose a new password for your staff account.</p>}
+      intro={<p>{copy.intro}</p>}
     >
       {body}
     </AdminAuthLayout>

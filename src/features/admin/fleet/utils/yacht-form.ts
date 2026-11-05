@@ -324,3 +324,12 @@ export const LIST_ITEM_MAX = {
   amenities: 100,
   inclusions: 100,
 } as const;
+
+/** A percentage from 0 to 100 with at most 2 decimals (backend IsRate), or null. */
+export function parseRate(value: string): number | null | undefined {
+  const clean = value.trim().replace(/%$/, "").trim();
+  if (clean === "") return null;
+  if (!/^\d{1,3}(\.\d{1,2})?$/.test(clean)) return undefined;
+  const rate = Number(clean);
+  return rate <= 100 ? rate : undefined;
+}

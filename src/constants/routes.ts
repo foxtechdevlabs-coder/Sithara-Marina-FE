@@ -39,6 +39,8 @@ export const adminRoutes = {
   login: "/admin/login",
   /** Staff password reset; emailed links open `<this>#token=…`. */
   resetPassword: "/admin/reset-password",
+  /** First password for an invited staff member; the invitation email opens `<this>#token=…`. */
+  setPassword: "/admin/set-password",
   /** Staff password recovery (request a new reset link). */
   forgotPassword: "/admin/forgot-password",
   dashboard: "/admin/dashboard",
@@ -61,6 +63,7 @@ export const adminRoutes = {
   customer: (customerId: string) => `/admin/customers/${id(customerId)}` as Route,
 
   partners: "/admin/partners",
+  partnerNew: "/admin/partners/new",
   partner: (partnerId: string) => `/admin/partners/${id(partnerId)}` as Route,
 
   commissions: "/admin/commissions",
