@@ -17,6 +17,8 @@ import { INK, SAND } from "./admin-theme";
 
 function isActive(pathname: string, href: string): boolean {
   if (href === adminRoutes.dashboard) return pathname === href;
+  // Staff has no sidebar item of its own: it sits under "Settings & staff".
+  if (href === adminRoutes.settings && pathname.startsWith(adminRoutes.staff)) return true;
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 

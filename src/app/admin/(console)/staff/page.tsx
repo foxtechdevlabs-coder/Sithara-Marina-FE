@@ -1,13 +1,9 @@
-import { RoutePlaceholder } from "@/components/shared/route-placeholder";
 import type { Metadata } from "next";
+
+import { StaffPage } from "@/features/admin/staff/components/staff-page";
 
 export const metadata: Metadata = { title: "Staff" };
 
-export default function StaffPage() {
-  return (
-    <RoutePlaceholder
-      title="Staff"
-      description="Staff accounts. Feature module: features/admin/staff."
-    />
-  );
+export default function Page() {
+  return <StaffPage />;
 }

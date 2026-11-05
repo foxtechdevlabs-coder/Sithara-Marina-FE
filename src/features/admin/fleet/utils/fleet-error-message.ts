@@ -17,6 +17,11 @@ const EXPLAINED: Record<string, string> = {
   INVALID_PHOTO_ORDER: "The photo list changed in the meantime. Reload the page and try again.",
   STORAGE_NOT_CONFIGURED:
     "Photo storage isn't set up on the server yet, so photos can't be uploaded.",
+  EMAIL_EXISTS: "An account with this email already exists.",
+  CANNOT_CHANGE_SELF: "You can't change your own role or deactivate yourself.",
+  ROLE_IN_USE: "Move its staff to another role first.",
+  RESEND_COOLDOWN: "An email was sent to this address moments ago. Please wait, then try again.",
+  TOO_MANY_EMAILS: "Too many emails to this address. Please try again later.",
 };
 
 /** Photo storage is down or not set up: photos have to wait, but that isn't an error in the form. */
@@ -28,6 +33,13 @@ export function photoUploadMessage(error: unknown): string {
   return isPhotoUploadDown(error)
     ? "Photo upload isn't available right now. You can save the yacht without photos and add them later."
     : fleetErrorMessage(error);
+}
+
+/** For a failed partner document upload. */
+export function documentUploadMessage(error: unknown): string {
+  return isPhotoUploadDown(error)
+    ? "Document upload isn't available right now. You can save the partner and add it later."
+    : fleetErrorMessage(error, "This partner");
 }
 
 /**

@@ -1,20 +1,25 @@
 # Feature: `settings` (admin area)
 
-**Scope:** Site-wide settings.
+**Scope:** Business rules: tax, time zone, cancellation policy, contact details.
 
 **Routes:** `/admin/settings`
 
-Not implemented yet. When building this feature, add only the folders you need:
+## Backend contract (see the backend's `/docs`)
 
-```
-settings/
-├── components/   UI used only by this feature
-├── hooks/        React hooks for this feature
-├── types/        Types for this feature's data
-└── utils/        Pure helpers for this feature
-```
+| Endpoint              | Used by                                      |
+| --------------------- | -------------------------------------------- |
+| `GET /admin/settings` | Loads the form (`settings:read`)             |
+| `PUT /admin/settings` | Save, changed fields only (`settings:write`) |
 
-API calls for this feature belong in `src/services/admin/settings.service.ts`, which uses
-`src/services/http/api-client.ts`. Route files in `src/app` stay thin and render components
-from this folder.
-See [docs/folder-structure.md](../../../../docs/folder-structure.md).
+API functions: `src/services/admin/settings.service.ts`. Form ↔ API mapping and validation:
+`utils/settings-form.ts`.
+
+## Notes
+
+- The tax rate has no default, and quoting refuses until it is set.
+- The design shows things the API doesn't have: Currency is fixed at INR, and the notification
+  templates card is fixed text.
+- `booking_horizon_days`, `weekend_days`, `earliest_start_time` and `latest_end_time` aren't on the
+  form, so saving leaves their stored values alone.
+- The yacht forms still use fixed 5:00 AM and 7:00 PM limits (`FIRST_START`, `LAST_RETURN`), not
+  `earliest_start_time` and `latest_end_time`.
