@@ -7,7 +7,7 @@ import { secondaryButtonClass } from "./auth-form-styles";
 import { InfoPanel } from "./info-panel";
 import { ResendVerification } from "./resend-verification";
 
-/** Resend form and ways out, shared by the pending, failed and invalid-link states. */
+/** Resend form and ways out, shared by the failed and invalid-link states. */
 export function VerificationHelp() {
   return (
     <>

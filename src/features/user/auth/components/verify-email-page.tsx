@@ -8,21 +8,19 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { userRoutes } from "@/constants/routes";
 import { cx } from "@/lib/cx";
 import { isApiError } from "@/services/http/api-error";
-import { verifyEmail, type AuthUser, type VerifyEmailResponse } from "@/services/user/auth.service";
+import { verifyEmail, type VerifyEmailResponse } from "@/services/user/auth.service";
 
 import { readAuthSession, saveAuthSession } from "../session";
 import { commonAuthErrorMessage } from "../utils/auth-error-message";
 import { clearPendingVerification } from "../utils/pending-verification";
 import { AccountPageShell } from "./account-page-shell";
 import { formAlertClass, PRIMARY_GRADIENT, primaryButtonClass } from "./auth-form-styles";
-import { EmailVerifiedWelcome } from "./email-verified-welcome";
 import { VerificationHelp } from "./verification-help";
 import { VerifyEmailSubtitle } from "./verify-email-subtitle";
 
 type Status =
   | { kind: "loading" }
   | { kind: "verifying" }
-  | { kind: "verified"; user: AuthUser }
   | { kind: "invalid" }
   | { kind: "failed"; message: string };
 
@@ -60,10 +58,10 @@ function takeTokenFromUrl(): string | null {
  * Email verification callback: the link in the verification email opens this
  * page as `/verify-email#token=<id>.<secret>` (`?token=` is also accepted).
  * The token is read, removed from the address bar (never stored) and sent to
- * POST /auth/verify-email. Success signs the user in and shows the Welcome
- * screen, which is local state so it cannot be reached any other way. Without
- * a token there is nothing to verify, so the page hands over to the pending
- * page, or home after a refresh of the Welcome screen.
+ * POST /auth/verify-email. Only a 200 saves the session and moves on to
+ * /verify-email/success; invalid, expired and failed links stay on this page.
+ * Without a token there is nothing to verify, so the page hands over to the
+ * pending page, or home when this tab is already signed in.
  *
  * The backend has no six-digit code endpoint, so there is no code input.
  */
@@ -72,27 +70,30 @@ export function VerifyEmailPage() {
   const tokenRef = useRef<string | null>(null);
   const [status, setStatus] = useState<Status>({ kind: "loading" });
 
-  const submitToken = useCallback(async (token: string) => {
-    setStatus({ kind: "verifying" });
-    try {
-      const response = await verifyOnce(token);
-      saveAuthSession(response);
-      clearPendingVerification();
-      setStatus({ kind: "verified", user: response.user });
-    } catch (error) {
-      inFlight.delete(token); // allow a manual retry for transient failures
-      if (isApiError(error) && error.status === 400) {
-        // INVALID_TOKEN is one answer for malformed, expired and used links.
-        setStatus({ kind: "invalid" });
-        return;
+  const submitToken = useCallback(
+    async (token: string) => {
+      setStatus({ kind: "verifying" });
+      try {
+        const response = await verifyOnce(token);
+        saveAuthSession(response);
+        clearPendingVerification();
+        router.replace(userRoutes.verifyEmailSuccess); // stays "verifying" while navigating
+      } catch (error) {
+        inFlight.delete(token); // allow a manual retry for transient failures
+        if (isApiError(error) && error.status === 400) {
+          // INVALID_TOKEN is one answer for malformed, expired and used links.
+          setStatus({ kind: "invalid" });
+          return;
+        }
+        setStatus({
+          kind: "failed",
+          message:
+            commonAuthErrorMessage(error) ?? "We couldn’t verify your email. Please try again.",
+        });
       }
-      setStatus({
-        kind: "failed",
-        message:
-          commonAuthErrorMessage(error) ?? "We couldn’t verify your email. Please try again.",
-      });
-    }
-  }, []);
+    },
+    [router],
+  );
 
   useEffect(() => {
     // Deferred so React StrictMode's double effect run (mount → cleanup → mount)
@@ -113,7 +114,7 @@ export function VerifyEmailPage() {
   useEffect(() => {
     // A newer link opened while this page is showing only changes the #fragment,
     // so the page does not reload. Only a failed attempt can be replaced: nothing
-    // may race a request in flight or take the user off the Welcome screen.
+    // may race a request in flight or the move to the success page.
     const onHashChange = () => {
       const token = takeTokenFromUrl();
       const canRetry = status.kind === "invalid" || status.kind === "failed";
@@ -124,12 +125,6 @@ export function VerifyEmailPage() {
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
   }, [status.kind, submitToken]);
-
-  if (status.kind === "verified") {
-    return (
-      <EmailVerifiedWelcome user={status.user} onContinue={() => router.replace(userRoutes.home)} />
-    );
-  }
 
   return (
     <AccountPageShell
