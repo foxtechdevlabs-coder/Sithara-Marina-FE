@@ -68,3 +68,33 @@
     @apply bg-surface text-ink font-sans antialiased;
   }
 }
+
+@keyframes not-found-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.not-found-reveal {
+  animation: not-found-reveal 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.not-found-reveal-delay {
+  animation-delay: 120ms;
+}
+
+.not-found-reveal-delay-2 {
+  animation-delay: 240ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .not-found-reveal {
+    animation: none;
+  }
+}
