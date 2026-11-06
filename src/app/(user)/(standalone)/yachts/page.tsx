@@ -1,6 +1,15 @@
 import type { Metadata, Route } from "next";
 
-import OurYachts from "@/components/user/OurYachts";
+import { JsonLd } from "@/components/seo/JsonLd";
+import OurYachts, { dummyFleet } from "@/components/user/OurYachts";
+import {
+  filterFleet,
+  filtersToQuery,
+  hasSearchParams,
+  parseFilters,
+} from "@/components/user/yacht-search";
+import { userRoutes } from "@/constants/routes";
+import { generateBreadcrumbSchema, generateFleetItemListSchema } from "@/lib/seo-schema";
 
 export const metadata: Metadata = {
   title: "Our Fleet — Luxury Yachts & Houseboats",
@@ -36,18 +45,43 @@ export const metadata: Metadata = {
 // or /search). Once the API is ready, fetch the filtered fleet here instead.
 export default async function YachtsPage({ searchParams }: PageProps<"/yachts">) {
   const params = await searchParams;
-  if (!hasSearchParams(params)) return <OurYachts />;
+  const filters = hasSearchParams(params) ? parseFilters(params) : null;
+  const yachts = filters ? filterFleet(dummyFleet, filters) : dummyFleet;
 
-  const filters = parseFilters(params);
-  const yachts = filterFleet(dummyFleet, filters);
+  // Search URLs are canonical to /yachts, so the schema always lists the whole fleet.
+  const breadcrumbSchema = generateBreadcrumbSchema([
+    { name: "Home", url: "/" },
+    { name: "Our Yachts", url: "/yachts" },
+  ]);
+  const fleetSchema = generateFleetItemListSchema(
+    dummyFleet.map((y) => ({
+      id: y.id,
+      name: y.name,
+      description: y.description,
+      image: y.image.src,
+      lengthMetres: y.lengthMetres,
+      guests: y.guests,
+      suites: y.suites,
+      area: y.area,
+    })),
+  );
+
   return (
-    <OurYachts
-      yachts={yachts}
-      summary={{
-        shown: yachts.length,
-        total: dummyFleet.length,
-        editHref: `${userRoutes.search}${filtersToQuery(filters)}` as Route,
-      }}
-    />
+    <>
+      <JsonLd data={breadcrumbSchema} id="yachts-breadcrumb-schema" />
+      <JsonLd data={fleetSchema} id="yachts-fleet-schema" />
+      <OurYachts
+        yachts={yachts}
+        summary={
+          filters
+            ? {
+                shown: yachts.length,
+                total: dummyFleet.length,
+                editHref: `${userRoutes.search}${filtersToQuery(filters)}` as Route,
+              }
+            : undefined
+        }
+      />
+    </>
   );
 }
