@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import { Instrument_Serif, Inter, Manrope } from "next/font/google";
 import type { ReactNode } from "react";
 
-import { JsonLd } from "@/components/seo/JsonLd";
+import { LogoLoader } from "@/components/shared/logo-loader";
 import { getPublicEnv } from "@/config/env";
 import { siteConfig, SITE_URL } from "@/config/site";
 import { BRAND_NAME } from "@/constants/brand";
@@ -98,11 +98,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
 
   return (
     <html lang="en" className={`${inter.variable} ${instrumentSerif.variable} ${manrope.variable}`}>
-      <head>
-        <JsonLd data={businessSchema} id="organization-schema" />
-        <JsonLd data={websiteSchema} id="website-schema" />
-      </head>
-      <body className="flex min-h-dvh flex-col">{children}</body>
+      <body className="flex min-h-dvh flex-col">
+        <LogoLoader />
+        {children}
+      </body>
     </html>
   );
 }
