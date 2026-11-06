@@ -31,6 +31,17 @@ export const priceRuleSchema = z.object({
 });
 export type PriceRule = z.infer<typeof priceRuleSchema>;
 
+/** PriceRuleListResponseDto */
+const priceRuleListSchema = z.object({
+  items: z.array(priceRuleSchema),
+  total: z.number(),
+  page: z.number(),
+  limit: z.number(),
+});
+
+/** The backend's largest page size for price rules. */
+const PRICE_RULES_PAGE_SIZE = 100;
+
 /** CreatePriceRuleDto */
 export interface PriceRuleInput {
   slot_type_id: string;
@@ -62,17 +73,25 @@ export interface PriceRulePatch {
 const yachtRules = (yachtId: string) => `/admin/yachts/${encodeURIComponent(yachtId)}/price-rules`;
 const rule = (ruleId: string) => `/admin/price-rules/${encodeURIComponent(ruleId)}`;
 
-/** GET /admin/yachts/{id}/price-rules — optionally filtered by slot type or kind. */
-export function listPriceRules(
+/**
+ * GET /admin/yachts/{id}/price-rules — optionally filtered by slot type or kind.
+ * The endpoint is paginated; this reads every page, as all callers need the full list.
+ */
+export async function listPriceRules(
   yachtId: string,
   query: { slot_type_id?: string; kind?: PriceRuleKind } = {},
   signal?: AbortSignal,
 ): Promise<PriceRule[]> {
-  return adminApiClient.get(yachtRules(yachtId), {
-    query: { ...query },
-    schema: z.array(priceRuleSchema),
-    signal,
-  });
+  const rules: PriceRule[] = [];
+  for (let page = 1; ; page++) {
+    const { items, total } = await adminApiClient.get(yachtRules(yachtId), {
+      query: { ...query, page, limit: PRICE_RULES_PAGE_SIZE },
+      schema: priceRuleListSchema,
+      signal,
+    });
+    rules.push(...items);
+    if (items.length === 0 || rules.length >= total) return rules;
+  }
 }
 
 /** POST /admin/yachts/{id}/price-rules (201) */
