@@ -165,7 +165,11 @@ test.describe("registration", () => {
       /correct the highlighted/,
     ],
     ["409", { status: 409, body: { code: "EMAIL_EXISTS", message: "Exists" } }, /already verified/],
-    ["429", { status: 429, body: { code: "RESEND_COOLDOWN", message: "Wait" } }, /recently sent/],
+    [
+      "429",
+      { status: 429, body: { code: "RESEND_COOLDOWN", message: "Wait" } },
+      /Please wait a moment before requesting another email/,
+    ],
     ["500", { status: 500, body: { message: "Boom" } }, /Something went wrong/],
     ["a network failure", "offline", /connect to the Sithara Marina server/],
   ];
@@ -493,11 +497,11 @@ test.describe("logout", () => {
     await expect(signInLink(page)).toBeVisible();
   });
 
-  for (const [name, answers, showsNotice] of [
-    ["the logout API fails", { "/auth/logout": { status: 500, body: {} } }, true],
-    ["the logout API answers 401", { "/auth/logout": { status: 401, body: {} } }, true],
-    ["the network fails", { "/auth/logout": "offline" }, true],
-  ] as [string, Record<string, Answer>, boolean][]) {
+  for (const [name, answers] of [
+    ["the logout API fails", { "/auth/logout": { status: 500, body: {} } }],
+    ["the logout API answers 401", { "/auth/logout": { status: 401, body: {} } }],
+    ["the network fails", { "/auth/logout": "offline" }],
+  ] as [string, Record<string, Answer>][]) {
     test(`stays signed out and warns when ${name}`, async ({ page }) => {
       await mockBackend(page, answers);
       await seedSession(page, validSession);
@@ -505,7 +509,7 @@ test.describe("logout", () => {
       await logoutButton(page).click();
 
       await expect(signInLink(page)).toBeVisible();
-      await expect(revocationNotice(page)).toHaveCount(showsNotice ? 1 : 0);
+      await expect(revocationNotice(page)).toBeVisible();
       expect(await storedSession(page)).toBeNull();
       expect(page.url()).not.toContain("/login");
     });
@@ -642,7 +646,7 @@ test.describe("restored sessions", () => {
     await expect(searchBar(page)).toHaveCount(0);
   });
 
-  test("no token appears in the URL after any of these flows", async ({ page }) => {
+  test("a reset link's token leaves the URL while other parameters stay", async ({ page }) => {
     await mockBackend(page, {
       "/auth/verify-reset-link": { body: { reset_token: "fake.reset", expires_in: 600 } },
     });

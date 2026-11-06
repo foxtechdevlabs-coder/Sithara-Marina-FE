@@ -157,6 +157,18 @@ the status page from the `POST /auth/register` result.
   saved, so resubmitting (not resending) is the safe retry.
 - Resend answers 200 even when the email could not be sent, so its success text stays neutral.
 
+### Email rate limits
+
+The backend limits each email address per purpose (`signup`, `reset`, `email_change`, `checkout`):
+one email every 60 s and five in a rolling hour, answering 429 with `Retry-After` in seconds.
+
+- A successful send starts the 60 s countdown. A 429 replaces it with `Retry-After` exactly; a
+  missing or invalid value shows the message without a countdown.
+- `signup`: registering and resending share one cooldown, in the `pending-verification` store.
+- `reset`: forgot password and "Request a new link" share one, in `pending-password-reset`.
+- `RESEND_COOLDOWN` and `TOO_MANY_EMAILS` wording lives in `emailRateLimitMessage()`. The
+  `email_change` and `checkout` flows are not built yet.
+
 ### Session and refresh
 
 - **Storage:** the backend returns `access_token` and `refresh_token` in the JSON body and sets no
@@ -195,12 +207,39 @@ the status page from the `POST /auth/register` result.
 1. **CORS:** `http://localhost:3001` (this app's dev port) is allowed. The production frontend
    origin must be confirmed.
 2. `Retry-After` is sent but not listed in `Access-Control-Expose-Headers`, so browsers can't read
-   it; the UI falls back to the documented 60 s cooldown (or "up to an hour" for
-   `TOO_MANY_EMAILS`).
+   it. The backend must expose it. Until then a 429 shows its message with no countdown: the wait
+   is never guessed.
 3. No response schemas for `/auth/login` (shape observed, see above), `/auth/refresh`, `/auth/me`;
    the link formats (and the frontend URL used in emails) are not documented.
 4. Registering an `@example.com` address returned `503 EMAIL_DELIVERY_FAILED`; delivery to real
    inboxes was not verified.
+
+## Yacht catalogue
+
+Implemented in `src/services/user/yachts.service.ts` from the Swagger schemas. All are public
+`GET`s with a 60 s timeout. The live backend had no published yachts when this was built, so these
+shapes are **not yet verified against real data**.
+
+| Function             | Endpoint                         | Used by                                   |
+| -------------------- | -------------------------------- | ----------------------------------------- |
+| `listYachts()`       | `GET /yachts`                    | `/yachts`, `/search` count, related yachts |
+| `getYachtFilters()`  | `GET /yachts/filters`            | `/search`, home search bar                |
+| `getYacht()`         | `GET /yachts/{slug}`             | `/yachts/[yachtId]`, availability page    |
+| `getYachtCalendar()` | `GET /yachts/{slug}/calendar`    | availability page                         |
+| `getYachtSlots()`    | `GET /yachts/{slug}/slots`       | availability page                         |
+| `getYachtAddons()`   | `GET /yachts/{slug}/addons`      | availability page                         |
+
+- **Routes:** `yachtId` in the URL is the yacht's `slug`. The URL holds the filters, using the API's
+  names for `min_price`/`max_price` (paise) and `region` for `destination`.
+- **Money** is in paise, excluding GST. `formatMinorUnits()` converts it for display only.
+- **Availability** comes only from the calendar and slots. A slot with a null price is shown as not
+  bookable, whatever its state. `date` on `GET /yachts` never removes a yacht; it only fills
+  `available_on_date`.
+- **No API support (left in the UI):** duration and amenities filters, guest options.
+- **Unknown slug:** `loading.tsx` starts a streamed 200, so the not-found page is served with
+  `noindex` rather than an HTTP 404 (documented Next.js behaviour).
+- **Tests:** `tests/e2e/yachts.spec.ts` needs `tests/e2e/support/mock-yacht-api.mjs`, an app started
+  with `NEXT_PUBLIC_API_URL` pointing at it, and `E2E_MOCK_API_URL`. Otherwise it is skipped.
 
 ## Environment variables
 

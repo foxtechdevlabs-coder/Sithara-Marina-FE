@@ -106,6 +106,7 @@ test("sidebar navigation works and marks the current section", async ({ page }) 
 });
 
 test("admin dynamic and nested routes respond", async ({ page }) => {
+  test.slow(); // nine full page loads in one test
   await signIn(page);
   const yacht = await page.goto("/admin/fleet/y-1");
   expect(yacht?.status()).toBe(200);

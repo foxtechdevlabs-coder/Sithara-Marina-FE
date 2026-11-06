@@ -229,7 +229,7 @@ export function createHttpClient({
       if (!(error instanceof ApiError) || !error.isUnauthorized || !useAuth) throw error;
 
       let finalError = error;
-      if (sentToken && options.refreshOnUnauthorized !== false) {
+      if (sentToken) {
         // Another request may already have renewed the token; otherwise refresh once.
         const current = (await getAccessToken?.()) ?? null;
         const renewed = current !== null && current !== sentToken ? true : await refreshOnce();

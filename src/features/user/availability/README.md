@@ -6,7 +6,7 @@
 
 **Notes:** Availability is **always read from the backend**. The UI may show what it was told is available, but must never decide availability itself. Slot types and durations come from the API, not hard-coded constants.
 
-Not implemented yet. When building this feature, add only the folders you need:
+Connected to the calendar, slots and add-ons endpoints. It books nothing. Add only the folders you need:
 
 ```
 availability/

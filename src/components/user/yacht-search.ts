@@ -1,33 +1,21 @@
 /**
- * Yacht search: filter options, URL (query string) encoding and the matching
- * rules shared by the home search bar, the "Find your perfect fit" page and
- * Our yachts. Plain module, so server and client components can both use it.
- *
- * DUMMY: options and per-yacht details below stand in for API data. Once the
- * API is ready, send these filters to it instead of calling `filterFleet`.
+ * Yacht search: what the URL (query string) holds, and how it becomes a
+ * GET /yachts request. Shared by the home search bar, the "Find your perfect
+ * fit" page and Our yachts. Plain module, so server and client components can
+ * both use it. Filter options come from GET /yachts/filters.
  */
-import type { FleetYacht } from "@/components/user/OurYachts";
+import { formatMinorUnits } from "@/features/user/yachts/utils/yacht-view";
+import type {
+  ListYachtsParams,
+  YachtFilterOptions,
+  YachtSort,
+} from "@/services/user/yachts.service";
 
-export const REGIONS = ["Kochi", "Kerala Backwaters", "Lakshadweep Islands", "The Malabar Coast"];
+/** GET /yachts/filters has no guest list, so the capacity choices stay here. */
 export const GUEST_COUNTS = Array.from({ length: 12 }, (_, i) => i + 1);
+/** No API filter: kept in the URL as a preference only. */
 export const DURATIONS = ["2 hours", "4 hours", "Half day", "Full day", "Overnight", "Multi-day"];
-export const SORTS = {
-  recommended: "Recommended",
-  "price-asc": "Price: low to high",
-  "price-desc": "Price: high to low",
-  size: "Largest first",
-} as const;
-export const YACHT_TYPES = {
-  all: "All yachts",
-  motor: "Motor yachts",
-  houseboat: "Houseboats",
-} as const;
-export const PRICE_RANGES = {
-  any: "Any price",
-  "under-1l": "Under ₹ 1,00,000 per day",
-  "1l-3l": "₹ 1,00,000 – 3,00,000 per day",
-  "over-3l": "Over ₹ 3,00,000 per day",
-} as const;
+/** No API filter: kept in the URL as a preference only. */
 export const AMENITIES = [
   "Private chef",
   "Air-conditioned suites",
@@ -36,18 +24,36 @@ export const AMENITIES = [
   "Wi-Fi on board",
 ];
 
+export const SORTS = {
+  recommended: "Recommended",
+  "price-asc": "Price: Low to High",
+  "price-desc": "Price: High to Low",
+  "capacity-desc": "Most guests first",
+  "capacity-asc": "Fewest guests first",
+} as const;
+
 export type SortKey = keyof typeof SORTS;
-export type YachtType = keyof typeof YACHT_TYPES;
-export type PriceKey = keyof typeof PRICE_RANGES;
+
+const API_SORTS: Record<SortKey, YachtSort | undefined> = {
+  recommended: undefined, // the API's default order
+  "price-asc": "price_asc",
+  "price-desc": "price_desc",
+  "capacity-desc": "capacity_desc",
+  "capacity-asc": "capacity_asc",
+};
 
 export interface YachtFilters {
-  region: string; // "" = any
+  region: string; // departure city; "" = any
   guests: number; // 0 = any
   duration: string; // "" = any
   sort: SortKey;
-  type: YachtType;
-  price: PriceKey;
+  type: string; // "" = any
+  /** Paise, excluding GST, sent to the API unchanged. */
+  minPrice: number | null;
+  /** Paise, excluding GST, sent to the API unchanged. */
+  maxPrice: number | null;
   amenities: string[];
+  date: string; // YYYY-MM-DD; "" = none
 }
 
 export const EMPTY_FILTERS: YachtFilters = {
@@ -55,70 +61,51 @@ export const EMPTY_FILTERS: YachtFilters = {
   guests: 0,
   duration: "",
   sort: "recommended",
-  type: "all",
-  price: "any",
+  type: "",
+  minPrice: null,
+  maxPrice: null,
   amenities: [],
+  date: "",
 };
 
-/** Starting point when nothing was chosen yet (matches the design). */
-export const DEFAULT_FILTERS: YachtFilters = {
-  ...EMPTY_FILTERS,
-  region: "Kochi",
-  guests: 8,
-  duration: "4 hours",
-  amenities: ["Private chef", "Air-conditioned suites"],
-};
+export const YACHTS_PER_PAGE = 20;
 
 /* ------------------------------------------------------------------ */
-/* DUMMY per-yacht details used for filtering                          */
+/* Price bands from GET /yachts/filters                                */
 /* ------------------------------------------------------------------ */
 
-interface YachtSearchInfo {
-  type: Exclude<YachtType, "all"> | "sailing";
-  regions: string[];
-  ratePerDay: number;
-  amenities: string[];
+export interface PriceBand {
+  min: number;
+  max: number;
+  label: string;
 }
 
-const SEARCH_INFO: Record<string, YachtSearchInfo> = {
-  "astra-one": {
-    type: "motor",
-    regions: ["Kochi", "Lakshadweep Islands", "The Malabar Coast"],
-    ratePerDay: 450000,
-    amenities: [
-      "Private chef",
-      "Air-conditioned suites",
-      "Sun deck",
-      "Water toys",
-      "Wi-Fi on board",
-    ],
-  },
-  malabar: {
-    type: "motor",
-    regions: ["Kochi", "The Malabar Coast"],
-    ratePerDay: 180000,
-    amenities: ["Private chef", "Air-conditioned suites", "Sun deck", "Wi-Fi on board"],
-  },
-  neelam: {
-    type: "houseboat",
-    regions: ["Kochi", "Kerala Backwaters"],
-    ratePerDay: 65000,
-    amenities: ["Private chef", "Air-conditioned suites"],
-  },
-  ananta: {
-    type: "sailing",
-    regions: ["Kochi", "The Malabar Coast"],
-    ratePerDay: 120000,
-    amenities: ["Sun deck", "Water toys"],
-  },
-};
+const PRICE_BANDS = 3;
+const BAND_ROUNDING = 100_000; // ₹ 1,000, in paise
 
-const PRICE_BOUNDS: Record<PriceKey, [number, number]> = {
-  any: [0, Infinity],
-  "under-1l": [0, 100000],
-  "1l-3l": [100000, 300000],
-  "over-3l": [300000, Infinity],
-};
+/** Up to three bands across the backend's price range; none when it has no range. */
+export function priceBands(options: Pick<YachtFilterOptions, "price" | "currency">): PriceBand[] {
+  const { min, max } = options.price;
+  if (min === null || max === null || max <= min) return [];
+
+  const step = (max - min) / PRICE_BANDS;
+  const edges = [
+    Math.floor(min / BAND_ROUNDING) * BAND_ROUNDING,
+    ...Array.from({ length: PRICE_BANDS - 1 }, (_, i) =>
+      Math.round((min + step * (i + 1)) / BAND_ROUNDING) * BAND_ROUNDING,
+    ),
+    Math.ceil(max / BAND_ROUNDING) * BAND_ROUNDING,
+  ].filter((edge, index, all) => index === 0 || edge > (all[index - 1] ?? 0));
+
+  return edges.slice(1).map((edge, index) => {
+    const start = edges[index] ?? edge;
+    return {
+      min: start,
+      max: edge,
+      label: `${formatMinorUnits(start, options.currency)} – ${formatMinorUnits(edge, options.currency)}`,
+    };
+  });
+}
 
 /* ------------------------------------------------------------------ */
 /* Query string <-> filters                                            */
@@ -134,26 +121,43 @@ function read(source: ParamSource, key: string): string {
 const pick = <T extends string>(value: string, allowed: Record<T, unknown>, fallback: T): T =>
   value in allowed ? (value as T) : fallback;
 
+const wholeNumber = (value: string): number | null =>
+  /^\d+$/.test(value) ? Number(value) : null;
+
 /** True when the URL carries at least one search parameter. */
 export function hasSearchParams(source: ParamSource): boolean {
-  return ["region", "guests", "duration", "sort", "type", "price", "amenities"].some((key) =>
-    Boolean(read(source, key)),
-  );
+  return [
+    "region",
+    "guests",
+    "duration",
+    "sort",
+    "type",
+    "min_price",
+    "max_price",
+    "amenities",
+    "date",
+  ].some((key) => Boolean(read(source, key)));
 }
 
 export function parseFilters(source: ParamSource): YachtFilters {
-  const guests = Number.parseInt(read(source, "guests"), 10);
+  const date = read(source, "date");
   return {
-    region: REGIONS.includes(read(source, "region")) ? read(source, "region") : "",
-    guests: GUEST_COUNTS.includes(guests) ? guests : 0,
+    region: read(source, "region"),
+    guests: wholeNumber(read(source, "guests")) ?? 0,
     duration: DURATIONS.includes(read(source, "duration")) ? read(source, "duration") : "",
     sort: pick(read(source, "sort"), SORTS, "recommended"),
-    type: pick(read(source, "type"), YACHT_TYPES, "all"),
-    price: pick(read(source, "price"), PRICE_RANGES, "any"),
+    type: read(source, "type"),
+    minPrice: wholeNumber(read(source, "min_price")),
+    maxPrice: wholeNumber(read(source, "max_price")),
     amenities: read(source, "amenities")
       .split(",")
       .filter((a) => AMENITIES.includes(a)),
+    date: /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : "",
   };
+}
+
+export function parsePage(source: ParamSource): number {
+  return Math.max(1, wholeNumber(read(source, "page")) ?? 1);
 }
 
 /** Query string for the given filters (only the ones that are set). */
@@ -163,36 +167,48 @@ export function filtersToQuery(filters: YachtFilters): string {
   if (filters.guests) params.set("guests", String(filters.guests));
   if (filters.duration) params.set("duration", filters.duration);
   if (filters.sort !== "recommended") params.set("sort", filters.sort);
-  if (filters.type !== "all") params.set("type", filters.type);
-  if (filters.price !== "any") params.set("price", filters.price);
+  if (filters.type) params.set("type", filters.type);
+  if (filters.minPrice !== null) params.set("min_price", String(filters.minPrice));
+  if (filters.maxPrice !== null) params.set("max_price", String(filters.maxPrice));
   if (filters.amenities.length) params.set("amenities", filters.amenities.join(","));
+  if (filters.date) params.set("date", filters.date);
   const query = params.toString();
   return query ? `?${query}` : "";
 }
 
-/* ------------------------------------------------------------------ */
-/* Matching                                                            */
-/* ------------------------------------------------------------------ */
+/** The applied filters in words, for showing on the results page. */
+export function describeFilters(filters: YachtFilters, currency = "INR"): string[] {
+  const price = (amount: number | null) => formatMinorUnits(amount, currency);
+  return [
+    filters.region,
+    filters.guests ? `${filters.guests}+ guests` : "",
+    filters.type,
+    filters.minPrice !== null && filters.maxPrice !== null
+      ? `${price(filters.minPrice)} – ${price(filters.maxPrice)}`
+      : filters.minPrice !== null
+        ? `From ${price(filters.minPrice)}`
+        : filters.maxPrice !== null
+          ? `Up to ${price(filters.maxPrice)}`
+          : "",
+    filters.date,
+    filters.sort === "recommended" ? "" : SORTS[filters.sort],
+  ].filter(Boolean);
+}
 
-/**
- * Yachts that match the filters, in the chosen order. Duration is passed on
- * as a preference only: every yacht in the dummy fleet offers every length.
- */
-export function filterFleet(fleet: FleetYacht[], filters: YachtFilters): FleetYacht[] {
-  const [min, max] = PRICE_BOUNDS[filters.price];
-  const matches = fleet.filter((yacht) => {
-    const info = SEARCH_INFO[yacht.id];
-    if (!info) return true;
-    if (filters.region && !info.regions.includes(filters.region)) return false;
-    if (filters.guests && yacht.guests < filters.guests) return false;
-    if (filters.type !== "all" && info.type !== filters.type) return false;
-    if (info.ratePerDay < min || info.ratePerDay >= max) return false;
-    return filters.amenities.every((a) => info.amenities.includes(a));
-  });
+/** True when the search holds a preference the API cannot filter by. */
+export function hasUnsupportedFilters(filters: YachtFilters): boolean {
+  return Boolean(filters.duration) || filters.amenities.length > 0;
+}
 
-  const rate = (y: FleetYacht) => SEARCH_INFO[y.id]?.ratePerDay ?? 0;
-  if (filters.sort === "price-asc") matches.sort((a, b) => rate(a) - rate(b));
-  if (filters.sort === "price-desc") matches.sort((a, b) => rate(b) - rate(a));
-  if (filters.sort === "size") matches.sort((a, b) => b.lengthMetres - a.lengthMetres);
-  return matches;
+/** The filters the API supports. Duration and amenities have no parameter. */
+export function toListParams(filters: YachtFilters): ListYachtsParams {
+  return {
+    ...(filters.region ? { destination: filters.region } : {}),
+    ...(filters.guests ? { guests: filters.guests } : {}),
+    ...(filters.type ? { type: filters.type } : {}),
+    ...(filters.minPrice === null ? {} : { min_price: filters.minPrice }),
+    ...(filters.maxPrice === null ? {} : { max_price: filters.maxPrice }),
+    ...(filters.date ? { date: filters.date } : {}),
+    ...(API_SORTS[filters.sort] ? { sort: API_SORTS[filters.sort] } : {}),
+  };
 }

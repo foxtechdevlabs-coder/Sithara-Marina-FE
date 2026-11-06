@@ -11,7 +11,6 @@ import {
 
 import { cx } from "@/lib/cx";
 import { isApiError } from "@/services/http/api-error";
-import { getBackendErrorDetails } from "@/services/http/backend-error";
 import {
   resendVerification,
   VERIFICATION_EMAIL_COOLDOWN_SECONDS,
@@ -19,7 +18,8 @@ import {
 import { emailSchema } from "@/validation/email";
 
 import { useCooldown } from "../hooks/use-cooldown";
-import { formatCountdown, formatWait } from "../utils/format-wait";
+import { emailRateLimitMessage } from "../utils/auth-error-message";
+import { formatCountdown } from "../utils/format-wait";
 import {
   readPendingVerification,
   savePendingVerification,
@@ -101,25 +101,14 @@ export function ResendVerification({ inlineAction }: { inlineAction?: ReactNode 
         text: "If this email needs verifying, a new link is on its way. Check your inbox and spam folder.",
       });
     } catch (error) {
-      const { code } = getBackendErrorDetails(error);
       const httpStatus = isApiError(error) ? error.status : undefined;
       const retryAfter = isApiError(error) ? error.retryAfterSeconds : undefined;
+      const rateLimit = emailRateLimitMessage(error, "signup");
 
-      if (httpStatus === 429) {
-        const tooMany = code === "TOO_MANY_EMAILS";
-        lockFor(retryAfter ?? VERIFICATION_EMAIL_COOLDOWN_SECONDS, email);
-        const wait =
-          retryAfter !== undefined
-            ? formatWait(retryAfter)
-            : tooMany
-              ? "up to an hour"
-              : "a minute";
-        setFeedback({
-          tone: "error",
-          text: tooMany
-            ? `Too many verification emails have been requested for this address. Please try again in ${wait}.`
-            : `Please wait ${wait} before requesting another email.`,
-        });
+      if (rateLimit) {
+        // No readable Retry-After means no countdown: the wait is never guessed.
+        if (retryAfter !== undefined) lockFor(retryAfter, email);
+        setFeedback({ tone: "error", text: rateLimit });
       } else if (httpStatus === 503) {
         lockFor(retryAfter ?? SERVICE_UNAVAILABLE_RETRY_SECONDS, email);
         setFeedback({
