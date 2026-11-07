@@ -1,12 +1,12 @@
 # Feature: `availability` (user area)
 
-**Scope:** Date and slot selection (two-hour, four-hour, half-day, full-day).
+**Scope:** Date, duration and start-time selection, shown by `YachtReservation` with the navy booking card.
 
-**Routes:** `/yachts/[yachtId]/availability`
+**Routes:** `/yachts/[yachtId]` (`#reserve`), `/yachts/[yachtId]/availability`
 
 **Notes:** Availability is **always read from the backend**. The UI may show what it was told is available, but must never decide availability itself. Slot types and durations come from the API, not hard-coded constants.
 
-Connected to the calendar, slots and add-ons endpoints. It books nothing. Add only the folders you need:
+Connected to the calendar, slots, add-ons and quote endpoints. It books nothing: it hands the selection to checkout. Add only the folders you need:
 
 ```
 availability/

@@ -244,15 +244,15 @@ test.describe("reset-password link", () => {
   });
 });
 
-test("checkout uses the distraction-free layout and fabricates no booking", async ({ page }) => {
+test("checkout uses the site header and fabricates no booking", async ({ page }) => {
   await page.goto("/checkout");
   await expect(page.getByRole("heading", { level: 1, name: "Checkout" })).toBeVisible();
-  await expect(siteHeader(page)).toHaveCount(0);
+  await expect(siteHeader(page)).toBeVisible();
   await expect(page.getByText(/confirmed/i)).toHaveCount(0);
 
   await page.goto("/checkout/confirmation/b-123");
   await expect(page.getByRole("heading", { level: 1, name: "Booking confirmation" })).toBeVisible();
-  await expect(page.getByText(/only after the backend confirms/i)).toBeVisible();
+  await expect(page.getByText(/once they’re confirmed/i)).toBeVisible();
 });
 
 test("sign-in page uses the site header and footer", async ({ page }) => {

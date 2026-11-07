@@ -34,8 +34,14 @@ export interface FleetYacht {
 }
 
 export interface YachtDetailsData {
+  id: string;
   slug: string;
   name: string;
+  capacity: number;
+  suites: number | null;
+  departureCity: string | null;
+  slotTypes: YachtDetail["slot_types"];
+  bookingMode: YachtDetail["booking_mode"];
   region: string | null;
   intro: string | null;
   heroImage: YachtImage | null;
@@ -112,8 +118,14 @@ export function toYachtDetails(yacht: YachtDetail, related: YachtCard[]): YachtD
     yacht.opens_at && yacht.closes_at ? `${yacht.opens_at} – ${yacht.closes_at}` : null;
 
   return {
+    id: yacht.id,
     slug: yacht.slug,
     name: yacht.name,
+    capacity: yacht.capacity,
+    suites: yacht.suites,
+    departureCity: yacht.departure_city,
+    slotTypes: yacht.slot_types,
+    bookingMode: yacht.booking_mode,
     region: regions || yacht.departure_city,
     intro: yacht.card_tagline,
     heroImage: photos[0] ?? null,
@@ -179,6 +191,16 @@ export function formatDay(date: string): string {
   }).format(utcDate(date));
 }
 
+/** "Sun, 15 Nov": a calendar date for tight spaces. */
+export function formatShortDay(date: string): string {
+  return new Intl.DateTimeFormat("en-IN", {
+    timeZone: "UTC",
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  }).format(utcDate(date));
+}
+
 export function formatMonth(month: string): string {
   return new Intl.DateTimeFormat("en-IN", {
     timeZone: "UTC",
@@ -205,4 +227,37 @@ export function formatTime(instant: string, timezone: string): string {
     minute: "2-digit",
     hour12: true,
   }).format(new Date(instant));
+}
+
+/** "09:00" (a local time from the API) as "9:00 am". */
+export function formatClockTime(time: string): string {
+  return new Intl.DateTimeFormat("en-IN", {
+    timeZone: "UTC",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(new Date(`1970-01-01T${time}:00Z`));
+}
+
+/**
+ * A marina-local date and time plus some minutes, for display. Worked out on the
+ * labels themselves in UTC, so the browser's timezone cannot shift the answer, and
+ * midnight rolls over to the next date. Asia/Kolkata has no daylight saving, so
+ * clock arithmetic on its local times is exact.
+ */
+export function addMinutesToLocalTime(
+  date: string,
+  time: string,
+  minutes: number,
+): { date: string; time: string } {
+  const end = new Date(Date.parse(`${date}T${time}:00Z`) + minutes * 60_000).toISOString();
+  return { date: end.slice(0, 10), time: end.slice(11, 16) };
+}
+
+/** 240 → "4 hours", 90 → "1 hr 30 min". */
+export function formatDuration(minutes: number): string {
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  if (rest === 0) return `${hours} ${hours === 1 ? "hour" : "hours"}`;
+  return hours === 0 ? `${rest} min` : `${hours} hr ${rest} min`;
 }

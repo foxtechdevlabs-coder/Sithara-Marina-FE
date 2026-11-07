@@ -6,7 +6,7 @@
 
 **Notes:** A booking is only confirmed when the backend says so. The confirmation page must load the booking from the API, not trust client-side state.
 
-Not implemented yet. When building this feature, add only the folders you need:
+Connected to the booking endpoints. See `docs/api-integration.md`. Add only the folders you need:
 
 ```
 booking/

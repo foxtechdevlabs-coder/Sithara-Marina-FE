@@ -21,6 +21,12 @@ const noHorizontalOverflow = async (page: Page) =>
     ),
   ).toBeLessThanOrEqual(1);
 
+const setGuests = async (page: Page, guests: number) => {
+  for (let added = 0; added < guests; added += 1) {
+    await page.getByRole("button", { name: "More: guests" }).click();
+  }
+};
+
 test.beforeEach(async ({ page }) => {
   await page.request.get(`${MOCK_API}/__reset`);
 });
@@ -193,7 +199,8 @@ test.describe("detail", () => {
     await noHorizontalOverflow(page);
 
     await page.getByRole("link", { name: "Check availability" }).click();
-    await expect(page).toHaveURL("/yachts/test-yacht-01/availability");
+    await expect(page).toHaveURL("/yachts/test-yacht-01#reserve");
+    await expect(page.getByRole("heading", { name: "Choose your dates." })).toBeVisible();
   });
 
   test("shows photos in sort order", async ({ page }) => {
@@ -227,36 +234,27 @@ test.describe("availability", () => {
   const openDate = async (page: Page) => {
     await page.goto("/yachts/test-yacht-01/availability");
     await page.getByRole("button", { name: /Available$/ }).first().click();
-    await expect(
-      main(page).getByRole("listitem").filter({ hasText: "Four hours" }).first(),
-    ).toBeVisible();
+    await page.getByRole("button", { name: /4 hours/ }).click();
+    await expect(page.getByLabel("Start time")).toBeVisible();
   };
 
   test("the calendar enables only dates the API offers", async ({ page }) => {
     await page.goto("/yachts/test-yacht-01/availability");
     await expect(page.getByRole("heading", { level: 1, name: "Check availability" })).toBeVisible();
-    await expect(page.getByRole("button", { name: /: Past$/ })).toBeDisabled();
-    await expect(page.getByRole("button", { name: /: Unavailable$/ })).toBeDisabled();
-    await expect(page.getByRole("button", { name: /: Partly available$/ })).toBeEnabled();
+    await expect(page.getByRole("button", { name: /: Past$/ }).first()).toBeDisabled();
+    await expect(page.getByRole("button", { name: /: Unavailable$/ }).first()).toBeDisabled();
+    await expect(page.getByRole("button", { name: /: Partly available$/ }).first()).toBeEnabled();
     await expect(main(page).getByText(/Asia\/Kolkata/)).toBeVisible();
     await noHorizontalOverflow(page);
   });
 
-  test("slots show IST times and paise as rupees; null prices are not offered", async ({ page }) => {
+  test("packages come from open slots, with a time input and no list of times", async ({ page }) => {
     await openDate(page);
-    await expect(main(page).getByText("10:00 am – 2:00 pm").first()).toBeVisible();
-    await expect(main(page).getByText("₹ 45,000 · excl. GST")).toBeVisible();
-    await expect(main(page).getByText(/₹ 2,000 per extra guest/).first()).toBeVisible();
-
-    const noPrice = page.getByRole("listitem").filter({ hasText: "No price rule" });
-    await expect(noPrice.getByText("Not available to book")).toBeVisible();
-    await expect(noPrice.getByText("Available", { exact: true })).toHaveCount(0);
-    await expect(noPrice.getByText(/₹/)).toHaveCount(1); // only the extra-guest charge
-    await expect(noPrice.getByText(/excl\. GST/)).toHaveCount(0);
-
-    const taken = page.getByRole("listitem").filter({ hasText: "Taken" });
-    await expect(taken.getByText("Booked")).toBeVisible();
-    await expect(page.getByRole("button", { name: /book/i })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /4 hours/ })).toHaveAttribute("aria-pressed", "true");
+    await expect(main(page).getByText("From ₹ 45,000 · excl. GST")).toBeVisible();
+    await expect(main(page).getByText(/₹ 2,000 per extra guest/)).toBeVisible();
+    await expect(page.getByLabel("Start time")).toHaveAttribute("type", "time");
+    await expect(page.getByRole("button", { name: "10:00 am" })).toHaveCount(0);
     await noHorizontalOverflow(page);
   });
 
@@ -271,40 +269,27 @@ test.describe("availability", () => {
     expect(errors).toEqual([]);
   });
 
-  test("changing guests or length refetches slots", async ({ page }) => {
+  test("guests refetch slots; a duration filters the calendar, not the slots", async ({ page }) => {
     await openDate(page);
-    await page.getByLabel("Number of guests").selectOption("10");
-    await expect(main(page).getByText("₹ 49,000 · excl. GST")).toBeVisible();
-    await page.getByLabel("Charter length").selectOption({ label: "Four hours" });
-    await expect
-      .poll(async () => (await apiRequests(page)).filter((url) => url.includes("/slots")).length)
-      .toBe(3);
+    await setGuests(page, 10);
+    await expect(main(page).getByText("From ₹ 49,000 · excl. GST")).toBeVisible();
     const sent = await apiRequests(page);
     expect(sent.some((url) => url.includes("/slots") && url.includes("guests=10"))).toBe(true);
+    expect(sent.some((url) => url.includes("/slots") && url.includes("slot_type_id"))).toBe(false);
     expect(sent.some((url) => url.includes("/calendar") && url.includes("slot_type_id"))).toBe(true);
   });
 
   test("handles GUESTS_EXCEED_CAPACITY", async ({ page }) => {
     await openDate(page);
-    await page.getByLabel("Number of guests").selectOption("11");
+    await setGuests(page, 11);
     await expect(main(page).getByText("That’s more guests than this yacht can take.")).toBeVisible();
-    await page.getByLabel("Number of guests").selectOption("4");
-    await expect(main(page).getByText("₹ 45,000 · excl. GST")).toBeVisible();
-  });
-
-  test("handles INVALID_SLOT_TYPE and lets the user recover", async ({ page }) => {
-    await page.goto("/yachts/test-yacht-01/availability");
-    await page.getByLabel("Charter length").selectOption({ label: "Retired length" });
-    await expect(
-      page.getByText("That charter length isn’t offered on this yacht.").first(),
-    ).toBeVisible();
-    await page.getByRole("button", { name: "Show any length" }).click();
-    await expect(page.getByRole("button", { name: /: Past$/ })).toBeVisible();
+    await page.getByRole("button", { name: "Fewer: guests" }).click();
+    await expect(main(page).getByText("From ₹ 49,000 · excl. GST")).toBeVisible();
   });
 
   test("changing month fetches that month", async ({ page }) => {
     await page.goto("/yachts/test-yacht-01/availability");
-    await expect(page.getByRole("button", { name: /: Past$/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /: Past$/ }).first()).toBeVisible();
     await page.getByRole("button", { name: "Next month" }).click();
     // Distinct requests: development StrictMode repeats the first one, then aborts it.
     await expect
@@ -312,7 +297,7 @@ test.describe("availability", () => {
         async () =>
           new Set((await apiRequests(page)).filter((url) => url.includes("/calendar"))).size,
       )
-      .toBe(2);
+      .toBe(3); // two months are shown, so one more is needed
   });
 
   test("shows add-ons in rupees", async ({ page }) => {
@@ -329,6 +314,6 @@ test.describe("availability", () => {
     await expect(main(page).getByText("We couldn’t load the calendar just now.")).toBeVisible();
     fail = false;
     await page.getByRole("button", { name: "Try again" }).click();
-    await expect(page.getByRole("button", { name: /: Past$/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /: Past$/ }).first()).toBeVisible();
   });
 });

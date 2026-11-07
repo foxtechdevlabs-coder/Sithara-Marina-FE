@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { YachtAvailability } from "@/features/user/availability/components/yacht-availability";
-import { todayIn } from "@/features/user/yachts/utils/yacht-view";
+import { formatMinorUnits, todayIn } from "@/features/user/yachts/utils/yacht-view";
 import { isApiError } from "@/services/http/api-error";
 import { getYacht } from "@/services/user/yachts.service";
 
@@ -23,11 +23,16 @@ export default async function YachtAvailabilityPage({
 
   return (
     <YachtAvailability
+      yachtId={yacht.id}
       slug={yacht.slug}
       name={yacht.name}
       capacity={yacht.capacity}
+      suites={yacht.suites}
+      startingPrice={formatMinorUnits(yacht.starting_price, yacht.currency)}
+      departureCity={yacht.departure_city}
       slotTypes={yacht.slot_types}
       enquiryEnabled={yacht.enquiry_enabled}
+      bookingMode={yacht.booking_mode}
       initialMonth={todayIn(FIRST_MONTH_TIMEZONE).slice(0, 7)}
     />
   );

@@ -1,5 +1,6 @@
-import { RoutePlaceholder } from "@/components/shared/route-placeholder";
 import type { Metadata } from "next";
+
+import { BookingConfirmation } from "@/features/user/booking/components/booking-confirmation";
 
 export const metadata: Metadata = { title: "Booking confirmation" };
 
@@ -8,10 +9,5 @@ export default async function BookingConfirmationPage({
 }: PageProps<"/checkout/confirmation/[bookingId]">) {
   const { bookingId } = await params;
 
-  return (
-    <RoutePlaceholder
-      title="Booking confirmation"
-      description={`Shown only after the backend confirms the booking. Feature module: features/user/booking. (bookingId: ${bookingId})`}
-    />
-  );
+  return <BookingConfirmation bookingId={bookingId} />;
 }

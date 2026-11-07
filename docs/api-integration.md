@@ -91,6 +91,49 @@ export function getYacht(yachtId: string): Promise<Yacht> {
   the API, not from checkout state).
 - Disable submit buttons while pending; send idempotency keys if the backend supports them.
 
+## Booking and checkout
+
+Implemented in `src/services/user/checkout.service.ts` and `booking.service.ts`:
+
+| Function                  | Endpoint                         | Credential                       |
+| ------------------------- | -------------------------------- | -------------------------------- |
+| `getPricingQuote()`       | `POST /pricing/quote`            | none                             |
+| `createCheckoutSession()` | `POST /checkout/sessions`        | bearer when signed in, else none |
+| `verifyCheckoutSession()` | `POST /checkout/sessions/verify` | none                             |
+| `getCheckoutSession()`    | `GET /checkout/sessions/{id}`    | one of bearer / checkout token   |
+| `updateCheckoutSession()` | `PATCH /checkout/sessions/{id}`  | one of bearer / checkout token   |
+| `createHold()`            | `POST /holds`                    | one of bearer / checkout token   |
+| `getHold()`               | `GET /holds/{id}`                | one of bearer / checkout token   |
+| `releaseHold()`           | `DELETE /holds/{id}`             | one of bearer / checkout token   |
+| `createBooking()`         | `POST /bookings`                 | one of bearer / checkout token   |
+| `getBookingStatus()`      | `GET /bookings/{id}/status`      | one of bearer / checkout token   |
+| `getBooking()`            | `GET /bookings/{id}`             | one of bearer / checkout token   |
+
+- **Exactly one credential:** sending both is a 401. `credentialOptions()` sends
+  `X-Checkout-Token` with `auth: false` when the tab holds a token, otherwise the bearer token.
+- **After the emailed link:** `customer_session` saves the session; `checkout_token` stores the token
+  (`features/user/checkout/utils/checkout-store.ts`, `sessionStorage`, never the URL);
+  `sign_in_required` returns no credential, so the customer signs in and `/checkout` resumes.
+- **Link URL is unconfirmed:** no checkout email has been inspected. `/checkout/verify` and
+  `/checkout` both read `#token=` and `?token=`. Check the real email against these.
+- **Hold:** `POST /holds` is idempotent (200 returns the session's hold), so review calls it on every
+  load instead of storing a hold id. The countdown uses `remaining_seconds`; at zero, `GET /holds/{id}`
+  decides. `POST /bookings` is idempotent in the same way.
+- **Status mapping** (`booking-status.ts`): the only field is `status`. `pending_payment` waits,
+  `confirmed` and `completed` succeed, `cancelled`, `refunded` and `no_show` end it. There is no
+  `payment_status` and no `failed` value, so a failed payment cannot be told from an unpaid booking.
+- **Polling** (`poll-booking-status.ts`): at once, then every 2 s, for at most 60 s. Overlapping ticks
+  are skipped; network errors, 5xx and 429 keep polling; other 4xx stop it.
+
+### Payment is not integrated
+
+The deployed backend has no payment API. On the hosted backend `POST /bookings/{id}/payments` and
+`POST /bookings/{id}/verify-payment` answer `404 Cannot POST`, neither is in Swagger, and Swagger has
+no Razorpay or webhook route. So the app does not call them and does not load the Razorpay SDK.
+`/checkout` stops at a `pending_payment` booking and tells the customer nothing was charged. When
+the endpoints ship, add them to `booking.service.ts`, open Razorpay from `PaymentStep` and call the
+existing `useBookingStatusPoll().start()` when the modal closes.
+
 ## Customer authentication
 
 Backend: `NEXT_PUBLIC_API_BASE_URL` from the root `.env` (NestJS; spec at `<base URL>/docs`, JSON

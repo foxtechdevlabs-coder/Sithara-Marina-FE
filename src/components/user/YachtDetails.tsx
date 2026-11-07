@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 
 import { INK, MarinaFonts, MarinaFooter, SANS, SERIF } from "@/components/user/marina-chrome";
 import { userRoutes } from "@/constants/routes";
+import { YachtReservation } from "@/features/user/availability/components/yacht-reservation";
 import type { FleetYacht, YachtDetailsData } from "@/features/user/yachts/utils/yacht-view";
 
 /* ------------------------------------------------------------------ */
@@ -96,11 +97,18 @@ function TitleBlock({ yacht }: { yacht: YachtDetailsData }) {
               {yacht.intro}
             </p>
           )}
-          {yacht.enquiryEnabled && (
-            <div className="mt-[23px]">
-              <UnderlineLink href={userRoutes.planCharter}>Enquire about this yacht</UnderlineLink>
-            </div>
-          )}
+          <div className="mt-[23px] flex flex-wrap items-center gap-x-[28px] gap-y-[16px]">
+            <UnderlineLink href="#reserve">Check availability</UnderlineLink>
+            {yacht.enquiryEnabled && (
+              <a
+                href={userRoutes.planCharterFor(yacht.slug)}
+                className="border-b border-[#b5b8bc] pb-[7px] text-[12px] leading-[16px] tracking-[0.18em] uppercase"
+                style={{ color: MUTED }}
+              >
+                Request a custom quote
+              </a>
+            )}
+          </div>
         </div>
       </div>
     </section>
@@ -138,7 +146,7 @@ function Hero({ yacht }: { yacht: YachtDetailsData }) {
 function Stats({ yacht }: { yacht: YachtDetailsData }) {
   return (
     <section className="mx-auto w-full max-w-[1728px] px-5 pt-[45px] lg:pr-[3.36%] lg:pl-[4.05%]">
-      <ul className="grid grid-cols-2 gap-y-10 sm:grid-cols-4">
+      <ul className="grid grid-cols-2 gap-y-10 border-b border-[#e5e7eb] pb-[45px] sm:grid-cols-4">
         {yacht.stats.map((stat, i) => (
           <li
             key={stat.label}
@@ -167,81 +175,13 @@ function Stats({ yacht }: { yacht: YachtDetailsData }) {
   );
 }
 
-function CharterCard({ yacht }: { yacht: YachtDetailsData }) {
+function CheckList({ items, wide = false }: { items: string[]; wide?: boolean }) {
   return (
-    <aside
-      className="w-full max-w-[447px] self-start px-[33px] pt-[34px] pb-[33px] text-white"
-      style={{ backgroundColor: CARD }}
+    <ul
+      className={`mt-[20px] grid gap-x-[32px] gap-y-[14.5px] ${
+        wide ? "sm:grid-cols-2 lg:grid-cols-3" : "sm:grid-cols-[minmax(0,405px)_minmax(0,1fr)]"
+      }`}
     >
-      <p className="text-[12px] leading-[16px] tracking-[0.18em] text-white/75 uppercase">
-        Your private charter
-      </p>
-      <h3
-        className="mt-[18px] max-w-[300px] text-[36px] leading-[42px] tracking-[-0.5px]"
-        style={SANS}
-      >
-        Make {yacht.name} your own.
-      </h3>
-
-      <div className="mt-[24px] h-px bg-white/15" />
-
-      {yacht.startingPrice ? (
-        <>
-          <p className="mt-[22px] text-[16px] leading-[22px] text-white/50">Indicative rate from</p>
-          <p className="mt-[8px] text-[44px] leading-[48px] tracking-[-0.5px]" style={SANS}>
-            {yacht.startingPrice}
-          </p>
-          <p className="mt-[6px] text-[16px] leading-[22px]">Starting from · excl. GST</p>
-        </>
-      ) : (
-        <p className="mt-[22px] text-[16px] leading-[22px]">Price on request</p>
-      )}
-
-      <dl className="mt-[20px] text-[15px] leading-[20px]">
-        {yacht.charterDetails.map((row) => (
-          <div
-            key={row.label}
-            className="flex h-[44px] items-center justify-between border-t border-white/15"
-          >
-            <dt className="text-white/45">{row.label}</dt>
-            <dd className="text-white">{row.value}</dd>
-          </div>
-        ))}
-      </dl>
-
-      <Link
-        href={userRoutes.yachtAvailability(yacht.slug)}
-        className="mt-[24px] flex h-[50px] items-center justify-between border border-white/40 px-[16px] text-[12px] tracking-[0.18em] uppercase transition-colors hover:bg-white/10"
-      >
-        Check availability
-        <ArrowRight className="size-[13px]" strokeWidth={1.5} aria-hidden="true" />
-      </Link>
-
-      {yacht.enquiryEnabled && (
-        <Link
-          href={userRoutes.planCharter}
-          className="mt-[12px] flex h-[50px] items-center justify-between px-[16px] text-[12px] tracking-[0.18em] uppercase transition-opacity hover:opacity-90"
-          style={{
-            color: INK,
-            background: "linear-gradient(90deg, #f4f8fd 0%, #cfe2f8 45%, #69aef0 100%)",
-          }}
-        >
-          Enquire about {yacht.name}
-          <ArrowRight className="size-[13px]" strokeWidth={1.5} aria-hidden="true" />
-        </Link>
-      )}
-
-      <p className="mt-[20px] text-[12px] leading-[20px] text-white/80">
-        Rates are indicative. Your personal proposal will confirm availability, itinerary, taxes,
-        and inclusions. No payment is taken when you enquire.
-      </p>
-    </aside>
-  );
-}
-
-function CheckList({ items }: { items: string[] }) {
-  return (
-    <ul className="mt-[20px] grid gap-y-[14.5px] sm:grid-cols-[minmax(0,405px)_minmax(0,1fr)]">
       {items.map((item) => (
         <li
           key={item}
@@ -263,42 +203,36 @@ function CheckList({ items }: { items: string[] }) {
 
 function LifeAboard({ yacht }: { yacht: YachtDetailsData }) {
   return (
-    <section className={`${FRAME} pt-[80px] lg:pt-[97px]`}>
-      <div className="grid gap-12 xl:grid-cols-[minmax(0,1fr)_447px] xl:gap-[80px]">
-        <div>
-          <div className="pt-[2px]">
-            <Eyebrow>Life aboard {yacht.name}</Eyebrow>
-          </div>
-          <h2
-            className="mt-[22px] max-w-[360px] text-[40px] leading-[44px] tracking-[-1.5px] lg:text-[56px] lg:leading-[58px]"
+    <section>
+      <div className="pt-[2px]">
+        <Eyebrow>Life aboard {yacht.name}</Eyebrow>
+      </div>
+      <h2
+        className="mt-[22px] max-w-[360px] text-[40px] leading-[44px] tracking-[-1.5px] lg:text-[56px] lg:leading-[58px]"
+        style={{ ...SANS, color: INK }}
+      >
+        A little further from everyday.
+      </h2>
+      {yacht.about && (
+        <p
+          className="mt-[25px] max-w-[790px] text-[16px] leading-[27px] break-words"
+          style={{ color: BODY }}
+        >
+          {yacht.about}
+        </p>
+      )}
+
+      {yacht.features.length > 0 && (
+        <>
+          <h3
+            className="mt-[56px] text-[28px] leading-[40px] tracking-[-0.5px] lg:text-[32px]"
             style={{ ...SANS, color: INK }}
           >
-            A little further from everyday.
-          </h2>
-          {yacht.about && (
-            <p
-              className="mt-[25px] max-w-[790px] text-[16px] leading-[27px]"
-              style={{ color: BODY }}
-            >
-              {yacht.about}
-            </p>
-          )}
-
-          {yacht.features.length > 0 && (
-            <>
-              <h3
-                className="mt-[70px] text-[28px] leading-[40px] tracking-[-0.5px] lg:text-[32px]"
-                style={{ ...SANS, color: INK }}
-              >
-                Every detail, considered.
-              </h3>
-              <CheckList items={yacht.features} />
-            </>
-          )}
-        </div>
-
-        <CharterCard yacht={yacht} />
-      </div>
+            Every detail, considered.
+          </h3>
+          <CheckList items={yacht.features} wide />
+        </>
+      )}
     </section>
   );
 }
@@ -314,15 +248,30 @@ function DetailHeading({ children }: { children: ReactNode }) {
   );
 }
 
-/** Crew, inclusions, departure points and policies; each only when it has data. */
+/** Charter details, crew, inclusions, departure points and policies; each only when it has data. */
 function CharterFacts({ yacht }: { yacht: YachtDetailsData }) {
-  const { inclusions, departurePoints, crew, policies } = yacht;
-  if (!inclusions.length && !departurePoints.length && !crew.length && !policies) return null;
+  const { charterDetails, inclusions, departurePoints, crew, policies } = yacht;
 
   return (
     <section
       className={`${FRAME} grid gap-12 pt-[80px] pb-[48px] lg:grid-cols-2 lg:gap-x-[80px] lg:pb-[64px]`}
     >
+      <div>
+        <DetailHeading>Charter details.</DetailHeading>
+        <dl className="mt-[20px] max-w-[560px] text-[15px] leading-[20px]">
+          {charterDetails.map((row) => (
+            <div
+              key={row.label}
+              className="flex min-h-[44px] items-center justify-between gap-x-6 border-t border-[#e5e7eb] py-[8px]"
+            >
+              <dt style={{ color: MUTED }}>{row.label}</dt>
+              <dd className="text-right" style={{ color: INK }}>
+                {row.value}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </div>
       {inclusions.length > 0 && (
         <div>
           <DetailHeading>What’s included.</DetailHeading>
@@ -379,14 +328,14 @@ function Gallery({ yacht }: { yacht: YachtDetailsData }) {
   if (yacht.gallery.length === 0) return null;
 
   return (
-    <section className={`${FRAME} pt-[48px] lg:pt-[17px]`}>
+    <section>
       <h2
         className="text-[28px] leading-[40px] tracking-[-0.5px] lg:text-[32px]"
         style={{ ...SANS, color: INK }}
       >
         Life on board.
       </h2>
-      <div className="mt-[36px] grid max-w-[1522px] grid-cols-2 gap-[12px] md:grid-cols-3 lg:gap-[17px]">
+      <div className="mt-[24px] grid grid-cols-2 gap-[12px] md:grid-cols-3 lg:gap-[17px]">
         {yacht.gallery.map((photo) => (
           <figure key={photo.src} className="overflow-hidden">
             <img
@@ -555,16 +504,38 @@ function JourneyCta() {
 /**
  * Yacht details screen, built from the Figma design (1728px frame).
  */
-export default function YachtDetails({ yacht }: { yacht: YachtDetailsData }) {
+export default function YachtDetails({
+  yacht,
+  initialMonth,
+}: {
+  yacht: YachtDetailsData;
+  /** YYYY-MM. */
+  initialMonth: string;
+}) {
   return (
     <div className="bg-white antialiased" style={{ ...SANS, color: INK }}>
       <MarinaFonts />
       <TitleBlock yacht={yacht} />
       <Hero yacht={yacht} />
       <Stats yacht={yacht} />
-      <LifeAboard yacht={yacht} />
+      <div className={`${FRAME} pt-[80px] lg:pt-[97px]`}>
+        <YachtReservation
+          yachtId={yacht.id}
+          slug={yacht.slug}
+          name={yacht.name}
+          capacity={yacht.capacity}
+          suites={yacht.suites}
+          slotTypes={yacht.slotTypes}
+          enquiryEnabled={yacht.enquiryEnabled}
+          bookingMode={yacht.bookingMode}
+          startingPrice={yacht.startingPrice}
+          departureCity={yacht.departureCity}
+          initialMonth={initialMonth}
+          intro={<LifeAboard yacht={yacht} />}
+          after={yacht.gallery.length > 0 ? <Gallery yacht={yacht} /> : undefined}
+        />
+      </div>
       <CharterFacts yacht={yacht} />
-      <Gallery yacht={yacht} />
       <Collection yachts={yacht.relatedYachts} />
       <JourneyCta />
       <MarinaFooter />

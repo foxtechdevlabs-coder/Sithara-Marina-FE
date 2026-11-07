@@ -43,7 +43,7 @@ function verifyOnce(token: string): Promise<VerifyEmailResponse> {
  * then removes it from the address bar to keep the secret out of history,
  * bookmarks and screenshots.
  */
-function takeTokenFromUrl(): string | null {
+export function takeTokenFromUrl(): string | null {
   const url = new URL(window.location.href);
   const token =
     new URLSearchParams(url.hash.slice(1)).get("token") ?? url.searchParams.get("token");

@@ -3,9 +3,12 @@ import { notFound } from "next/navigation";
 import { cache } from "react";
 
 import YachtDetails from "@/components/user/YachtDetails";
-import { toYachtDetails } from "@/features/user/yachts/utils/yacht-view";
+import { todayIn, toYachtDetails } from "@/features/user/yachts/utils/yacht-view";
 import { isApiError } from "@/services/http/api-error";
 import { getYacht, listYachts, type YachtCard } from "@/services/user/yachts.service";
+
+/** Only picks the first month shown; each API answer carries its own timezone. */
+const FIRST_MONTH_TIMEZONE = "Asia/Kolkata";
 
 /** Shared by the metadata and the page, so one visit fetches the yacht once. */
 const loadYacht = cache((slug: string) => getYacht(slug));
@@ -41,5 +44,10 @@ export default async function YachtDetailPage({ params }: PageProps<"/yachts/[ya
     loadRelated(),
   ]);
 
-  return <YachtDetails yacht={toYachtDetails(yacht, related)} />;
+  return (
+    <YachtDetails
+      yacht={toYachtDetails(yacht, related)}
+      initialMonth={todayIn(FIRST_MONTH_TIMEZONE).slice(0, 7)}
+    />
+  );
 }

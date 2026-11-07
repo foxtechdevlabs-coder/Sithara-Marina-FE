@@ -43,7 +43,7 @@ every spec in two projects: `desktop-chromium` and `mobile-chromium` (Pixel 7 vi
 Specs:
 
 - `user-area.spec.ts` — home in the site layout; home → yachts → yacht detail → availability;
-  checkout uses the distraction-free layout and shows no confirmed booking; auth pages without site
+  checkout uses the site header and shows no confirmed booking; auth pages without site
   nav; all account pages with account nav; footer links to every content page; 404 page; no
   admin robots header on user pages; no horizontal overflow
 - `admin-area.spec.ts` — `/admin` → `/admin/dashboard`; `/admin/login` renders without the
