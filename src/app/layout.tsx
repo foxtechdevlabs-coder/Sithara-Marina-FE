@@ -5,6 +5,7 @@ import { Instrument_Serif, Inter, Manrope } from "next/font/google";
 import type { ReactNode } from "react";
 
 import { LogoLoader } from "@/components/shared/logo-loader";
+import { NavigationLoader } from "@/components/shared/navigation-loader";
 import { getPublicEnv } from "@/config/env";
 import { siteConfig, SITE_URL } from "@/config/site";
 import { BRAND_NAME } from "@/constants/brand";
@@ -100,6 +101,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="en" className={`${inter.variable} ${instrumentSerif.variable} ${manrope.variable}`}>
       <body className="flex min-h-dvh flex-col">
         <LogoLoader />
+        <NavigationLoader />
         {children}
       </body>
     </html>

@@ -1,0 +1,135 @@
+/* Same timing as logo-loader.module.css: the outline draws, the fill fades in, then it breathes. */
+.root {
+  --stagger: 115ms;
+  --draw-time: 820ms;
+  --fill-time: 680ms;
+  --draw-end: 1395ms; /* last stagger + draw-time */
+  --fill-end: 2075ms; /* draw-end + fill-time */
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  /* A short wait, so a fast load doesn't flash a half-drawn logo. */
+  animation: appear 200ms ease-out 120ms both;
+}
+
+.quick {
+  --stagger: 50ms;
+  --draw-time: 450ms;
+  --fill-time: 300ms;
+  --draw-end: 700ms;
+  --fill-end: 1000ms;
+
+  animation-delay: 0ms;
+}
+
+.page {
+  width: 100%;
+  min-height: 60dvh;
+  padding: 64px 16px;
+}
+
+.page .logo {
+  width: clamp(60px, 5.5vw, 74px);
+}
+
+.panel .logo {
+  width: 56px;
+}
+
+.compact .logo {
+  width: 44px;
+}
+
+.logo {
+  height: auto;
+  overflow: visible;
+  animation: breathe 2.6s ease-in-out var(--fill-end) infinite;
+}
+
+.strokeLayer {
+  fill: none;
+  animation: fade-out var(--fill-time) ease-out var(--draw-end) forwards;
+}
+
+.strokeLayer path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: draw var(--draw-time) cubic-bezier(0.42, 0, 0.2, 1) forwards;
+}
+
+.fillLayer {
+  opacity: 0;
+  animation: fade-in var(--fill-time) ease-out var(--draw-end) forwards;
+}
+
+.caption {
+  color: rgb(12 25 35 / 62%);
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 9px;
+  letter-spacing: 0.5em;
+  line-height: 1;
+  text-indent: 0.5em;
+  animation: caption-breathe 1.8s ease-in-out infinite;
+}
+
+@keyframes appear {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes fade-in {
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes breathe {
+  50% {
+    opacity: 0.94;
+    transform: scale(1.018);
+  }
+}
+
+@keyframes caption-breathe {
+  0%,
+  100% {
+    opacity: 0.42;
+  }
+
+  50% {
+    opacity: 0.78;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .root,
+  .logo,
+  .caption {
+    animation: none;
+  }
+
+  .strokeLayer {
+    display: none;
+  }
+
+  .fillLayer {
+    opacity: 1;
+    animation: none;
+  }
+}
