@@ -360,7 +360,7 @@ export function YachtReservation({
       aria-labelledby="reserve-heading"
       className={cx(
         "min-w-0 scroll-mt-[24px] xl:col-start-1 xl:row-start-2",
-        intro && "xl:mt-[64px] xl:border-t xl:border-[#e5e7eb] xl:pt-[64px]",
+        Boolean(intro) && "xl:mt-[64px] xl:border-t xl:border-[#e5e7eb] xl:pt-[64px]",
       )}
     >
       <p className="text-[12px] leading-[16px] tracking-[0.18em] uppercase">Reserve {name}</p>

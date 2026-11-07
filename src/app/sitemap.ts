@@ -1,12 +1,37 @@
 import type { MetadataRoute } from "next";
 
-import { dummyFleet } from "@/components/user/OurYachts";
 import { SITE_URL } from "@/config/site";
+import { listYachts } from "@/services/user/yachts.service";
+
+/** Regenerated hourly, so new yachts appear without a deploy. */
+export const revalidate = 3600;
+
+/** The API's largest page size. */
+const PAGE_SIZE = 100;
+
+async function listYachtSlugs(): Promise<string[]> {
+  const slugs: string[] = [];
+  for (let page = 1; ; page++) {
+    const { items, total } = await listYachts({ page, limit: PAGE_SIZE });
+    slugs.push(...items.map((yacht) => yacht.slug));
+    if (items.length === 0 || slugs.length >= total) return slugs;
+  }
+}
+
+/** This runs during `next build`: an unreachable API must not fail the deploy. */
+async function loadYachtSlugs(): Promise<string[]> {
+  try {
+    return await listYachtSlugs();
+  } catch (error) {
+    console.warn("Sitemap: yachts left out, the API could not be read.", error);
+    return [];
+  }
+}
 
 /**
  * Technical XML sitemap generator for all indexable public routes and dynamic yacht entries.
  */
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date();
 
   const staticEntries: MetadataRoute.Sitemap = [
@@ -30,8 +55,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
     },
   ];
 
-  const yachtEntries: MetadataRoute.Sitemap = dummyFleet.map((yacht) => ({
-    url: `${SITE_URL}/yachts/${yacht.id}`,
+  const yachtEntries: MetadataRoute.Sitemap = (await loadYachtSlugs()).map((slug) => ({
+    url: `${SITE_URL}/yachts/${encodeURIComponent(slug)}`,
     lastModified: now,
     changeFrequency: "weekly",
     priority: 0.8,
