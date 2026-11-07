@@ -17,15 +17,7 @@ import {
 import { setCommission, type Yacht } from "@/services/admin/fleet.service";
 
 import { fleetErrorMessage } from "../utils/fleet-error-message";
-
-/** A percentage from 0 to 100 with at most 2 decimals (backend IsRate), or null. */
-export function parseRate(value: string): number | null | undefined {
-  const clean = value.trim().replace(/%$/, "").trim();
-  if (clean === "") return null;
-  if (!/^\d{1,3}(\.\d{1,2})?$/.test(clean)) return undefined;
-  const rate = Number(clean);
-  return rate <= 100 ? rate : undefined;
-}
+import { parseRate } from "../utils/yacht-form";
 
 /**
  * Commission on a partner yacht's bookings: PUT /admin/yachts/{id}/commission

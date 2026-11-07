@@ -1,13 +1,9 @@
-import { RoutePlaceholder } from "@/components/shared/route-placeholder";
 import type { Metadata } from "next";
 
-export const metadata: Metadata = { title: "Site settings" };
+import { SettingsPage } from "@/features/admin/settings/components/settings-page";
 
-export default function SettingsPage() {
-  return (
-    <RoutePlaceholder
-      title="Site settings"
-      description="Site-wide settings. Feature module: features/admin/settings."
-    />
-  );
+export const metadata: Metadata = { title: "Settings" };
+
+export default function Page() {
+  return <SettingsPage />;
 }

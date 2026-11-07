@@ -15,12 +15,26 @@ import { adminApiClient } from "./admin-api-client";
 export const YACHT_PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
 export const YACHT_PHOTO_MAX_BYTES = 10 * 1024 * 1024;
 
+/** What the backend accepts for partner documents (media.rules.ts: partner_document). */
+export const PARTNER_DOCUMENT_TYPES = ["application/pdf", "image/jpeg", "image/png"] as const;
+export const PARTNER_DOCUMENT_MAX_BYTES = 20 * 1024 * 1024;
+
 /** Why this file can't be a yacht photo, or null. */
 export function yachtPhotoProblem(file: File): string | null {
   if (!(YACHT_PHOTO_TYPES as readonly string[]).includes(file.type)) {
     return `${file.name} isn't a JPEG, PNG or WebP image.`;
   }
   if (file.size > YACHT_PHOTO_MAX_BYTES) return `${file.name} is larger than 10 MB.`;
+  if (file.size === 0) return `${file.name} is empty.`;
+  return null;
+}
+
+/** Why this file can't be a partner document, or null. */
+export function partnerDocumentProblem(file: File): string | null {
+  if (!(PARTNER_DOCUMENT_TYPES as readonly string[]).includes(file.type)) {
+    return `${file.name} isn't a PDF, JPEG or PNG file.`;
+  }
+  if (file.size > PARTNER_DOCUMENT_MAX_BYTES) return `${file.name} is larger than 20 MB.`;
   if (file.size === 0) return `${file.name} is empty.`;
   return null;
 }
@@ -52,16 +66,17 @@ function putFile(url: string, file: File, onProgress?: (fraction: number) => voi
 }
 
 /**
- * Uploads one yacht photo and returns its `media_id`, ready to attach.
+ * Uploads one file and returns its `media_id`, ready to attach.
  * POST /admin/media/uploads, then PUT to the signed `upload_url`.
  */
-export async function uploadYachtPhoto(
+async function uploadFile(
+  purpose: "yacht_photo" | "partner_document",
   file: File,
   onProgress?: (fraction: number) => void,
 ): Promise<string> {
   const ticket = await adminApiClient.post("/admin/media/uploads", {
     body: {
-      purpose: "yacht_photo",
+      purpose,
       filename: file.name.slice(0, 255),
       content_type: file.type,
       size_bytes: file.size,
@@ -72,3 +87,9 @@ export async function uploadYachtPhoto(
   onProgress?.(1);
   return ticket.media_id;
 }
+
+export const uploadYachtPhoto = (file: File, onProgress?: (fraction: number) => void) =>
+  uploadFile("yacht_photo", file, onProgress);
+
+export const uploadPartnerDocument = (file: File, onProgress?: (fraction: number) => void) =>
+  uploadFile("partner_document", file, onProgress);

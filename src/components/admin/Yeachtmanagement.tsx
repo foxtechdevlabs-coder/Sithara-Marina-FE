@@ -2,11 +2,12 @@
 
 import { ArrowRight, ChevronDown } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { Spinner } from "@/components/ui/spinner";
 import { adminRoutes } from "@/constants/routes";
 import { useAdminQuery } from "@/features/admin/fleet/hooks/use-admin-query";
+import { useDebounced } from "@/features/admin/fleet/hooks/use-debounced";
 import { useYachtStatus } from "@/features/admin/fleet/hooks/use-yacht-status";
 import { fleetErrorMessage } from "@/features/admin/fleet/utils/fleet-error-message";
 import { listYachts, type Yacht, type YachtListQuery } from "@/services/admin/fleet.service";
@@ -64,16 +65,6 @@ const field =
 const outlineButton =
   "flex h-[48px] items-center justify-center border bg-white text-[11px] transition-colors hover:bg-[#f2f1ee] disabled:cursor-not-allowed disabled:opacity-60";
 const textAction = "text-[12px] underline underline-offset-2 hover:opacity-70 disabled:opacity-50";
-
-/** The search box is sent to the API after a short pause in typing. */
-function useDebounced(value: string, ms = 300) {
-  const [debounced, setDebounced] = useState(value);
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(value), ms);
-    return () => clearTimeout(t);
-  }, [value, ms]);
-  return debounced;
-}
 
 /**
  * Yacht management ("The fleet, considered."), built from the admin Figma

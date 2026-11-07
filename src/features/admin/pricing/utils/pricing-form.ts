@@ -1,3 +1,4 @@
+import { formatTime, parseTime } from "@/lib/time";
 import type { SlotSetupInput } from "@/services/admin/fleet.service";
 import type {
   PriceRule,
@@ -34,6 +35,10 @@ export function formatPaise(paise: number): string {
 
 /* Slot setup (mirrors the backend's slotSetupProblem) ------------------ */
 
+/** Every charter starts at 5:00 AM or later and is back by 7:00 PM, the same day. */
+export const FIRST_START = "05:00";
+export const LAST_RETURN = "19:00";
+
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 export const isTimeOfDay = (value: string) => TIME.test(value);
 const minutes = (time: string) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
@@ -45,7 +50,7 @@ export interface SlotTypeDraft {
   key: string;
   name: string;
   duration: string;
-  /** Comma-separated HH:mm, e.g. "09:00, 14:00". */
+  /** Comma-separated, as typed: "9:00 AM, 2:00 PM". */
   startTimes: string;
   active: boolean;
 }
@@ -57,11 +62,7 @@ export interface SlotSetupDraft {
   slotTypes: SlotTypeDraft[];
 }
 
-export const parseTimes = (value: string) =>
-  value
-    .split(/[,\s]+/)
-    .map((t) => t.trim())
-    .filter(Boolean);
+export const parseTimes = (value: string) => value.split(",").map(parseTime).filter(Boolean);
 
 const intIn = (value: string, min: number, max: number) => {
   const n = Number(value);
@@ -71,10 +72,12 @@ const intIn = (value: string, min: number, max: number) => {
 /** The first problem with the slot setup, or null. */
 export function slotSetupProblem(draft: SlotSetupDraft): string | null {
   if (!isTimeOfDay(draft.opensAt) || !isTimeOfDay(draft.closesAt))
-    return "Enter the first departure and last return as times, e.g. 08:00 and 20:00.";
+    return "Choose the first departure and last return.";
   const opens = minutes(draft.opensAt);
   const closes = minutes(draft.closesAt);
   if (closes <= opens) return "The last return must be after the first departure (same day).";
+  if (draft.opensAt < FIRST_START || draft.closesAt > LAST_RETURN)
+    return "Charters must start at 5:00 AM or later and be back by 7:00 PM.";
   if (!intIn(draft.turnaround, 0, 720))
     return "Enter a turnaround of 0 to 720 minutes between charters.";
   if (draft.slotTypes.length > 20) return "A yacht can have at most 20 slot types.";
@@ -93,13 +96,13 @@ export function slotSetupProblem(draft: SlotSetupDraft): string | null {
     if (!times.length) return `"${label}" — add at least one start time.`;
     if (times.length > 48) return `"${label}" — use at most 48 start times.`;
     const bad = times.find((t) => !isTimeOfDay(t));
-    if (bad) return `"${label}" — "${bad}" isn't a time. Use HH:mm, e.g. 09:00.`;
+    if (bad) return `"${label}" — "${bad}" isn't a time. Use a time like 9:00 AM.`;
     if (new Set(times).size !== times.length) return `"${label}" lists a start time twice.`;
     for (const start of times) {
       if (minutes(start) < opens)
-        return `"${label}" at ${start} starts before the first departure (${draft.opensAt}).`;
+        return `"${label}" at ${formatTime(start)} starts before the first departure (${formatTime(draft.opensAt)}).`;
       if (minutes(start) + Number(type.duration) > closes)
-        return `"${label}" at ${start} would end after the last return (${draft.closesAt}).`;
+        return `"${label}" at ${formatTime(start)} would end after the last return (${formatTime(draft.closesAt)}).`;
     }
   }
   return null;

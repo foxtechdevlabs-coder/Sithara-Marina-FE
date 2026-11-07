@@ -20,6 +20,13 @@ const yacht = {
   ownership_type: "partner",
   partner: { id: "p-1", name: "Coastal Co." },
   commission_rate: 12.5,
+  registration_number: null,
+  built_year: null,
+  refit_year: null,
+  cruising_speed_kmh: null,
+  card_tagline: null,
+  hourly_rate: null,
+  cruising_regions: [],
   type: "Motor yacht",
   length_ft: 52,
   capacity: 12,
@@ -323,7 +330,7 @@ describe("slot types and price rules", () => {
       method === "DELETE"
         ? new Response(null, { status: 204 })
         : method === "GET"
-          ? json([rule])
+          ? json({ items: [rule], total: 1, page: 1, limit: 100 })
           : json(rule, method === "POST" ? 201 : 200),
     );
     await pricing.listPriceRules(YACHT_ID, { kind: "base" });
@@ -335,7 +342,7 @@ describe("slot types and price rules", () => {
     await pricing.updatePriceRule("r-1", { amount: 4_500_000, name: null });
     await pricing.deletePriceRule("r-1");
     expect(calls.map((c) => [c.method, c.url.replace(API, ""), c.body])).toEqual([
-      ["GET", `/admin/yachts/${YACHT_ID}/price-rules?kind=base`, undefined],
+      ["GET", `/admin/yachts/${YACHT_ID}/price-rules?kind=base&page=1&limit=100`, undefined],
       [
         "POST",
         `/admin/yachts/${YACHT_ID}/price-rules`,
@@ -345,5 +352,20 @@ describe("slot types and price rules", () => {
       ["DELETE", "/admin/price-rules/r-1", undefined],
     ]);
     expect(calls.every((c) => c.auth === "Bearer access-1")).toBe(true);
+  });
+
+  it("reads every page of a yacht's price rules", async () => {
+    const { pricing } = await load();
+    const rules = Array.from({ length: 150 }, (_, i) => ({ ...rule, id: `r-${i}` }));
+    stub((url) => {
+      const page = Number(new URL(url).searchParams.get("page"));
+      const items = rules.slice((page - 1) * 100, page * 100);
+      return json({ items, total: rules.length, page, limit: 100 });
+    });
+    await expect(pricing.listPriceRules(YACHT_ID)).resolves.toEqual(rules);
+    expect(calls.map((c) => c.url.replace(API, ""))).toEqual([
+      `/admin/yachts/${YACHT_ID}/price-rules?page=1&limit=100`,
+      `/admin/yachts/${YACHT_ID}/price-rules?page=2&limit=100`,
+    ]);
   });
 });

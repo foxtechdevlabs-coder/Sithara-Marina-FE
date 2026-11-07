@@ -15,11 +15,15 @@ import {
   outlineButton,
   primaryButton,
 } from "@/components/admin/form-parts";
+import { TimeInput } from "@/components/admin/time-input";
 import { fleetErrorMessage } from "@/features/admin/fleet/utils/fleet-error-message";
 import { cx } from "@/lib/cx";
+import { formatTime } from "@/lib/time";
 import { replaceSlotTypes, type SlotSetup } from "@/services/admin/fleet.service";
 
 import {
+  FIRST_START,
+  LAST_RETURN,
   slotSetupProblem,
   toSlotSetupInput,
   type SlotSetupDraft,
@@ -40,7 +44,7 @@ const draftOf = (setup: SlotSetup): SlotSetupDraft => ({
       key: t.id,
       name: t.name,
       duration: String(t.duration_minutes),
-      startTimes: t.start_times.join(", "),
+      startTimes: t.start_times.map(formatTime).join(", "),
       active: t.is_active,
     })),
 });
@@ -135,27 +139,29 @@ export function SlotSetupSection({
       >
         <div className="grid grid-cols-2 gap-x-[20px] gap-y-[22px] md:grid-cols-3">
           <div>
-            <Label htmlFor="opens-at" required hint="first departure">
+            <Label htmlFor="opens-at" required hint="first departure, from 5:00 AM">
               Opens
             </Label>
-            <input
+            <TimeInput
               id="opens-at"
-              type="time"
-              className={input}
+              label="Opens"
+              min={FIRST_START}
+              max={LAST_RETURN}
               value={draft.opensAt}
-              onChange={(e) => change({ opensAt: e.currentTarget.value })}
+              onChange={(opensAt) => change({ opensAt })}
             />
           </div>
           <div>
-            <Label htmlFor="closes-at" required hint="last return">
+            <Label htmlFor="closes-at" required hint="last return, by 7:00 PM">
               Closes
             </Label>
-            <input
+            <TimeInput
               id="closes-at"
-              type="time"
-              className={input}
+              label="Closes"
+              min={FIRST_START}
+              max={LAST_RETURN}
               value={draft.closesAt}
-              onChange={(e) => change({ closesAt: e.currentTarget.value })}
+              onChange={(closesAt) => change({ closesAt })}
             />
           </div>
           <div className="col-span-2 md:col-span-1">
@@ -255,13 +261,13 @@ export function SlotSetupSection({
                   />
                 </div>
                 <div>
-                  <Label htmlFor={`${t.key}-times`} required hint="HH:mm, comma-separated">
+                  <Label htmlFor={`${t.key}-times`} required hint="comma-separated">
                     Start times
                   </Label>
                   <input
                     id={`${t.key}-times`}
                     className={input}
-                    placeholder="09:00, 14:00"
+                    placeholder="9:00 AM, 2:00 PM"
                     value={t.startTimes}
                     onChange={(e) => changeType(t.key, { startTimes: e.currentTarget.value })}
                   />

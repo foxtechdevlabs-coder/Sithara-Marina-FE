@@ -2,7 +2,8 @@
 
 **Scope:** admin sign-in, the admin session, and staff password recovery.
 
-**Routes:** `/admin/login`, `/admin/reset-password`, `/admin/forgot-password`
+**Routes:** `/admin/login`, `/admin/reset-password`, `/admin/set-password`,
+`/admin/forgot-password`
 
 ## Backend contract (`/admin/auth/*`, see the backend's `/docs`)
 

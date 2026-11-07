@@ -26,4 +26,4 @@ API function: `src/services/admin/dashboard.service.ts`.
 - `charters` and `pending_payments` aren't limited to the selected period: today's and upcoming
   charters, and all bookings awaiting payment.
 - `yacht_id` and `ownership` filters exist in the API but have no control in the design yet.
-- Dates are shown in `Asia/Kolkata`. The API says "business time zone" without naming it.
+- Dates are shown in `Asia/Kolkata`, the backend's business time zone for every yacht.

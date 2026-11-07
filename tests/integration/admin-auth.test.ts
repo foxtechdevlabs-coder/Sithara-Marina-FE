@@ -183,6 +183,18 @@ describe("admin logout", () => {
   });
 });
 
+describe("new password rules", () => {
+  it("checks the password before calling the API", async () => {
+    const { passwordProblem } = await import("@/features/admin/auth/utils/password-rules");
+    expect(passwordProblem("", "")).toBe("Enter a password.");
+    expect(passwordProblem("short", "short")).toBe("Use at least 8 characters.");
+    expect(passwordProblem("x".repeat(129), "x".repeat(129))).toBe("Use 128 characters or fewer.");
+    expect(passwordProblem("long enough", "")).toBe("Confirm your password.");
+    expect(passwordProblem("long enough", "different")).toBe("The two passwords don't match.");
+    expect(passwordProblem("long enough", "long enough")).toBe("");
+  });
+});
+
 describe("staff password reset", () => {
   it("verifies the link, then resets with the documented fields", async () => {
     const { auth } = await load();

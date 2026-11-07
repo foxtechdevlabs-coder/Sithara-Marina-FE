@@ -6,7 +6,13 @@ import { formatMinorUnits, todayIn } from "@/features/user/yachts/utils/yacht-vi
 import { isApiError } from "@/services/http/api-error";
 import { getYacht } from "@/services/user/yachts.service";
 
-export const metadata: Metadata = { title: "Check availability" };
+export const metadata: Metadata = {
+  title: "Check Availability",
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
 
 /** Only picks the first month shown; each API answer carries its own timezone. */
 const FIRST_MONTH_TIMEZONE = "Asia/Kolkata";
