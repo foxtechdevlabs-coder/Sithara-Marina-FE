@@ -1,7 +1,13 @@
 import { RoutePlaceholder } from "@/components/shared/route-placeholder";
 import type { Metadata } from "next";
 
-export const metadata: Metadata = { title: "Check availability" };
+export const metadata: Metadata = {
+  title: "Check Availability",
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
 
 export default async function YachtAvailabilityPage({
   params,

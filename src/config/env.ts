@@ -4,6 +4,7 @@ export const publicEnvSchema = z.object({
   NEXT_PUBLIC_API_URL: z.url({
     error: "NEXT_PUBLIC_API_URL must be an absolute URL. See .env.example.",
   }),
+  NEXT_PUBLIC_SITE_URL: z.string().url().optional(),
 });
 
 export type PublicEnv = z.infer<typeof publicEnvSchema>;
@@ -40,6 +41,7 @@ export function getPublicEnv(): PublicEnv {
   cached ??= parsePublicEnv({
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
     NEXT_PUBLIC_API_BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL,
+    NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
   });
   return cached;
 }
