@@ -3,28 +3,25 @@
 import { ArrowRight, Check, ChevronDown } from "lucide-react";
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, type ReactNode, type SubmitEvent } from "react";
+import { useEffect, useRef, useState, type ReactNode, type SubmitEvent } from "react";
 
 import { INK, MarinaFonts, MarinaFooter, SANS, SERIF } from "@/components/user/marina-chrome";
-import { dummyFleet, type FleetYacht } from "@/components/user/OurYachts";
 import {
   AMENITIES,
   DURATIONS,
   EMPTY_FILTERS,
   GUEST_COUNTS,
-  PRICE_RANGES,
-  REGIONS,
   SORTS,
-  YACHT_TYPES,
-  filterFleet,
   filtersToQuery,
-  type PriceKey,
+  priceBands,
+  toListParams,
   type SortKey,
   type YachtFilters,
-  type YachtType,
 } from "@/components/user/yacht-search";
 import { userRoutes } from "@/constants/routes";
+import { useApiQuery } from "@/hooks/use-api-query";
 import { cx } from "@/lib/cx";
+import { listYachts, type YachtFilterOptions } from "@/services/user/yachts.service";
 
 /* Figma colours */
 const BODY = "#4a4f55";
@@ -188,18 +185,26 @@ function AmenitiesPicker({
  */
 export default function SearchFilter({
   initialFilters,
-  fleet = dummyFleet,
+  options,
 }: {
   initialFilters: YachtFilters;
-  fleet?: FleetYacht[];
+  /** From GET /yachts/filters; null when it could not be loaded. */
+  options: YachtFilterOptions | null;
 }) {
   const router = useRouter();
   const [filters, setFilters] = useState<YachtFilters>(initialFilters);
   const set = <K extends keyof YachtFilters>(key: K, value: YachtFilters[K]) =>
     setFilters((f) => ({ ...f, [key]: value }));
 
-  // Live count for the submit button. TODO: ask the API once it is ready.
-  const count = useMemo(() => filterFleet(fleet, filters).length, [fleet, filters]);
+  // Live count for the submit button; null until the API has answered.
+  const matches = useApiQuery(
+    (signal) => listYachts({ ...toListParams(filters), limit: 1 }, signal),
+    filtersToQuery(filters),
+  );
+  const count = matches.loading || matches.error ? null : (matches.data?.total ?? null);
+
+  const bands = options ? priceBands(options) : [];
+  const priceKey = (min: number | null, max: number | null) => `${min ?? ""}-${max ?? ""}`;
 
   function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -247,7 +252,7 @@ export default function SearchFilter({
                 onChange={(v) => set("region", v)}
                 options={[
                   { value: "", label: "Any region" },
-                  ...REGIONS.map((r) => ({ value: r, label: r })),
+                  ...(options?.destinations ?? []).map((r) => ({ value: r, label: r })),
                 ]}
               />
             </Field>
@@ -286,9 +291,12 @@ export default function SearchFilter({
           <div
             role="radiogroup"
             aria-label="Yacht type"
-            className="mt-[40px] grid grid-cols-3 gap-[12px] sm:flex sm:gap-[16px] lg:mt-[66px]"
+            className="mt-[40px] grid grid-cols-3 gap-[12px] sm:flex sm:flex-wrap sm:gap-[16px] lg:mt-[66px]"
           >
-            {(Object.entries(YACHT_TYPES) as [YachtType, string][]).map(([value, label]) => {
+            {[
+              { value: "", label: "All yachts" },
+              ...(options?.types ?? []).map((type) => ({ value: type, label: type })),
+            ].map(({ value, label }) => {
               const on = filters.type === value;
               return (
                 <button
@@ -314,9 +322,19 @@ export default function SearchFilter({
             <Field id="price" label="Price range">
               <Select
                 id="price"
-                value={filters.price}
-                onChange={(v) => set("price", v as PriceKey)}
-                options={Object.entries(PRICE_RANGES).map(([value, label]) => ({ value, label }))}
+                value={priceKey(filters.minPrice, filters.maxPrice)}
+                onChange={(v) => {
+                  const band = bands.find((b) => priceKey(b.min, b.max) === v);
+                  setFilters((f) => ({
+                    ...f,
+                    minPrice: band?.min ?? null,
+                    maxPrice: band?.max ?? null,
+                  }));
+                }}
+                options={[
+                  { value: priceKey(null, null), label: "Any price" },
+                  ...bands.map((b) => ({ value: priceKey(b.min, b.max), label: b.label })),
+                ]}
               />
             </Field>
             <Field id="amenities" label="On board">
@@ -336,8 +354,10 @@ export default function SearchFilter({
             >
               {count === 0
                 ? "No yachts match"
-                : `Show ${count} ${count === 1 ? "yacht" : "yachts"}`}
-              {count > 0 && <ArrowRight aria-hidden="true" strokeWidth={1.5} className="size-3" />}
+                : count === null
+                  ? "Show yachts"
+                  : `Show ${count} ${count === 1 ? "yacht" : "yachts"}`}
+              {count !== 0 && <ArrowRight aria-hidden="true" strokeWidth={1.5} className="size-3" />}
             </button>
             <button
               type="button"
@@ -348,7 +368,9 @@ export default function SearchFilter({
             </button>
           </div>
           <p aria-live="polite" className="sr-only">
-            {`${count} ${count === 1 ? "yacht matches" : "yachts match"} your filters`}
+            {count === null
+              ? ""
+              : `${count} ${count === 1 ? "yacht matches" : "yachts match"} your filters`}
           </p>
         </form>
       </section>

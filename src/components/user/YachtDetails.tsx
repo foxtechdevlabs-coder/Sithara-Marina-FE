@@ -1,4 +1,4 @@
-/* eslint-disable @next/next/no-img-element -- remote placeholder imagery; swap for next/image once assets are hosted */
+/* eslint-disable @next/next/no-img-element -- yacht photos come from the API and their host is not configured */
 import { ArrowRight, Check } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -6,138 +6,8 @@ import type { ReactNode } from "react";
 
 import { INK, MarinaFonts, MarinaFooter, SANS, SERIF } from "@/components/user/marina-chrome";
 import { userRoutes } from "@/constants/routes";
-
-/* ------------------------------------------------------------------ */
-/* Design tokens (local to this screen)                                */
-/* ------------------------------------------------------------------ */
-
-const img = (id: string, w = 1600) =>
-  `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=${w}&q=80`;
-
-/* ------------------------------------------------------------------ */
-/* Data shape + DUMMY data                                             */
-/* Replace `dummyYachtDetails` with the API response once it is ready. */
-/* ------------------------------------------------------------------ */
-
-export interface YachtImage {
-  src: string;
-  alt: string;
-}
-
-export interface YachtStat {
-  value: string;
-  label: string;
-}
-
-export interface RelatedYacht {
-  id: string;
-  name: string;
-  location: string;
-  image: YachtImage;
-  lengthMetres: number;
-  guests: number;
-  suites: number;
-  description: string;
-}
-
-export interface YachtDetailsData {
-  id: string;
-  name: string;
-  region: string;
-  intro: string;
-  heroImage: YachtImage;
-  stats: YachtStat[];
-  aboutTitle: string;
-  about: string;
-  features: string[];
-  ratePerDay: number;
-  charterDetails: { label: string; value: string }[];
-  gallery: YachtImage[];
-  relatedYachts: RelatedYacht[];
-}
-
-export const dummyYachtDetails: YachtDetailsData = {
-  id: "astra-one",
-  name: "Astra One",
-  region: "Kochi · Lakshadweep",
-  intro:
-    "Our flagship superyacht. Spacious suites, open-air living, and the freedom to venture further.",
-  heroImage: {
-    src: "/images/yachts/astra-one-hero.png",
-    alt: "Astra One cruising off the coast",
-  },
-  stats: [
-    { value: "46m", label: "Length overall" },
-    { value: "12", label: "Guests on board" },
-    { value: "6", label: "Private suites" },
-    { value: "9", label: "Dedicated crew" },
-  ],
-  aboutTitle: "A little further from everyday.",
-  about:
-    "A world of your own, with the horizon as its only boundary. Our flagship pairs expansive teak decks and beautifully appointed suites with intuitive, discreet service. From slow mornings in Kochi to star-filled evenings in the islands, Astra One makes every moment yours.",
-  features: [
-    "Private chef & personalised menus",
-    "Six ocean-view suites",
-    "Sun deck & outdoor lounge",
-    "Water toys & snorkelling equipment",
-    "Dedicated captain & nine-person crew",
-    "Bespoke island itineraries",
-  ],
-  ratePerDay: 450000,
-  charterDetails: [
-    { label: "Cruising region", value: "Kochi · Lakshadweep" },
-    { label: "Your company", value: "Up to 12 guests" },
-    { label: "Charter style", value: "Private, fully crewed" },
-  ],
-  gallery: [
-    {
-      src: "/images/yachts/astra-one-master-suite.png",
-      alt: "Master suite with floor-to-ceiling ocean views",
-    },
-    { src: "/images/yachts/astra-one-bathroom.png", alt: "Marble en-suite bathroom with porthole" },
-    { src: "/images/yachts/astra-one-dining.png", alt: "Private dining table set at sea" },
-    { src: "/images/yachts/astra-one-saloon.png", alt: "Main saloon lounge" },
-    { src: "/images/yachts/astra-one-galley.png", alt: "Galley kitchen" },
-    { src: "/images/yachts/astra-one-media-lounge.png", alt: "Media lounge and bar" },
-  ],
-  relatedYachts: [
-    {
-      id: "malabar",
-      name: "Malabar",
-      location: "Kochi",
-      image: { src: img("1569263979104-865ab7cd8d13", 1000), alt: "Malabar motor yacht" },
-      lengthMetres: 28,
-      guests: 8,
-      suites: 4,
-      description:
-        "An intimate coastal retreat, made for hidden anchorages and unhurried days on the Arabian Sea.",
-    },
-    {
-      id: "neelam",
-      name: "Neelam",
-      location: "Kochi",
-      image: { src: img("1593693411515-c20261bcad6e", 1000), alt: "Neelam houseboat" },
-      lengthMetres: 24,
-      guests: 6,
-      suites: 3,
-      description:
-        "The traditional Kerala houseboat, beautifully reimagined for a slower, more private escape.",
-    },
-    {
-      id: "ananta",
-      name: "Ananta",
-      location: "Kochi",
-      image: { src: img("1540946485063-a40da27545f8", 1000), alt: "Ananta sailing yacht" },
-      lengthMetres: 26,
-      guests: 8,
-      suites: 4,
-      description:
-        "The romance of sailing, with every modern comfort. For those who prefer to follow the wind.",
-    },
-  ],
-};
-
-const formatRate = (amount: number) => `₹ ${amount.toLocaleString("en-IN")}`;
+import { YachtReservation } from "@/features/user/availability/components/yacht-reservation";
+import type { FleetYacht, YachtDetailsData } from "@/features/user/yachts/utils/yacht-view";
 
 /* ------------------------------------------------------------------ */
 /* Figma colours                                                       */
@@ -165,7 +35,7 @@ function Eyebrow({ children, light = false }: { children: ReactNode; light?: boo
   );
 }
 
-function UnderlineLink({ children, href = "#" }: { children: ReactNode; href?: string }) {
+function UnderlineLink({ children, href }: { children: ReactNode; href: string }) {
   return (
     <a
       href={href}
@@ -222,11 +92,22 @@ function TitleBlock({ yacht }: { yacht: YachtDetailsData }) {
           {yacht.name}
         </h1>
         <div className="lg:pl-[60px]">
-          <p className="max-w-[390px] text-[14px] leading-[27px]" style={{ color: "#6b7068" }}>
-            {yacht.intro}
-          </p>
-          <div className="mt-[23px]">
-            <UnderlineLink>Enquire about this yacht</UnderlineLink>
+          {yacht.intro && (
+            <p className="max-w-[390px] text-[14px] leading-[27px]" style={{ color: "#6b7068" }}>
+              {yacht.intro}
+            </p>
+          )}
+          <div className="mt-[23px] flex flex-wrap items-center gap-x-[28px] gap-y-[16px]">
+            <UnderlineLink href="#reserve">Check availability</UnderlineLink>
+            {yacht.enquiryEnabled && (
+              <a
+                href={userRoutes.planCharterFor(yacht.slug)}
+                className="border-b border-[#b5b8bc] pb-[7px] text-[12px] leading-[16px] tracking-[0.18em] uppercase"
+                style={{ color: MUTED }}
+              >
+                Request a custom quote
+              </a>
+            )}
           </div>
         </div>
       </div>
@@ -237,17 +118,27 @@ function TitleBlock({ yacht }: { yacht: YachtDetailsData }) {
 function Hero({ yacht }: { yacht: YachtDetailsData }) {
   return (
     <section className="relative mx-auto w-full max-w-[1728px]">
-      <img
-        src={yacht.heroImage.src}
-        alt={yacht.heroImage.alt}
-        className="h-[300px] w-full object-cover md:h-[440px] lg:h-[579px]"
-      />
-      <span
-        className="absolute top-[24px] left-5 flex h-[35px] items-center bg-white px-[20px] text-[14px] lg:top-[34px] lg:left-[100px]"
-        style={{ color: INK }}
-      >
-        {yacht.region}
-      </span>
+      {yacht.heroImage ? (
+        <img
+          src={yacht.heroImage.src}
+          alt={yacht.heroImage.alt}
+          className="h-[300px] w-full object-cover md:h-[440px] lg:h-[579px]"
+        />
+      ) : (
+        <div
+          aria-hidden="true"
+          className="h-[300px] w-full md:h-[440px] lg:h-[579px]"
+          style={{ backgroundColor: CARD }}
+        />
+      )}
+      {yacht.region && (
+        <span
+          className="absolute top-[24px] left-5 flex h-[35px] items-center bg-white px-[20px] text-[14px] lg:top-[34px] lg:left-[100px]"
+          style={{ color: INK }}
+        >
+          {yacht.region}
+        </span>
+      )}
     </section>
   );
 }
@@ -255,7 +146,7 @@ function Hero({ yacht }: { yacht: YachtDetailsData }) {
 function Stats({ yacht }: { yacht: YachtDetailsData }) {
   return (
     <section className="mx-auto w-full max-w-[1728px] px-5 pt-[45px] lg:pr-[3.36%] lg:pl-[4.05%]">
-      <ul className="grid grid-cols-2 gap-y-10 sm:grid-cols-4">
+      <ul className="grid grid-cols-2 gap-y-10 border-b border-[#e5e7eb] pb-[45px] sm:grid-cols-4">
         {yacht.stats.map((stat, i) => (
           <li
             key={stat.label}
@@ -284,121 +175,167 @@ function Stats({ yacht }: { yacht: YachtDetailsData }) {
   );
 }
 
-function CharterCard({ yacht }: { yacht: YachtDetailsData }) {
+function CheckList({ items, wide = false }: { items: string[]; wide?: boolean }) {
   return (
-    <aside
-      className="w-full max-w-[447px] self-start px-[33px] pt-[34px] pb-[33px] text-white"
-      style={{ backgroundColor: CARD }}
+    <ul
+      className={`mt-[20px] grid gap-x-[32px] gap-y-[14.5px] ${
+        wide ? "sm:grid-cols-2 lg:grid-cols-3" : "sm:grid-cols-[minmax(0,405px)_minmax(0,1fr)]"
+      }`}
     >
-      <p className="text-[12px] leading-[16px] tracking-[0.18em] text-white/75 uppercase">
-        Your private charter
-      </p>
-      <h3
-        className="mt-[18px] max-w-[300px] text-[36px] leading-[42px] tracking-[-0.5px]"
-        style={SANS}
-      >
-        Make {yacht.name} your own.
-      </h3>
-
-      <div className="mt-[24px] h-px bg-white/15" />
-
-      <p className="mt-[22px] text-[16px] leading-[22px] text-white/50">Indicative rate from</p>
-      <p className="mt-[8px] text-[44px] leading-[48px] tracking-[-0.5px]" style={SANS}>
-        {formatRate(yacht.ratePerDay)}
-      </p>
-      <p className="mt-[6px] text-[16px] leading-[22px]">per day</p>
-
-      <dl className="mt-[20px] text-[15px] leading-[20px]">
-        {yacht.charterDetails.map((row) => (
-          <div
-            key={row.label}
-            className="flex h-[44px] items-center justify-between border-t border-white/15"
-          >
-            <dt className="text-white/45">{row.label}</dt>
-            <dd className="text-white">{row.value}</dd>
-          </div>
-        ))}
-      </dl>
-
-      <Link
-        href={userRoutes.planCharter}
-        className="mt-[24px] flex h-[50px] items-center justify-between px-[16px] text-[12px] tracking-[0.18em] uppercase transition-opacity hover:opacity-90"
-        style={{
-          color: INK,
-          background: "linear-gradient(90deg, #f4f8fd 0%, #cfe2f8 45%, #69aef0 100%)",
-        }}
-      >
-        Enquire about {yacht.name}
-        <ArrowRight className="size-[13px]" strokeWidth={1.5} aria-hidden="true" />
-      </Link>
-
-      <p className="mt-[20px] text-[12px] leading-[20px] text-white/80">
-        Rates are indicative. Your personal proposal will confirm availability, itinerary, taxes,
-        and inclusions. No payment is taken when you enquire.
-      </p>
-    </aside>
+      {items.map((item) => (
+        <li
+          key={item}
+          className="flex items-center gap-[13px] text-[16px] leading-[24px]"
+          style={{ color: BODY }}
+        >
+          <Check
+            className="size-[13px] shrink-0"
+            strokeWidth={1.5}
+            style={{ color: BODY }}
+            aria-hidden="true"
+          />
+          {item}
+        </li>
+      ))}
+    </ul>
   );
 }
 
 function LifeAboard({ yacht }: { yacht: YachtDetailsData }) {
   return (
-    <section className={`${FRAME} pt-[80px] lg:pt-[97px]`}>
-      <div className="grid gap-12 xl:grid-cols-[minmax(0,1fr)_447px] xl:gap-[80px]">
-        <div>
-          <div className="pt-[2px]">
-            <Eyebrow>Life aboard {yacht.name}</Eyebrow>
-          </div>
-          <h2
-            className="mt-[22px] max-w-[360px] text-[40px] leading-[44px] tracking-[-1.5px] lg:text-[56px] lg:leading-[58px]"
-            style={{ ...SANS, color: INK }}
-          >
-            {yacht.aboutTitle}
-          </h2>
-          <p className="mt-[25px] max-w-[790px] text-[16px] leading-[27px]" style={{ color: BODY }}>
-            {yacht.about}
-          </p>
+    <section>
+      <div className="pt-[2px]">
+        <Eyebrow>Life aboard {yacht.name}</Eyebrow>
+      </div>
+      <h2
+        className="mt-[22px] max-w-[360px] text-[40px] leading-[44px] tracking-[-1.5px] lg:text-[56px] lg:leading-[58px]"
+        style={{ ...SANS, color: INK }}
+      >
+        A little further from everyday.
+      </h2>
+      {yacht.about && (
+        <p
+          className="mt-[25px] max-w-[790px] text-[16px] leading-[27px] break-words"
+          style={{ color: BODY }}
+        >
+          {yacht.about}
+        </p>
+      )}
 
+      {yacht.features.length > 0 && (
+        <>
           <h3
-            className="mt-[70px] text-[28px] leading-[40px] tracking-[-0.5px] lg:text-[32px]"
+            className="mt-[56px] text-[28px] leading-[40px] tracking-[-0.5px] lg:text-[32px]"
             style={{ ...SANS, color: INK }}
           >
             Every detail, considered.
           </h3>
-          <ul className="mt-[20px] grid gap-y-[14.5px] sm:grid-cols-[minmax(0,405px)_minmax(0,1fr)]">
-            {yacht.features.map((feature) => (
-              <li
-                key={feature}
-                className="flex items-center gap-[13px] text-[16px] leading-[24px]"
-                style={{ color: BODY }}
-              >
-                <Check
-                  className="size-[13px] shrink-0"
-                  strokeWidth={1.5}
-                  style={{ color: BODY }}
-                  aria-hidden="true"
-                />
-                {feature}
+          <CheckList items={yacht.features} wide />
+        </>
+      )}
+    </section>
+  );
+}
+
+function DetailHeading({ children }: { children: ReactNode }) {
+  return (
+    <h2
+      className="text-[28px] leading-[40px] tracking-[-0.5px] lg:text-[32px]"
+      style={{ ...SANS, color: INK }}
+    >
+      {children}
+    </h2>
+  );
+}
+
+/** Charter details, crew, inclusions, departure points and policies; each only when it has data. */
+function CharterFacts({ yacht }: { yacht: YachtDetailsData }) {
+  const { charterDetails, inclusions, departurePoints, crew, policies } = yacht;
+
+  return (
+    <section
+      className={`${FRAME} grid gap-12 pt-[80px] pb-[48px] lg:grid-cols-2 lg:gap-x-[80px] lg:pb-[64px]`}
+    >
+      <div>
+        <DetailHeading>Charter details.</DetailHeading>
+        <dl className="mt-[20px] max-w-[560px] text-[15px] leading-[20px]">
+          {charterDetails.map((row) => (
+            <div
+              key={row.label}
+              className="flex min-h-[44px] items-center justify-between gap-x-6 border-t border-[#e5e7eb] py-[8px]"
+            >
+              <dt style={{ color: MUTED }}>{row.label}</dt>
+              <dd className="text-right" style={{ color: INK }}>
+                {row.value}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+      {inclusions.length > 0 && (
+        <div>
+          <DetailHeading>What’s included.</DetailHeading>
+          <CheckList items={inclusions} />
+        </div>
+      )}
+      {departurePoints.length > 0 && (
+        <div>
+          <DetailHeading>Where you’ll board.</DetailHeading>
+          <CheckList items={departurePoints} />
+        </div>
+      )}
+      {crew.length > 0 && (
+        <div>
+          <DetailHeading>Your crew.</DetailHeading>
+          <ul className="mt-[20px] grid gap-y-[20px]">
+            {crew.map((member) => (
+              <li key={`${member.name}-${member.role}`}>
+                <p className="text-[16px] leading-[24px]" style={{ color: INK }}>
+                  {member.name}
+                </p>
+                <p className="text-[14px] leading-[20px]" style={{ color: MUTED }}>
+                  {member.role}
+                </p>
+                {member.bio && (
+                  <p
+                    className="mt-[6px] max-w-[560px] text-[16px] leading-[25px]"
+                    style={{ color: BODY }}
+                  >
+                    {member.bio}
+                  </p>
+                )}
               </li>
             ))}
           </ul>
         </div>
-
-        <CharterCard yacht={yacht} />
-      </div>
+      )}
+      {policies && (
+        <div>
+          <DetailHeading>Good to know.</DetailHeading>
+          <p
+            className="mt-[20px] max-w-[790px] text-[16px] leading-[27px] whitespace-pre-line"
+            style={{ color: BODY }}
+          >
+            {policies}
+          </p>
+        </div>
+      )}
     </section>
   );
 }
 
 function Gallery({ yacht }: { yacht: YachtDetailsData }) {
+  if (yacht.gallery.length === 0) return null;
+
   return (
-    <section className={`${FRAME} pt-[48px] lg:pt-[17px]`}>
+    <section>
       <h2
         className="text-[28px] leading-[40px] tracking-[-0.5px] lg:text-[32px]"
         style={{ ...SANS, color: INK }}
       >
         Life on board.
       </h2>
-      <div className="mt-[36px] grid max-w-[1522px] grid-cols-2 gap-[12px] md:grid-cols-3 lg:gap-[17px]">
+      <div className="mt-[24px] grid grid-cols-2 gap-[12px] md:grid-cols-3 lg:gap-[17px]">
         {yacht.gallery.map((photo) => (
           <figure key={photo.src} className="overflow-hidden">
             <img
@@ -414,7 +351,9 @@ function Gallery({ yacht }: { yacht: YachtDetailsData }) {
   );
 }
 
-function Collection({ yachts }: { yachts: RelatedYacht[] }) {
+function Collection({ yachts }: { yachts: FleetYacht[] }) {
+  if (yachts.length === 0) return null;
+
   return (
     <section className={`${FRAME} pt-[96px] pb-[120px] lg:pt-[120px] lg:pb-[169px]`}>
       <div className="flex flex-wrap items-end justify-between gap-6">
@@ -443,20 +382,26 @@ function Collection({ yachts }: { yachts: RelatedYacht[] }) {
 
       <div className="mt-[51px] grid gap-12 md:grid-cols-3 md:gap-[32px]">
         {yachts.map((item) => (
-          <article key={item.id}>
+          <article key={item.slug}>
             <div className="relative overflow-hidden">
-              <img
-                src={item.image.src}
-                alt={item.image.alt}
-                loading="lazy"
-                className="aspect-[488/297] w-full object-cover transition-transform duration-700 hover:scale-105"
-              />
-              <span
-                className="absolute top-[17px] left-[17px] flex h-[30px] items-center bg-white/95 px-[10px] text-[14px]"
-                style={{ color: INK }}
-              >
-                {item.location}
-              </span>
+              {item.image ? (
+                <img
+                  src={item.image.src}
+                  alt={item.image.alt}
+                  loading="lazy"
+                  className="aspect-[488/297] w-full object-cover transition-transform duration-700 hover:scale-105"
+                />
+              ) : (
+                <div aria-hidden="true" className="aspect-[488/297] w-full bg-[#e5e7eb]" />
+              )}
+              {item.location && (
+                <span
+                  className="absolute top-[17px] left-[17px] flex h-[30px] items-center bg-white/95 px-[10px] text-[14px]"
+                  style={{ color: INK }}
+                >
+                  {item.location}
+                </span>
+              )}
             </div>
             <h3
               className="mt-[18px] text-[36px] leading-[44px] tracking-[-0.5px]"
@@ -465,28 +410,26 @@ function Collection({ yachts }: { yachts: RelatedYacht[] }) {
               {item.name}
             </h3>
             <p
-              className="mt-[7px] flex items-center gap-[14px] text-[14px] leading-[20px]"
+              className="mt-[7px] flex flex-wrap items-center gap-[14px] text-[14px] leading-[20px]"
               style={{ color: "#555a60" }}
             >
-              {[
-                `${item.lengthMetres} metres`,
-                `${item.guests} guests`,
-                `${item.suites} suites`,
-              ].map((m, i) => (
+              {item.specs.map((m, i) => (
                 <span key={m} className="flex items-center gap-[14px]">
                   {i > 0 && <span aria-hidden="true" className="h-[10px] w-px bg-[#c4c7cb]" />}
                   {m}
                 </span>
               ))}
             </p>
-            <p
-              className="mt-[12px] max-w-[400px] text-[16px] leading-[25px]"
-              style={{ color: BODY }}
-            >
-              {item.description}
-            </p>
+            {item.description && (
+              <p
+                className="mt-[12px] max-w-[400px] text-[16px] leading-[25px]"
+                style={{ color: BODY }}
+              >
+                {item.description}
+              </p>
+            )}
             <div className="mt-[27px]">
-              <UnderlineLink href={userRoutes.yacht(item.id)}>Discover {item.name}</UnderlineLink>
+              <UnderlineLink href={userRoutes.yacht(item.slug)}>Discover {item.name}</UnderlineLink>
             </div>
           </article>
         ))}
@@ -560,17 +503,39 @@ function JourneyCta() {
 
 /**
  * Yacht details screen, built from the Figma design (1728px frame).
- * Renders dummy data by default; pass the API response as `yacht` once it is ready.
  */
-export default function YachtDetails({ yacht = dummyYachtDetails }: { yacht?: YachtDetailsData }) {
+export default function YachtDetails({
+  yacht,
+  initialMonth,
+}: {
+  yacht: YachtDetailsData;
+  /** YYYY-MM. */
+  initialMonth: string;
+}) {
   return (
     <div className="bg-white antialiased" style={{ ...SANS, color: INK }}>
       <MarinaFonts />
       <TitleBlock yacht={yacht} />
       <Hero yacht={yacht} />
       <Stats yacht={yacht} />
-      <LifeAboard yacht={yacht} />
-      <Gallery yacht={yacht} />
+      <div className={`${FRAME} pt-[80px] lg:pt-[97px]`}>
+        <YachtReservation
+          yachtId={yacht.id}
+          slug={yacht.slug}
+          name={yacht.name}
+          capacity={yacht.capacity}
+          suites={yacht.suites}
+          slotTypes={yacht.slotTypes}
+          enquiryEnabled={yacht.enquiryEnabled}
+          bookingMode={yacht.bookingMode}
+          startingPrice={yacht.startingPrice}
+          departureCity={yacht.departureCity}
+          initialMonth={initialMonth}
+          intro={<LifeAboard yacht={yacht} />}
+          after={yacht.gallery.length > 0 ? <Gallery yacht={yacht} /> : undefined}
+        />
+      </div>
+      <CharterFacts yacht={yacht} />
       <Collection yachts={yacht.relatedYachts} />
       <JourneyCta />
       <MarinaFooter />

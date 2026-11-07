@@ -28,7 +28,7 @@ import {
 } from "@/services/user/auth.service";
 
 import { useCooldown } from "../hooks/use-cooldown";
-import { commonAuthErrorMessage } from "../utils/auth-error-message";
+import { commonAuthErrorMessage, emailRateLimitMessage } from "../utils/auth-error-message";
 import { saveAuthFlash } from "../utils/auth-flash";
 import { formatCountdown } from "../utils/format-wait";
 import {
@@ -328,17 +328,21 @@ export function ResetPasswordForm() {
       linkTokenRef.current = null;
       setMode("inbox");
     } catch (error) {
-      if (isApiError(error) && error.status === 429) {
+      // No readable Retry-After means no countdown: the wait is never guessed.
+      const rateLimit = emailRateLimitMessage(error, "reset");
+      if (rateLimit && isApiError(error) && error.retryAfterSeconds !== undefined) {
         savePendingPasswordReset({
           ...pending,
           email,
-          resendAvailableAt:
-            Date.now() + (error.retryAfterSeconds ?? AUTH_EMAIL_COOLDOWN_SECONDS) * 1000,
+          resendAvailableAt: Date.now() + error.retryAfterSeconds * 1000,
         });
       }
       setNotice({
         tone: "error",
-        text: commonAuthErrorMessage(error) ?? "We couldn’t request a new link. Please try again.",
+        text:
+          rateLimit ??
+          commonAuthErrorMessage(error) ??
+          "We couldn’t request a new link. Please try again.",
       });
     } finally {
       isBusyRef.current = false;

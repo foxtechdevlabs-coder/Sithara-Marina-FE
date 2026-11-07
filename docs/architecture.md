@@ -46,7 +46,7 @@ src/app/
 │   │                       /yachts/[yachtId], /plan-your-charter, /login, /register,
 │   │                       /forgot-password, /reset-password,
 │   │                       /verify-email
-│   └── (checkout)/         distraction-free: /checkout, /checkout/confirmation/[bookingId]
+│   └── (checkout)/         site header and footer: /checkout, /checkout/verify, /checkout/confirmation/[bookingId]
 └── admin/                  /admin — layout sets noindex metadata, renders no chrome
     ├── page.tsx            /admin → redirects to /admin/dashboard
     ├── error.tsx           admin-styled error boundary

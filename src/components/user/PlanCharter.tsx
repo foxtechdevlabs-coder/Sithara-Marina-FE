@@ -1,60 +1,96 @@
 "use client";
 
-import { ArrowRight, ChevronDown } from "lucide-react";
+/* eslint-disable @next/next/no-img-element -- yacht photos come from the API and their host is not configured */
+import { ArrowRight, Mail, Phone } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useState, type ReactNode, type SubmitEvent } from "react";
 
-import { INK, MarinaFonts, MarinaFooter, SANS } from "@/components/user/marina-chrome";
+import { INK, MarinaFonts, MarinaFooter, NAVY, SANS, SERIF } from "@/components/user/marina-chrome";
 import { userRoutes } from "@/constants/routes";
+import { cx } from "@/lib/cx";
 
 /* ------------------------------------------------------------------ */
-/* Figma colours                                                       */
+/* Colours and contact details                                         */
 /* ------------------------------------------------------------------ */
 
 const BODY = "#4a4f55"; // paragraph text
-const MUTED = "#7a7f85"; // breadcrumb
-const OLIVE = "#8a8d5c"; // required asterisk, "Optional" tag, step numbers
-const LINE = "#8f9296"; // field underline
+const MUTED = "#7a7f85"; // hints, step numbers
+const BORDER = "#c9ccd0"; // field and chip borders
+const PANEL = "#f4f7fb"; // concierge panel
+
+const CONCIERGE_PHONE = "+91 97245 53452";
+const CONCIERGE_PHONE_HREF = "tel:+919724553452";
+const CONCIERGE_EMAIL = "sitharamarina@gmail.com";
 
 /* ------------------------------------------------------------------ */
-/* DUMMY form options — replace with API data once it is ready.        */
+/* Form options. Yachts come from the API; these are enquiry wishes.    */
 /* ------------------------------------------------------------------ */
 
+const HELP_ME_CHOOSE = "Help me choose";
 const destinations = [
   "Kerala Backwaters",
   "Lakshadweep Islands",
   "The Malabar Coast",
   "The Maldives",
+  "Surprise me",
 ];
-const guestOptions = ["1–2 guests", "3–4 guests", "5–6 guests", "7–8 guests", "9–12 guests"];
-const durations = ["Half a day", "A full day", "2–3 nights", "4–7 nights", "More than a week"];
-const yachts = ["Astra One", "Malabar", "Neelam", "Ananta", "Not sure yet"];
-
-const steps = [
-  {
-    title: "We get to know you.",
-    text: "Your dates, your people, your idea of a perfect journey.",
-  },
-  {
-    title: "We bring the possibilities.",
-    text: "A considered yacht selection and a personal charter proposal.",
-  },
-  { title: "You make it your own.", text: "We refine the details together before you commit." },
+const occasions = ["Honeymoon", "Anniversary", "Birthday", "Family holiday", "Wedding", "Corporate"];
+const durations = ["A day", "2 days", "3–5 days", "A week or more"];
+const luxuries = [
+  "Private chef tasting menu",
+  "Scuba & snorkelling",
+  "Photographer",
+  "Celebration décor",
+  "Airport transfers",
+  "Ayurvedic spa",
 ];
+const budgets = ["Under ₹ 10 lakh", "₹ 10–25 lakh", "₹ 25 lakh +", "Not sure yet"];
+const contactMethods = ["Email", "Phone call", "WhatsApp"];
+const steps = ["Share your wishes here", "We send a tailored proposal", "Refine it together, then confirm"];
 
-/** Shape of the enquiry, ready to send to the API. */
+/** What the enquiry says. There is no enquiry API yet: see `enquiryMailto`. */
 export interface CharterEnquiry {
   fullName: string;
   email: string;
   phone?: string;
-  destination: string;
-  guests: string;
-  departure?: string;
+  yacht: string;
+  destinations: string[];
+  occasion?: string;
+  start?: string;
+  end?: string;
+  flexibleDates: boolean;
   duration?: string;
-  yacht?: string;
+  adults: number;
+  children: number;
+  luxuries: string[];
+  budget?: string;
   message?: string;
-  consent: boolean;
+  contactMethod: string;
+}
+
+/** A pre-filled email to the concierge, because the backend has no enquiry endpoint. */
+function enquiryMailto(enquiry: CharterEnquiry): string {
+  const lines = [
+    ["Name", enquiry.fullName],
+    ["Email", enquiry.email],
+    ["Phone", enquiry.phone],
+    ["Best way to reach me", enquiry.contactMethod],
+    ["Yacht", enquiry.yacht],
+    ["Destinations", enquiry.destinations.join(", ")],
+    ["Occasion", enquiry.occasion],
+    ["Preferred start", enquiry.start],
+    ["Preferred end", enquiry.end],
+    ["Dates are flexible", enquiry.flexibleDates ? "Yes" : "No"],
+    ["Time aboard", enquiry.duration],
+    ["Guests", `${enquiry.adults} adults, ${enquiry.children} children`],
+    ["Little luxuries", enquiry.luxuries.join(", ")],
+    ["Indicative budget", enquiry.budget],
+    ["About the journey", enquiry.message],
+  ].filter(([, value]) => value);
+  const subject = `Charter enquiry from ${enquiry.fullName}`;
+  const body = lines.map(([label, value]) => `${label}: ${value}`).join("\n");
+  return `mailto:${CONCIERGE_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
 
 /* ------------------------------------------------------------------ */
@@ -62,332 +98,116 @@ export interface CharterEnquiry {
 /* ------------------------------------------------------------------ */
 
 const fieldClass =
-  "h-[43px] w-full rounded-none border-0 border-b bg-transparent px-0 text-[13px] text-[#1b2733] outline-none placeholder:text-[#9a9da1] focus:border-[#0d1b2a]";
+  "h-[58px] w-full border bg-white px-[16px] text-[16px] text-[#0d1b2a] outline-none placeholder:text-[#9a9da1] focus:border-[#0d1b2a]";
+const labelClass = "block text-[14px] leading-[20px] text-[#3d434a]";
 
-function FieldLabel({
-  htmlFor,
-  children,
-  required,
-  optional,
-}: {
-  htmlFor: string;
-  children: ReactNode;
-  required?: boolean;
-  optional?: boolean;
-}) {
+function SectionHeading({ number, children }: { number: string; children: ReactNode }) {
   return (
-    <label
-      htmlFor={htmlFor}
-      className="flex items-center text-[13px] leading-[18px] text-[#1b2733]"
-    >
-      {children}
-      {required && (
-        <span aria-hidden="true" className="ml-[6px] text-[11px]" style={{ color: OLIVE }}>
-          *
-        </span>
-      )}
-      {optional && (
-        <span className="ml-[10px] text-[9px]" style={{ color: OLIVE }}>
-          Optional
-        </span>
-      )}
-    </label>
+    <h2 className="flex items-baseline gap-[14px]">
+      <span className="text-[14px]" style={{ color: MUTED }}>
+        {number}
+      </span>
+      <span
+        className="text-[32px] leading-[40px] tracking-[-1px] lg:text-[36px] lg:leading-[44px]"
+        style={{ ...SANS, color: INK }}
+      >
+        {children}
+      </span>
+    </h2>
   );
 }
 
-function SelectField({
-  id,
-  name,
+/** A labelled row of selectable buttons, for one choice or for several. */
+function Chips({
+  label,
+  hint,
   options,
-  required,
+  selected,
+  onToggle,
 }: {
-  id: string;
-  name: keyof CharterEnquiry;
+  label: string;
+  hint?: string;
   options: string[];
-  required?: boolean;
+  selected: string[];
+  onToggle: (option: string) => void;
 }) {
   return (
-    <div className="relative">
-      <select
-        id={id}
-        name={name}
-        required={required}
-        defaultValue=""
-        className={`${fieldClass} cursor-pointer appearance-none pr-8`}
-        style={{ borderColor: LINE }}
-      >
-        <option value="" disabled hidden />
-        {options.map((option) => (
-          <option key={option} value={option}>
-            {option}
-          </option>
-        ))}
-      </select>
-      <ChevronDown
-        aria-hidden="true"
-        strokeWidth={1.75}
-        className="pointer-events-none absolute top-1/2 right-[6px] size-[15px] -translate-y-1/2"
-        style={{ color: INK }}
-      />
+    <div role="group" aria-label={label} className="mt-[24px]">
+      <p className={labelClass}>
+        {label}
+        {hint && <span style={{ color: MUTED }}> {hint}</span>}
+      </p>
+      <div className="mt-[10px] flex flex-wrap gap-[12px]">
+        {options.map((option) => {
+          const active = selected.includes(option);
+          return (
+            <button
+              key={option}
+              type="button"
+              aria-pressed={active}
+              onClick={() => onToggle(option)}
+              className={cx(
+                "min-h-[52px] border px-[20px] py-[10px] text-[15px] leading-[20px] transition-colors",
+                active ? "border-[#0d1b2a] bg-[#0d1b2a] text-white" : "bg-white hover:border-[#0d1b2a]",
+              )}
+              style={active ? undefined : { borderColor: BORDER, color: INK }}
+            >
+              {option}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
 
-/** Date input that stays blank (no "dd-mm-yyyy" hint or icon) until used, as in the Figma. */
-function DateField({ id, name }: { id: string; name: keyof CharterEnquiry }) {
-  const [hasValue, setHasValue] = useState(false);
+function Counter({
+  label,
+  hint,
+  value,
+  min,
+  onChange,
+}: {
+  label: string;
+  hint: string;
+  value: number;
+  min: number;
+  onChange: (value: number) => void;
+}) {
+  const stepClass =
+    "flex size-[52px] shrink-0 items-center justify-center border bg-white text-[20px] disabled:cursor-not-allowed disabled:opacity-40";
   return (
-    <input
-      id={id}
-      name={name}
-      type="date"
-      onChange={(e) => setHasValue(e.currentTarget.value !== "")}
-      onClick={(e) => e.currentTarget.showPicker?.()}
-      className={`${fieldClass} cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-0 ${
-        hasValue ? "" : "text-transparent focus:text-[#1b2733]"
-      }`}
-      style={{ borderColor: LINE }}
-    />
-  );
-}
-
-function SectionTitle({ children }: { children: ReactNode }) {
-  return (
-    <h3 className="text-[24px] leading-[30px] tracking-[-0.5px]" style={{ ...SANS, color: INK }}>
-      {children}
-    </h3>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* Sections                                                            */
-/* ------------------------------------------------------------------ */
-
-function Intro() {
-  return (
-    <div>
-      {/* Figma: Switzer 400, 72px, letter-spacing -2.21px */}
-      <h1
-        className="max-w-[460px] text-[48px] lg:-mt-[5px] leading-[54px] font-normal tracking-[-1.5px] lg:text-[72px] lg:leading-[76px] lg:tracking-[-2.21px]"
-        style={{ ...SANS, color: INK }}
-      >
-        Where would you like to be?
-      </h1>
-      <p className="mt-[24px] max-w-[455px] text-[16px] leading-[27.5px]" style={{ color: BODY }}>
-        The perfect escape begins with a conversation. Share a few details, and we&rsquo;ll help you
-        find your yacht, your destination, and your own way to experience the water.
-      </p>
-
-      <Image
-        src="/images/yachts/astra-one-arabian-sea.png"
-        unoptimized
-        width={553}
-        height={300}
-        alt="A private yacht on the calm Arabian Sea off Kerala"
-        preload
-        sizes="(min-width: 1024px) 553px, 100vw"
-        className="mt-[32px] aspect-[553/299] w-full max-w-[553px] object-cover"
-      />
-
-      <p
-        className="mt-[59px] text-[12px] leading-[16px] tracking-[0.18em] uppercase"
-        style={{ color: INK }}
-      >
-        What happens next
-      </p>
-      <ol className="mt-[29px] space-y-[23px]">
-        {steps.map((step, i) => (
-          <li key={step.title} className="grid grid-cols-[28px_1fr] items-baseline">
-            <span className="text-[9px] tracking-[0.2em]" style={{ color: OLIVE }}>
-              {String(i + 1).padStart(2, "0")}
-            </span>
-            <div>
-              <p
-                className="text-[24px] leading-[30px] tracking-[-0.5px]"
-                style={{ ...SANS, color: INK }}
-              >
-                {step.title}
-              </p>
-              <p className="mt-[7px] text-[12px] leading-[16px] text-[#3f454b]">{step.text}</p>
-            </div>
-          </li>
-        ))}
-      </ol>
-
-      <p className="mt-[42px] max-w-[520px] text-[16px] leading-[28px]" style={{ color: BODY }}>
-        Personally arranged from Kochi, Kerala. Private journeys. Thoughtfully considered.
-      </p>
-    </div>
-  );
-}
-
-function EnquiryForm() {
-  const [submitted, setSubmitted] = useState<CharterEnquiry | null>(null);
-
-  function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const data = new FormData(event.currentTarget);
-    const text = (key: keyof CharterEnquiry) => String(data.get(key) ?? "").trim() || undefined;
-    const enquiry: CharterEnquiry = {
-      fullName: text("fullName") ?? "",
-      email: text("email") ?? "",
-      phone: text("phone"),
-      destination: text("destination") ?? "",
-      guests: text("guests") ?? "",
-      departure: text("departure"),
-      duration: text("duration"),
-      yacht: text("yacht"),
-      message: text("message"),
-      consent: data.get("consent") === "on",
-    };
-    // TODO: send `enquiry` to the API once the endpoint is ready.
-    setSubmitted(enquiry);
-  }
-
-  return (
-    <div className="bg-[#f5f5f5] px-5 pt-[48px] pb-[56px] sm:px-[36px] lg:pt-[56px] lg:pb-[69px]">
-      <h2
-        className="text-[30px] leading-[36px] tracking-[-0.8px] lg:text-[36px] lg:leading-[43px]"
-        style={{ ...SANS, color: INK }}
-      >
-        Tell us a little
-        <br />
-        about your journey.
-      </h2>
-
-      {submitted ? (
-        <div role="status" className="mt-[58px] text-[16px] leading-[27px]" style={{ color: BODY }}>
-          <p className="text-[24px] leading-[30px]" style={{ ...SANS, color: INK }}>
-            Thank you, {submitted.fullName.split(" ")[0]}.
-          </p>
-          <p className="mt-3">
-            We&rsquo;ve received your enquiry and will be in touch at {submitted.email} shortly.
-          </p>
-        </div>
-      ) : (
-        <form onSubmit={handleSubmit} className="mt-[58px]">
-          <fieldset>
-            <legend className="contents">
-              <SectionTitle>About you</SectionTitle>
-            </legend>
-            <div className="mt-[20px] grid gap-x-[24px] gap-y-[21px] sm:grid-cols-2">
-              <div>
-                <FieldLabel htmlFor="fullName" required>
-                  Full name
-                </FieldLabel>
-                <input
-                  id="fullName"
-                  name="fullName"
-                  required
-                  autoComplete="name"
-                  placeholder="Your full name"
-                  className={fieldClass}
-                  style={{ borderColor: LINE }}
-                />
-              </div>
-              <div>
-                <FieldLabel htmlFor="email" required>
-                  Email address
-                </FieldLabel>
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  required
-                  autoComplete="email"
-                  placeholder="you@example.com"
-                  className={fieldClass}
-                  style={{ borderColor: LINE }}
-                />
-              </div>
-              <div className="sm:col-span-2">
-                <FieldLabel htmlFor="phone" optional>
-                  Phone number
-                </FieldLabel>
-                <input
-                  id="phone"
-                  name="phone"
-                  type="tel"
-                  autoComplete="tel"
-                  placeholder="Include your country code"
-                  className={fieldClass}
-                  style={{ borderColor: LINE }}
-                />
-              </div>
-            </div>
-          </fieldset>
-
-          <fieldset className="mt-[27px]">
-            <legend className="contents">
-              <SectionTitle>Your time on the water</SectionTitle>
-            </legend>
-            <div className="mt-[18px] grid gap-x-[24px] gap-y-[21px] sm:grid-cols-2">
-              <div>
-                <FieldLabel htmlFor="destination" required>
-                  Destination
-                </FieldLabel>
-                <SelectField id="destination" name="destination" options={destinations} required />
-              </div>
-              <div>
-                <FieldLabel htmlFor="guests" required>
-                  Number of guests
-                </FieldLabel>
-                <SelectField id="guests" name="guests" options={guestOptions} required />
-              </div>
-              <div>
-                <FieldLabel htmlFor="departure" optional>
-                  Preferred departure
-                </FieldLabel>
-                <DateField id="departure" name="departure" />
-              </div>
-              <div>
-                <FieldLabel htmlFor="duration">How long do you have?</FieldLabel>
-                <SelectField id="duration" name="duration" options={durations} />
-              </div>
-              <div className="sm:col-span-2">
-                <FieldLabel htmlFor="yacht">A yacht in mind?</FieldLabel>
-                <SelectField id="yacht" name="yacht" options={yachts} />
-              </div>
-              <div className="mt-[7px] sm:col-span-2">
-                <FieldLabel htmlFor="message" optional>
-                  Anything else you&rsquo;d like us to know?
-                </FieldLabel>
-                <textarea
-                  id="message"
-                  name="message"
-                  rows={4}
-                  placeholder="A special occasion, a favourite place, or simply an idea…"
-                  className={`${fieldClass} h-[100px] resize-none pt-[13px]`}
-                  style={{ borderColor: LINE }}
-                />
-              </div>
-            </div>
-          </fieldset>
-
-          <label className="mt-[27px] flex items-center gap-[10px] text-[11px] leading-[16px] text-[#1b2733]">
-            <input
-              type="checkbox"
-              name="consent"
-              required
-              className="size-[13px] shrink-0 cursor-pointer accent-[#0d1b2a]"
-            />
-            <span>
-              I agree to the privacy policy and consent to being contacted about my enquiry.
-            </span>
-          </label>
-
-          <button
-            type="submit"
-            className="mt-[28px] flex h-[51px] w-full items-center justify-between bg-black px-[21px] text-[12px] tracking-[0.18em] text-white uppercase transition-opacity hover:opacity-90"
-          >
-            Send your enquiry
-            <ArrowRight className="size-[13px]" strokeWidth={1.5} aria-hidden="true" />
-          </button>
-          <p className="mt-[12px] text-center text-[13px] leading-[18px] text-[#1b2733]">
-            A conversation, not a commitment. No payment required.
-          </p>
-        </form>
-      )}
+    <div className="flex items-center gap-[24px]">
+      <div>
+        <p className="text-[15px] leading-[20px]">{label}</p>
+        <p className="text-[13px] leading-[18px]" style={{ color: MUTED }}>
+          {hint}
+        </p>
+      </div>
+      <div className="flex items-center gap-[20px]">
+        <button
+          type="button"
+          aria-label={`Fewer ${label.toLowerCase()}`}
+          disabled={value <= min}
+          onClick={() => onChange(value - 1)}
+          className={stepClass}
+          style={{ borderColor: BORDER }}
+        >
+          −
+        </button>
+        <span aria-live="polite" className="min-w-[24px] text-center text-[20px]">
+          {value}
+        </span>
+        <button
+          type="button"
+          aria-label={`More ${label.toLowerCase()}`}
+          onClick={() => onChange(value + 1)}
+          className={stepClass}
+          style={{ borderColor: BORDER }}
+        >
+          +
+        </button>
+      </div>
     </div>
   );
 }
@@ -396,37 +216,452 @@ function EnquiryForm() {
 /* Page                                                                */
 /* ------------------------------------------------------------------ */
 
-/** "Plan your charter" enquiry screen, built from the Figma design (1728px frame). */
-export default function PlanCharter() {
-  return (
-    <div className="bg-white antialiased" style={{ ...SANS, color: INK }}>
-      <MarinaFonts />
+export interface PlanCharterYacht {
+  slug: string;
+  name: string;
+  imageUrl: string | null;
+  /** Reservable online, so the availability card can offer it. */
+  instant: boolean;
+}
 
-      <section className="mx-auto w-full max-w-[1728px] px-5 pt-[37px] pb-[120px] lg:px-[clamp(40px,10.82vw,187px)] lg:pb-[157px]">
-        <nav
-          aria-label="Breadcrumb"
-          className="text-[12px] leading-[16px]"
-          style={{ color: MUTED }}
-        >
-          <ol className="flex items-center gap-[12px]">
+function Hero({ yacht }: { yacht: PlanCharterYacht | null }) {
+  return (
+    <section className="mx-auto grid w-full max-w-[1728px] lg:grid-cols-[minmax(0,535fr)_minmax(0,465fr)]">
+      <div className="px-5 pt-[48px] pb-[64px] text-white lg:px-[118px] lg:pt-[76px] lg:pb-[84px]" style={{ backgroundColor: NAVY }}>
+        <nav aria-label="Breadcrumb" className="text-[13px] leading-[18px] text-white/75">
+          <ol className="flex flex-wrap items-center gap-[10px]">
             <li>
               <Link href={userRoutes.home} className="hover:underline">
                 Home
               </Link>
             </li>
-            <li aria-hidden="true" className="text-[#b5b8bc]">
-              /
+            <li aria-hidden="true">/</li>
+            <li>
+              <Link href={userRoutes.yachts} className="hover:underline">
+                Our yachts
+              </Link>
             </li>
-            <li aria-current="page" style={{ color: INK }}>
-              Plan your charter
+            <li aria-hidden="true">/</li>
+            {yacht && (
+              <>
+                <li>
+                  <Link href={userRoutes.yacht(yacht.slug)} className="hover:underline">
+                    {yacht.name}
+                  </Link>
+                </li>
+                <li aria-hidden="true">/</li>
+              </>
+            )}
+            <li aria-current="page" className="text-white">
+              Custom quote
             </li>
           </ol>
         </nav>
 
-        <div className="mt-[48px] grid gap-14 lg:mt-[56px] lg:grid-cols-[minmax(0,687fr)_minmax(0,676fr)] lg:gap-0">
-          <Intro />
-          <EnquiryForm />
+        <p className="mt-[40px] text-[12px] leading-[16px] tracking-[0.18em] text-white/75 uppercase">
+          A private proposal
+        </p>
+        <h1 className="mt-[16px] text-[52px] leading-[1.08] font-normal tracking-[-1.5px] lg:text-[72px] lg:tracking-[-2.21px]">
+          <span style={SANS}>A voyage,</span>
+          <br />
+          <span className="italic" style={SERIF}>
+            made to measure.
+          </span>
+        </h1>
+        <p className="mt-[28px] max-w-[440px] text-[16px] leading-[27px] text-white/85">
+          Tell us what you have in mind. Our concierge will come back with a tailored proposal —
+          yacht, route, menus and price — with no obligation to book.
+        </p>
+      </div>
+      <div className="relative min-h-[280px] sm:min-h-[360px] lg:min-h-0">
+        <Image
+          src="/images/home/astra-houseboat-deck.jpg"
+          alt="The wooden deck of a Kerala boat on still green water"
+          fill
+          preload
+          sizes="(min-width: 1024px) 47vw, 100vw"
+          className="object-cover object-right"
+        />
+      </div>
+    </section>
+  );
+}
+
+function Sidebar({ yacht, canEnquireFor }: { yacht: PlanCharterYacht | null; canEnquireFor: boolean }) {
+  return (
+    <aside className="grid gap-[20px] self-start">
+      <div className="px-[30px] py-[32px]" style={{ backgroundColor: PANEL }}>
+        <p className="text-[12px] leading-[16px] tracking-[0.18em] uppercase" style={{ color: MUTED }}>
+          Your concierge
+        </p>
+        <p
+          className="mt-[20px] text-[26px] leading-[32px] tracking-[-0.5px]"
+          style={{ ...SANS, color: INK }}
+        >
+          Rather talk it through?
+          <br />
+          We’re happy to.
+        </p>
+        <a
+          href={CONCIERGE_PHONE_HREF}
+          className="mt-[24px] flex items-center gap-[14px] text-[16px] hover:underline"
+        >
+          <Phone aria-hidden="true" strokeWidth={1.5} className="size-[17px] shrink-0" />
+          {CONCIERGE_PHONE}
+        </a>
+        <a
+          href={`mailto:${CONCIERGE_EMAIL}`}
+          className="mt-[20px] flex items-center gap-[14px] text-[16px] break-all hover:underline"
+        >
+          <Mail aria-hidden="true" strokeWidth={1.5} className="size-[17px] shrink-0" />
+          {CONCIERGE_EMAIL}
+        </a>
+        <ol className="mt-[24px] space-y-[14px] border-t pt-[20px]" style={{ borderColor: BORDER }}>
+          {steps.map((step, index) => (
+            <li key={step} className="flex gap-[12px] text-[15px] leading-[22px]" style={{ color: BODY }}>
+              <span style={{ color: MUTED }}>{String(index + 1).padStart(2, "0")}</span>
+              {step}
+            </li>
+          ))}
+        </ol>
+      </div>
+
+      <div className="flex items-center gap-[18px] border border-[#e5e7eb] p-[24px]">
+        {yacht?.imageUrl ? (
+          <img
+            src={yacht.imageUrl}
+            alt=""
+            className="aspect-square w-[100px] shrink-0 object-cover"
+          />
+        ) : (
+          <Image
+            src="/images/yachts/astra-one-arabian-sea.png"
+            unoptimized
+            width={100}
+            height={100}
+            alt=""
+            className="aspect-square w-[100px] shrink-0 object-cover"
+          />
+        )}
+        <div className="min-w-0">
+          <p className="text-[15px] leading-[22px]">
+            Know your dates already?{" "}
+            {canEnquireFor && yacht
+              ? `${yacht.name} can be reserved instantly.`
+              : "Our yachts can be reserved online."}
+          </p>
+          <Link
+            href={
+              canEnquireFor && yacht ? userRoutes.yachtAvailability(yacht.slug) : userRoutes.yachts
+            }
+            className="mt-[8px] inline-flex items-center gap-[8px] border-b text-[12px] leading-[18px] tracking-[0.12em] uppercase"
+            style={{ borderColor: INK }}
+          >
+            Check availability
+            <ArrowRight aria-hidden="true" strokeWidth={1.5} className="size-[12px]" />
+          </Link>
         </div>
+      </div>
+    </aside>
+  );
+}
+
+export interface PlanCharterProps {
+  yachts: PlanCharterYacht[];
+  /** The yacht the customer came from, if any. */
+  initialYachtSlug: string | null;
+}
+
+/** "Custom quote" enquiry screen. No payment or commitment is involved. */
+export default function PlanCharter({ yachts, initialYachtSlug }: PlanCharterProps) {
+  const [yachtSlug, setYachtSlug] = useState(initialYachtSlug);
+  const [chosenDestinations, setChosenDestinations] = useState<string[]>([]);
+  const [occasion, setOccasion] = useState<string | undefined>();
+  const [start, setStart] = useState("");
+  const [flexibleDates, setFlexibleDates] = useState(true);
+  const [duration, setDuration] = useState<string | undefined>();
+  const [adults, setAdults] = useState(2);
+  const [children, setChildren] = useState(0);
+  const [chosenLuxuries, setChosenLuxuries] = useState<string[]>([]);
+  const [budget, setBudget] = useState<string | undefined>();
+  const [contactMethod, setContactMethod] = useState("Email");
+  const [destinationMissing, setDestinationMissing] = useState(false);
+  const [prepared, setPrepared] = useState<CharterEnquiry | null>(null);
+
+  const yacht = yachts.find((item) => item.slug === yachtSlug) ?? null;
+  const toggle = (list: string[], option: string) =>
+    list.includes(option) ? list.filter((item) => item !== option) : [...list, option];
+  const pickOne = (current: string | undefined, option: string) =>
+    current === option ? undefined : option;
+
+  function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (chosenDestinations.length === 0) {
+      setDestinationMissing(true);
+      return;
+    }
+    const data = new FormData(event.currentTarget);
+    const text = (key: string) => String(data.get(key) ?? "").trim() || undefined;
+    setPrepared({
+      fullName: text("fullName") ?? "",
+      email: text("email") ?? "",
+      phone: text("phone"),
+      yacht: yacht?.name ?? HELP_ME_CHOOSE,
+      destinations: chosenDestinations,
+      occasion,
+      start: text("start"),
+      end: text("end"),
+      flexibleDates,
+      duration,
+      adults,
+      children,
+      luxuries: chosenLuxuries,
+      budget,
+      message: text("message"),
+      contactMethod,
+    });
+  }
+
+  return (
+    <div className="bg-white antialiased" style={{ ...SANS, color: INK }}>
+      <MarinaFonts />
+      <Hero yacht={yacht} />
+
+      <section className="mx-auto grid w-full max-w-[1728px] gap-[56px] px-5 pt-[56px] pb-[96px] lg:px-[100px] lg:pt-[72px] xl:grid-cols-[minmax(0,1fr)_444px] xl:gap-[78px]">
+        {prepared ? (
+          <div role="status" className="max-w-[640px]">
+            <p className="text-[32px] leading-[40px] tracking-[-1px]" style={{ ...SANS, color: INK }}>
+              One last step, {prepared.fullName.split(" ")[0]}.
+            </p>
+            <p className="mt-[16px] text-[16px] leading-[27px]" style={{ color: BODY }}>
+              Nothing has been sent yet. Your enquiry is ready as an email to our concierge: open it
+              and press send, and it will reach us directly.
+            </p>
+            <div className="mt-[28px] flex flex-wrap items-center gap-[24px]">
+              <a
+                href={enquiryMailto(prepared)}
+                className="inline-flex h-[60px] items-center gap-[24px] px-[28px] text-[12px] tracking-[0.18em] text-white uppercase transition-opacity hover:opacity-90"
+                style={{ backgroundColor: NAVY }}
+              >
+                Email my enquiry
+                <ArrowRight aria-hidden="true" strokeWidth={1.5} className="size-[13px]" />
+              </a>
+              <button
+                type="button"
+                className="underline underline-offset-2"
+                onClick={() => setPrepared(null)}
+              >
+                Back to my enquiry
+              </button>
+            </div>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="min-w-0">
+            <SectionHeading number="01">Your voyage</SectionHeading>
+            <Chips
+              label="Which yacht are you drawn to?"
+              options={[...yachts.map((item) => item.name), HELP_ME_CHOOSE]}
+              selected={[yacht?.name ?? HELP_ME_CHOOSE]}
+              onToggle={(name) =>
+                setYachtSlug(yachts.find((item) => item.name === name)?.slug ?? null)
+              }
+            />
+            <Chips
+              label="Where would you like to go?"
+              hint="Choose any"
+              options={destinations}
+              selected={chosenDestinations}
+              onToggle={(option) => {
+                setChosenDestinations(toggle(chosenDestinations, option));
+                setDestinationMissing(false);
+              }}
+            />
+            {destinationMissing && (
+              <p role="alert" className="mt-[8px] text-[13px] leading-[18px] text-[#b42318]">
+                Choose at least one destination, or Surprise me.
+              </p>
+            )}
+            <Chips
+              label="What’s the occasion?"
+              options={occasions}
+              selected={occasion ? [occasion] : []}
+              onToggle={(option) => setOccasion(pickOne(occasion, option))}
+            />
+
+            <div className="mt-[56px]">
+              <SectionHeading number="02">When &amp; who</SectionHeading>
+            </div>
+            <div className="mt-[24px] grid gap-[20px] sm:grid-cols-2">
+              <div className="min-w-0">
+                <label htmlFor="start" className={labelClass}>
+                  Preferred start
+                </label>
+                <input
+                  id="start"
+                  name="start"
+                  type="date"
+                  value={start}
+                  onChange={(event) => setStart(event.currentTarget.value)}
+                  className={cx(fieldClass, "mt-[8px]")}
+                  style={{ borderColor: BORDER }}
+                />
+              </div>
+              <div className="min-w-0">
+                <label htmlFor="end" className={labelClass}>
+                  Preferred end
+                </label>
+                <input
+                  id="end"
+                  name="end"
+                  type="date"
+                  min={start || undefined}
+                  className={cx(fieldClass, "mt-[8px]")}
+                  style={{ borderColor: BORDER }}
+                />
+              </div>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={flexibleDates}
+              onClick={() => setFlexibleDates(!flexibleDates)}
+              className="mt-[24px] flex items-center gap-[12px] text-[15px]"
+            >
+              <span
+                aria-hidden="true"
+                className={cx(
+                  "flex h-[24px] w-[44px] items-center rounded-full p-[3px] transition-colors",
+                  flexibleDates ? "justify-end bg-[#0d1b2a]" : "justify-start bg-[#c9ccd0]",
+                )}
+              >
+                <span className="size-[18px] rounded-full bg-white" />
+              </span>
+              My dates are flexible
+            </button>
+            <Chips
+              label="How long would you like to be aboard?"
+              options={durations}
+              selected={duration ? [duration] : []}
+              onToggle={(option) => setDuration(pickOne(duration, option))}
+            />
+            <div className="mt-[24px] flex flex-wrap gap-x-[40px] gap-y-[20px]">
+              <Counter label="Adults" hint="13 and over" value={adults} min={1} onChange={setAdults} />
+              <Counter label="Children" hint="Under 13" value={children} min={0} onChange={setChildren} />
+            </div>
+
+            <div className="mt-[56px]">
+              <SectionHeading number="03">Little luxuries</SectionHeading>
+            </div>
+            <Chips
+              label="Anything you’d like us to arrange?"
+              hint="Choose any"
+              options={luxuries}
+              selected={chosenLuxuries}
+              onToggle={(option) => setChosenLuxuries(toggle(chosenLuxuries, option))}
+            />
+            <Chips
+              label="Indicative budget for the charter"
+              options={budgets}
+              selected={budget ? [budget] : []}
+              onToggle={(option) => setBudget(pickOne(budget, option))}
+            />
+            <div className="mt-[24px]">
+              <label htmlFor="message" className={labelClass}>
+                Tell us about your journey
+              </label>
+              <textarea
+                id="message"
+                name="message"
+                rows={4}
+                placeholder="A surprise anniversary, a sunset dinner off Kavaratti, vegetarian menus…"
+                className={cx(fieldClass, "mt-[8px] h-[120px] resize-y py-[14px]")}
+                style={{ borderColor: BORDER }}
+              />
+            </div>
+
+            <div className="mt-[56px]">
+              <SectionHeading number="04">How we reach you</SectionHeading>
+            </div>
+            <div className="mt-[24px] grid gap-[20px] md:grid-cols-3">
+              <div className="min-w-0">
+                <label htmlFor="fullName" className={labelClass}>
+                  Full name
+                </label>
+                <input
+                  id="fullName"
+                  name="fullName"
+                  required
+                  autoComplete="name"
+                  className={cx(fieldClass, "mt-[8px]")}
+                  style={{ borderColor: BORDER }}
+                />
+              </div>
+              <div className="min-w-0">
+                <label htmlFor="email" className={labelClass}>
+                  Email
+                </label>
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  required
+                  autoComplete="email"
+                  placeholder="you@example.com"
+                  className={cx(fieldClass, "mt-[8px]")}
+                  style={{ borderColor: BORDER }}
+                />
+              </div>
+              <div className="min-w-0">
+                <label htmlFor="phone" className={labelClass}>
+                  Phone
+                </label>
+                <input
+                  id="phone"
+                  name="phone"
+                  type="tel"
+                  autoComplete="tel"
+                  placeholder="+91"
+                  className={cx(fieldClass, "mt-[8px]")}
+                  style={{ borderColor: BORDER }}
+                />
+              </div>
+            </div>
+            <Chips
+              label="Best way to reach you"
+              options={contactMethods}
+              selected={[contactMethod]}
+              onToggle={setContactMethod}
+            />
+
+            <label className="mt-[28px] flex items-start gap-[10px] text-[14px] leading-[20px]" style={{ color: BODY }}>
+              <input
+                type="checkbox"
+                name="consent"
+                required
+                className="mt-[3px] size-[14px] shrink-0 cursor-pointer accent-[#0d1b2a]"
+              />
+              <span>
+                I agree to the privacy policy and consent to being contacted about my enquiry.
+              </span>
+            </label>
+
+            <div className="mt-[28px] flex flex-wrap items-center gap-x-[28px] gap-y-[16px] border-t border-[#e5e7eb] pt-[32px]">
+              <button
+                type="submit"
+                className="inline-flex h-[60px] items-center gap-[24px] px-[28px] text-[12px] tracking-[0.18em] text-white uppercase transition-opacity hover:opacity-90"
+                style={{ backgroundColor: NAVY }}
+              >
+                Send my enquiry
+                <ArrowRight aria-hidden="true" strokeWidth={1.5} className="size-[13px]" />
+              </button>
+              <p className="max-w-[360px] text-[14px] leading-[21px]" style={{ color: BODY }}>
+                No payment and no commitment. Your details are only used to prepare your proposal.
+              </p>
+            </div>
+          </form>
+        )}
+
+        <Sidebar yacht={yacht} canEnquireFor={Boolean(yacht?.instant)} />
       </section>
 
       <MarinaFooter />

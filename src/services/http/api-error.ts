@@ -70,17 +70,13 @@ export class ApiError extends Error {
   }
 
   /**
-   * Seconds to wait from the `Retry-After` header (delta-seconds or HTTP date),
-   * or `undefined` when absent or unreadable. Cross-origin, browsers expose this
-   * header only if the backend lists it in `Access-Control-Expose-Headers`.
+   * Whole seconds from the `Retry-After` header, or `undefined` when it is absent,
+   * not an integer or unreadable. Cross-origin, browsers expose this header only
+   * if the backend lists it in `Access-Control-Expose-Headers`.
    */
   get retryAfterSeconds(): number | undefined {
     const value = this.headers?.get("Retry-After")?.trim();
-    if (!value) return undefined;
-    if (/^\d+$/.test(value)) return Number(value);
-    const date = Date.parse(value);
-    if (Number.isNaN(date)) return undefined;
-    return Math.max(0, Math.ceil((date - Date.now()) / 1000));
+    return value && /^\d+$/.test(value) ? Number(value) : undefined;
   }
 
   /** 401 — not signed in, or the session has expired. */

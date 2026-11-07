@@ -13,8 +13,6 @@ const PAGES = [
   "/plan-your-charter",
   "/search",
   "/yachts",
-  "/yachts/astra-one",
-  "/yachts/astra-one/availability",
   "/checkout",
   "/admin/login",
 ];

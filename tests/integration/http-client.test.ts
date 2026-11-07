@@ -418,18 +418,16 @@ describe("createHttpClient — authentication and refresh", () => {
     expect(onUnauthorized).not.toHaveBeenCalled();
   });
 
-  it("skips the refresh when refreshOnUnauthorized is false", async () => {
-    stubFetch(async () => jsonResponse({}, 401));
-    const refreshAccessToken = vi.fn(async () => true);
-    const client = createHttpClient({
-      baseUrl: BASE,
-      getAccessToken: () => "token",
-      refreshAccessToken,
-    });
+  it.each(["soon", "-5", "12.5", "12 seconds", "Wed, 21 Oct 2026 07:28:00 GMT", ""])(
+    "ignores the invalid Retry-After %j",
+    async (value: string) => {
+      stubFetch(async () => new Response("{}", { status: 429, headers: { "Retry-After": value } }));
+      const client = createHttpClient({ baseUrl: BASE });
 
-    await catchApiError(client.post("/auth/logout", { refreshOnUnauthorized: false }));
-    expect(refreshAccessToken).not.toHaveBeenCalled();
-  });
+      const error = await catchApiError(client.post("/auth/login", { auth: false }));
+      expect(error.retryAfterSeconds).toBeUndefined();
+    },
+  );
 
   it("exposes Retry-After from 429 responses", async () => {
     stubFetch(

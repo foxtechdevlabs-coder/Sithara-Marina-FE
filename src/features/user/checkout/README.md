@@ -2,11 +2,11 @@
 
 **Scope:** Guest details, optional add-ons, tax and total review, terms acceptance, hand-off to payment.
 
-**Routes:** `/checkout`
+**Routes:** `/checkout`, `/checkout/verify` (emailed link)
 
 **Notes:** The backend places a **ten-minute hold** on the selected slot. Checkout should display the hold expiry returned by the API (not a locally invented timer) and handle hold expiry and abandoned checkouts by returning the customer to slot selection. Prices, taxes and totals are calculated by the backend and only displayed here.
 
-Not implemented yet. When building this feature, add only the folders you need:
+Connected to the quote, checkout-session and hold endpoints. See `docs/api-integration.md`. Add only the folders you need:
 
 ```
 checkout/

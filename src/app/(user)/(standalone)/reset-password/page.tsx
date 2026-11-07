@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 
-import { ResetPasswordPage } from "@/features/user/auth/components/reset-password-page";
+import { ResetPasswordForm } from "@/features/user/auth/components/reset-password-form";
 
 export const metadata: Metadata = { title: "Reset your password" };
 
 export default function ResetPasswordRoute() {
-  return <ResetPasswordPage />;
+  return <ResetPasswordForm />;
 }

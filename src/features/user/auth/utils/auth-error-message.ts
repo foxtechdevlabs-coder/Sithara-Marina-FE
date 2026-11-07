@@ -3,6 +3,28 @@ import { getBackendErrorDetails } from "@/services/http/backend-error";
 
 import { formatWait } from "./format-wait";
 
+const EMAIL_COOLDOWN_MESSAGE = "Please wait a moment before requesting another email.";
+const HOURLY_LIMIT_MESSAGES = {
+  signup:
+    "You have exceeded the hourly limit for verification emails. Please check your spam folder or try again in a bit.",
+  reset:
+    "You have exceeded the hourly limit for password reset emails. Please check your spam folder or try again in a bit.",
+} as const;
+
+/**
+ * Text for a 429 from an endpoint that sends email, or `null` for anything else.
+ * The backend limits each purpose separately, so each flow names its own.
+ */
+export function emailRateLimitMessage(
+  error: unknown,
+  purpose: keyof typeof HOURLY_LIMIT_MESSAGES,
+): string | null {
+  if (!isApiError(error) || error.status !== 429) return null;
+  return getBackendErrorDetails(error).code === "TOO_MANY_EMAILS"
+    ? HOURLY_LIMIT_MESSAGES[purpose]
+    : EMAIL_COOLDOWN_MESSAGE;
+}
+
 /**
  * User-facing text for failures every auth form treats the same way (rate
  * limits, unavailable service, timeouts, connection problems). Returns `null`
@@ -10,19 +32,10 @@ import { formatWait } from "./format-wait";
  */
 export function commonAuthErrorMessage(error: unknown): string | null {
   if (!isApiError(error)) return "Something went wrong. Please try again.";
-  const { code } = getBackendErrorDetails(error);
 
   if (error.status === 429) {
     const seconds = error.retryAfterSeconds;
-    const wait =
-      seconds !== undefined
-        ? formatWait(seconds)
-        : code === "TOO_MANY_EMAILS"
-          ? "up to an hour"
-          : "a minute";
-    return code === "TOO_MANY_EMAILS"
-      ? `Too many emails have been requested for this address. Please try again in ${wait}.`
-      : `Please wait ${wait} before trying again.`;
+    return `Please wait ${seconds !== undefined ? formatWait(seconds) : "a minute"} before trying again.`;
   }
   if (error.status === 503 || (error.status !== undefined && error.status >= 500)) {
     return "This service is temporarily unavailable. Please try again in a few minutes.";

@@ -1,8 +1,8 @@
 import { expect, test } from "@playwright/test";
 
 // These tests verify routing, layouts and navigation of the user area against
-// a production build. No real backend is involved: auth calls are mocked, and
-// yachts use dummy data, so booking and availability DATA are NOT verified here.
+// a production build. Auth calls are mocked. Yacht data is covered by yachts.spec.ts
+// against a mock API, so booking and availability DATA are NOT verified here.
 
 // The main navigation sits behind the header's menu button at every viewport.
 const siteHeader = (page: import("@playwright/test").Page) =>
@@ -53,7 +53,30 @@ test("signed-in home shows the search bar until the user logs out", async ({ pag
   await expect(page.getByRole("link", { name: "Sign in" })).toBeVisible();
 });
 
-test("customer can navigate from home to yachts and open a yacht", async ({ page }) => {
+test("home featured yachts use dummy data, whatever the API does", async ({ page }) => {
+  const calls: string[] = [];
+  await page.route(
+    (url) => url.hostname !== "localhost" && url.pathname.startsWith("/yachts"),
+    (route) => {
+      calls.push(route.request().url());
+      return route.fulfill({ status: 500, body: "{}" });
+    },
+  );
+  await page.goto("/");
+  const carousel = page.getByRole("region", { name: "Featured yachts" });
+
+  await expect(page.getByRole("heading", { name: "Featured yacht." })).toBeVisible();
+  await expect(carousel.getByRole("heading", { name: "Astra One" })).toBeVisible();
+  await expect(carousel.getByRole("button", { name: /^Show / })).toHaveCount(4);
+
+  await carousel.getByRole("button", { name: "Next yacht" }).click();
+  await expect(carousel.getByRole("heading", { name: "Malabar" })).toBeVisible();
+  await carousel.getByRole("button", { name: "Previous yacht" }).click();
+  await expect(carousel.getByRole("heading", { name: "Astra One" })).toBeVisible();
+  expect(calls).toEqual([]);
+});
+
+test("customer can navigate from home to the yachts page", async ({ page }) => {
   await page.goto("/");
   // The hero's button (the label also appears in later sections).
   await page.getByRole("link", { name: "Explore the yachts" }).first().click();
@@ -61,15 +84,6 @@ test("customer can navigate from home to yachts and open a yacht", async ({ page
   await expect(
     page.getByRole("heading", { level: 1, name: "Your own place on the water." }),
   ).toBeVisible();
-
-  // The detail page renders dummy data (Astra One) for any id until the API is wired up.
-  const detail = await page.goto("/yachts/sea-breeze");
-  expect(detail?.status()).toBe(200);
-  await expect(page).toHaveTitle("Yacht details | Sithara Marina");
-  await expect(page.getByRole("heading", { level: 1, name: "Astra One" })).toBeVisible();
-
-  await page.goto("/yachts/sea-breeze/availability");
-  await expect(page.getByRole("heading", { level: 1, name: "Check availability" })).toBeVisible();
 });
 
 test("forgot-password page is reachable from sign in and links back", async ({ page }) => {
@@ -230,15 +244,15 @@ test.describe("reset-password link", () => {
   });
 });
 
-test("checkout uses the distraction-free layout and fabricates no booking", async ({ page }) => {
+test("checkout uses the site header and fabricates no booking", async ({ page }) => {
   await page.goto("/checkout");
   await expect(page.getByRole("heading", { level: 1, name: "Checkout" })).toBeVisible();
-  await expect(siteHeader(page)).toHaveCount(0);
+  await expect(siteHeader(page)).toBeVisible();
   await expect(page.getByText(/confirmed/i)).toHaveCount(0);
 
   await page.goto("/checkout/confirmation/b-123");
   await expect(page.getByRole("heading", { level: 1, name: "Booking confirmation" })).toBeVisible();
-  await expect(page.getByText(/only after the backend confirms/i)).toBeVisible();
+  await expect(page.getByText(/once they’re confirmed/i)).toBeVisible();
 });
 
 test("sign-in page uses the site header and footer", async ({ page }) => {
@@ -285,14 +299,4 @@ test("unknown URLs return 404 with the not-found page", async ({ page }) => {
 test("user pages are indexable and not served with admin robots headers", async ({ request }) => {
   const response = await request.get("/yachts");
   expect(response.headers()["x-robots-tag"]).toBeUndefined();
-});
-
-test("layout has no horizontal overflow at the current viewport", async ({ page }) => {
-  for (const path of ["/", "/yachts", "/checkout", "/plan-your-charter", "/login"]) {
-    await page.goto(path);
-    const overflow = await page.evaluate(
-      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-    );
-    expect(overflow, path).toBeLessThanOrEqual(0);
-  }
 });

@@ -4,7 +4,9 @@
 
 **Routes:** `/yachts`, `/yachts/[yachtId]`
 
-Not implemented yet. When building this feature, add only the folders you need:
+**Notes:** Connected to the backend through `src/services/user/yachts.service.ts`. `[yachtId]` is the yacht's slug. See [docs/api-integration.md](../../../../docs/api-integration.md#yacht-catalogue).
+
+Add only the folders you need:
 
 ```
 yachts/

@@ -21,8 +21,10 @@ import {
   primaryButtonClass,
   secondaryButtonClass,
 } from "./auth-form-styles";
-import { formatWait } from "../utils/format-wait";
-import { savePendingVerification } from "../utils/pending-verification";
+import { useCooldown } from "../hooks/use-cooldown";
+import { emailRateLimitMessage } from "../utils/auth-error-message";
+import { formatCountdown } from "../utils/format-wait";
+import { readPendingVerification, savePendingVerification } from "../utils/pending-verification";
 import { InfoPanel } from "./info-panel";
 
 type FieldName = "fullName" | "email" | "password" | "confirmPassword";
@@ -123,6 +125,8 @@ export function SignUpForm() {
   const isSubmittingRef = useRef(false);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [errors, setErrors] = useState<FieldErrors>({});
+  const [lockedUntil, setLockedUntil] = useState(0);
+  const secondsLeft = useCooldown(lockedUntil);
 
   const focusFirstInvalid = (fieldErrors: FieldErrors) => {
     const firstInvalid = FIELDS.find((field) => fieldErrors[field.name]);
@@ -143,7 +147,7 @@ export function SignUpForm() {
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (isSubmittingRef.current) return; // ignore double submits
+    if (isSubmittingRef.current || secondsLeft > 0) return; // ignore double submits
 
     const data = new FormData(event.currentTarget);
     const nextErrors = validate(data);
@@ -171,6 +175,7 @@ export function SignUpForm() {
       const { code, messages } = getBackendErrorDetails(error);
       const httpStatus = isApiError(error) ? error.status : undefined;
       const retryAfter = isApiError(error) ? error.retryAfterSeconds : undefined;
+      const rateLimit = emailRateLimitMessage(error, "signup");
 
       if (code === "EMAIL_DELIVERY_FAILED") {
         // The account and link were saved; only the email failed.
@@ -204,27 +209,25 @@ export function SignUpForm() {
             .
           </>
         );
-      } else if (code === "RESEND_COOLDOWN" || code === "TOO_MANY_EMAILS" || httpStatus === 429) {
-        const wait =
+      } else if (rateLimit) {
+        // Registering and resending share one signup cooldown, kept where the
+        // pending page reads it. No readable Retry-After means no countdown.
+        const known = readPendingVerification();
+        const resendAvailableAt =
           retryAfter !== undefined
-            ? formatWait(retryAfter)
-            : code === "TOO_MANY_EMAILS"
-              ? "up to an hour"
-              : "a minute";
+            ? Date.now() + retryAfter * 1000
+            : known?.email === email
+              ? known.resendAvailableAt
+              : undefined;
+        savePendingVerification({ email, resendAvailableAt });
+        if (retryAfter !== undefined) setLockedUntil(Date.now() + retryAfter * 1000);
         message = (
           <>
-            We’ve recently sent a verification email to this address. Check your inbox, or try again
-            in {wait}.{" "}
+            {rateLimit}{" "}
             <button
               type="button"
               className="underline"
-              onClick={() =>
-                goToEmailStatus(
-                  userRoutes.verifyEmailPending,
-                  email,
-                  retryAfter ?? VERIFICATION_EMAIL_COOLDOWN_SECONDS,
-                )
-              }
+              onClick={() => router.push(userRoutes.verifyEmailPending)}
             >
               Go to email verification
             </button>
@@ -280,6 +283,8 @@ export function SignUpForm() {
                 autoComplete={field.autoComplete}
                 inputMode={field.type === "email" ? "email" : undefined}
                 disabled={isSubmitting}
+                // The limit is per address, so another address is not held back.
+                onChange={field.name === "email" ? () => setLockedUntil(0) : undefined}
                 placeholder={field.placeholder}
                 aria-invalid={error ? true : undefined}
                 aria-describedby={error ? errorId : undefined}
@@ -309,14 +314,18 @@ export function SignUpForm() {
 
       <button
         type="submit"
-        disabled={isSubmitting}
+        disabled={isSubmitting || secondsLeft > 0}
         className={cx(
           primaryButtonClass,
           "mt-10 w-full max-w-[16.5rem] px-0 lg:mt-[calc(var(--r)*44)] lg:w-[calc(var(--rw)*263)] lg:max-w-none lg:min-w-60",
         )}
         style={{ background: PRIMARY_GRADIENT }}
       >
-        {isSubmitting ? "Creating account…" : "Create account & verify email"}
+        {isSubmitting
+          ? "Creating account…"
+          : secondsLeft > 0
+            ? `Create account · ${formatCountdown(secondsLeft)}`
+            : "Create account & verify email"}
         <ArrowRight aria-hidden="true" strokeWidth={1.5} className="size-3.5 shrink-0" />
       </button>
 

@@ -5,9 +5,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRef, useState, type CSSProperties, type TouchEvent } from "react";
 
-import { dummyFleet } from "@/components/user/OurYachts";
 import { userRoutes } from "@/constants/routes";
 import { cx } from "@/lib/cx";
+import { dummyFleet } from "../data/dummy-fleet";
 import { ROUND_BUTTON_GRADIENT } from "./round-button";
 
 // Carousel photos that show the fleet at different times of day. `focusX` is

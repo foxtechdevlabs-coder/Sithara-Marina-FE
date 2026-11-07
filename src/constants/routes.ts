@@ -16,6 +16,8 @@ export const userRoutes = {
   yachtAvailability: (yachtId: string) => `/yachts/${id(yachtId)}/availability` as Route,
 
   checkout: "/checkout",
+  /** Link in the checkout email: `<this>#token=<id>.<secret>` (`?token=` also works). */
+  checkoutVerify: "/checkout/verify",
   bookingConfirmation: (bookingId: string) => `/checkout/confirmation/${id(bookingId)}` as Route,
 
   login: "/login",
@@ -31,6 +33,8 @@ export const userRoutes = {
   verifyEmailPending: "/verify-email/pending",
 
   planCharter: "/plan-your-charter",
+  /** The custom quote page with this yacht already chosen. */
+  planCharterFor: (slug: string) => `/plan-your-charter?yacht=${id(slug)}` as Route,
   search: "/search",
 } as const satisfies Record<string, Route | ((...args: string[]) => Route)>;
 

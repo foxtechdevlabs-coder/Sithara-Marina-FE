@@ -20,12 +20,13 @@ import {
   DURATIONS,
   EMPTY_FILTERS,
   GUEST_COUNTS,
-  REGIONS,
   filtersToQuery,
   type YachtFilters,
 } from "@/components/user/yacht-search";
 import { userRoutes } from "@/constants/routes";
+import { useApiQuery } from "@/hooks/use-api-query";
 import { cx } from "@/lib/cx";
+import { getYachtFilters } from "@/services/user/yachts.service";
 
 // Quick links into the full filter page (it opens with the current selections).
 const MORE_OPTIONS = ["Yacht type", "Price range", "Capacity", "Cabins", "Amenities"];
@@ -105,6 +106,7 @@ export function HeroSearch() {
   const router = useRouter();
   const [date, setDate] = useState("");
   const form = useRef<HTMLFormElement>(null);
+  const destinations = useApiQuery(getYachtFilters, "yacht-filters").data?.destinations ?? [];
 
   // Reads the current selections into the shared filter shape.
   const currentFilters = (): YachtFilters => {
@@ -114,15 +116,13 @@ export function HeroSearch() {
       region: String(data.get("destination") ?? ""),
       guests: Number(data.get("guests") ?? 0),
       duration: String(data.get("duration") ?? ""),
+      date,
     };
   };
 
   function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
-    // The date travels along for the enquiry; yacht filtering ignores it for now.
-    const query = filtersToQuery(currentFilters());
-    const dateParam = date ? `${query ? "&" : "?"}date=${date}` : "";
-    router.push(`${userRoutes.yachts}${query}${dateParam}` as Route);
+    router.push(`${userRoutes.yachts}${filtersToQuery(currentFilters())}` as Route);
   }
 
   const openFilters = () =>
@@ -140,13 +140,16 @@ export function HeroSearch() {
           id="destination"
           label="Destination"
           icon={MapPin}
-          hint="Kochi, Kerala Backwaters, Lakshadweep…"
+          hint={destinations.slice(0, 3).join(", ") || undefined}
           className="col-span-2 sm:col-span-1 sm:border-r"
         >
           <Select
             id="destination"
-            options={REGIONS.map((r) => ({ value: r, label: r }))}
-            defaultValue="Kochi"
+            options={[
+              { value: "", label: "Any destination" },
+              ...destinations.map((r) => ({ value: r, label: r })),
+            ]}
+            defaultValue=""
           />
         </Field>
 

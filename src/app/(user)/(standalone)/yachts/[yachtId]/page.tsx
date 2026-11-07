@@ -1,104 +1,53 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+import { cache } from "react";
 
-import { JsonLd } from "@/components/seo/JsonLd";
-import { dummyFleet } from "@/components/user/OurYachts";
-import YachtDetails, { dummyYachtDetails } from "@/components/user/YachtDetails";
-import { siteConfig } from "@/config/site";
-import { generateBreadcrumbSchema, generateYachtProductSchema } from "@/lib/seo-schema";
+import YachtDetails from "@/components/user/YachtDetails";
+import { todayIn, toYachtDetails } from "@/features/user/yachts/utils/yacht-view";
+import { isApiError } from "@/services/http/api-error";
+import { getYacht, listYachts, type YachtCard } from "@/services/user/yachts.service";
 
-export function generateStaticParams() {
-  return dummyFleet.map((yacht) => ({
-    yachtId: yacht.id,
-  }));
-}
+/** Only picks the first month shown; each API answer carries its own timezone. */
+const FIRST_MONTH_TIMEZONE = "Asia/Kolkata";
 
-function getYacht(yachtId: string) {
-  const yacht = dummyFleet.find((item) => item.id === yachtId);
-  if (!yacht) return null;
-  return {
-    ...yacht,
-    ratePerDay: yachtId === dummyYachtDetails.id ? dummyYachtDetails.ratePerDay : undefined,
-  };
-}
+/** Shared by the metadata and the page, so one visit fetches the yacht once. */
+const loadYacht = cache((slug: string) => getYacht(slug));
 
 export async function generateMetadata({
   params,
-}: {
-  params: Promise<{ yachtId: string }>;
-}): Promise<Metadata> {
+}: PageProps<"/yachts/[yachtId]">): Promise<Metadata> {
   const { yachtId } = await params;
-  const yacht = getYacht(yachtId);
-
-  if (!yacht) {
-    return {
-      title: "Yacht Details",
-      description: "Private luxury yacht and houseboat charters in Kerala.",
-    };
+  try {
+    return { title: (await loadYacht(yachtId)).name };
+  } catch {
+    return { title: "Yacht details" };
   }
-
-  const title = `${yacht.name} — Luxury Yacht Charter in ${yacht.location}`;
-  const description = `${yacht.description} Private crewed charter accommodating ${yacht.guests} guests across ${yacht.suites} suites with dedicated captain and chef.`;
-  const image = yacht.image.src;
-
-  return {
-    title,
-    description,
-    alternates: {
-      canonical: `/yachts/${yacht.id}`,
-    },
-    openGraph: {
-      title: `${title} | ${siteConfig.name}`,
-      description,
-      url: `/yachts/${yacht.id}`,
-      images: [
-        {
-          url: image,
-          width: 1200,
-          height: 630,
-          alt: `${yacht.name} private yacht charter in Kerala`,
-        },
-      ],
-    },
-    twitter: {
-      card: "summary_large_image",
-      title: `${title} | ${siteConfig.name}`,
-      description,
-      images: [image],
-    },
-  };
 }
 
-export default async function YachtDetailPage({
-  params,
-}: {
-  params: Promise<{ yachtId: string }>;
-}) {
-  const { yachtId } = await params;
-  const yacht = getYacht(yachtId);
+/** The other yachts are a nice extra: losing them must not lose the page. */
+async function loadRelated(): Promise<YachtCard[]> {
+  try {
+    return (await listYachts({ limit: 4 })).items;
+  } catch {
+    return [];
+  }
+}
 
-  const yachtName = yacht?.name ?? "Yacht Details";
-  const breadcrumbSchema = generateBreadcrumbSchema([
-    { name: "Home", url: "/" },
-    { name: "Our Yachts", url: "/yachts" },
-    { name: yachtName, url: `/yachts/${yachtId}` },
+// `yachtId` in the URL is the yacht's slug. Any other failure reaches error.tsx.
+export default async function YachtDetailPage({ params }: PageProps<"/yachts/[yachtId]">) {
+  const { yachtId } = await params;
+  const [yacht, related] = await Promise.all([
+    loadYacht(yachtId).catch((error: unknown) => {
+      if (isApiError(error) && error.status === 404) notFound();
+      throw error;
+    }),
+    loadRelated(),
   ]);
 
-  const productSchema = generateYachtProductSchema({
-    id: yachtId,
-    name: yachtName,
-    description: yacht?.description ?? "Luxury yacht charter in Kerala",
-    image: yacht?.image.src ?? "/images/yachts/astra-one-hero.png",
-    ratePerDay: yacht?.ratePerDay,
-    lengthMetres: yacht?.lengthMetres,
-    guests: yacht?.guests,
-    suites: yacht?.suites,
-  });
-
   return (
-    <>
-      <JsonLd data={breadcrumbSchema} id="yacht-breadcrumb-schema" />
-      <JsonLd data={productSchema} id="yacht-product-schema" />
-      <YachtDetails />
-    </>
+    <YachtDetails
+      yacht={toYachtDetails(yacht, related)}
+      initialMonth={todayIn(FIRST_MONTH_TIMEZONE).slice(0, 7)}
+    />
   );
 }

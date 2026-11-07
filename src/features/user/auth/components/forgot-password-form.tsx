@@ -11,7 +11,9 @@ import { isApiError } from "@/services/http/api-error";
 import { AUTH_EMAIL_COOLDOWN_SECONDS, requestPasswordReset } from "@/services/user/auth.service";
 import { emailSchema } from "@/validation/email";
 
-import { commonAuthErrorMessage } from "../utils/auth-error-message";
+import { useCooldown } from "../hooks/use-cooldown";
+import { commonAuthErrorMessage, emailRateLimitMessage } from "../utils/auth-error-message";
+import { formatCountdown } from "../utils/format-wait";
 import { savePendingPasswordReset } from "../utils/pending-password-reset";
 import {
   fieldErrorClass,
@@ -40,10 +42,12 @@ export function ForgotPasswordForm() {
   const isSendingRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
+  const [lockedUntil, setLockedUntil] = useState(0);
+  const secondsLeft = useCooldown(lockedUntil);
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (isSendingRef.current) return; // ignore double submits
+    if (isSendingRef.current || secondsLeft > 0) return; // ignore double submits
 
     const email = emailSchema.safeParse(new FormData(event.currentTarget).get("email") ?? "");
     if (!email.success) {
@@ -73,10 +77,19 @@ export function ForgotPasswordForm() {
         setStatus({ kind: "idle" });
         return;
       }
+      // No readable Retry-After means no countdown: the wait is never guessed.
+      const rateLimit = emailRateLimitMessage(caught, "reset");
+      const retryAfter = isApiError(caught) ? caught.retryAfterSeconds : undefined;
+      if (rateLimit && retryAfter !== undefined) {
+        const resendAvailableAt = Date.now() + retryAfter * 1000;
+        savePendingPasswordReset({ email: email.data, resendAvailableAt });
+        setLockedUntil(resendAvailableAt);
+      }
       isSendingRef.current = false;
       setStatus({
         kind: "message",
         message:
+          rateLimit ??
           commonAuthErrorMessage(caught) ??
           "We couldn’t send a reset link right now. Please try again.",
       });
@@ -103,6 +116,8 @@ export function ForgotPasswordForm() {
           autoComplete="email"
           inputMode="email"
           disabled={isSending}
+          // The limit is per address, so another address is not held back.
+          onChange={() => setLockedUntil(0)}
           placeholder="ananya@example.com"
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? errorId : undefined}
@@ -123,14 +138,18 @@ export function ForgotPasswordForm() {
 
       <button
         type="submit"
-        disabled={isSending}
+        disabled={isSending || secondsLeft > 0}
         className={cx(
           primaryButtonClass,
           "mt-10 w-60 px-0 lg:mt-[calc(var(--r)*67)] lg:w-[calc(var(--rw)*230)] lg:min-w-56",
         )}
         style={{ background: PRIMARY_GRADIENT }}
       >
-        {isSending ? "Sending link…" : "Send password reset link"}
+        {isSending
+          ? "Sending link…"
+          : secondsLeft > 0
+            ? `Send link · ${formatCountdown(secondsLeft)}`
+            : "Send password reset link"}
         <ArrowRight aria-hidden="true" strokeWidth={1.5} className="size-3.5 shrink-0" />
       </button>
 

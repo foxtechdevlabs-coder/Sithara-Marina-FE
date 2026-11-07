@@ -1,11 +1,12 @@
-/* eslint-disable @next/next/no-img-element -- mix of local and remote placeholder imagery; swap for next/image once assets are hosted */
+/* eslint-disable @next/next/no-img-element -- yacht photos come from the API and their host is not configured */
 import { ArrowRight, ArrowUpRight } from "lucide-react";
 import type { Route } from "next";
 import Link from "next/link";
+import type { ReactNode } from "react";
 
 import { INK, MarinaFonts, MarinaFooter, SANS } from "@/components/user/marina-chrome";
-import type { RelatedYacht } from "@/components/user/YachtDetails";
 import { userRoutes } from "@/constants/routes";
+import type { FleetYacht } from "@/features/user/yachts/utils/yacht-view";
 
 /* ------------------------------------------------------------------ */
 /* Figma colours                                                       */
@@ -16,72 +17,6 @@ const MUTED = "#7a7f85"; // breadcrumb
 const META = "#555a60"; // metres / guests / suites
 const AREA = "#8a8f94"; // small cruising-area label
 
-/* ------------------------------------------------------------------ */
-/* Data shape + DUMMY data                                             */
-/* Replace `dummyFleet` with the API response once it is ready.        */
-/* ------------------------------------------------------------------ */
-
-export interface FleetYacht extends RelatedYacht {
-  /** Cruising area shown at the right of the name, e.g. "Alleppey". */
-  area: string;
-}
-
-const unsplash = (id: string) =>
-  `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=1300&q=80`;
-
-export const dummyFleet: FleetYacht[] = [
-  {
-    id: "astra-one",
-    name: "Astra One",
-    location: "Kochi",
-    area: "Kochi",
-    image: {
-      src: "/images/yachts/astra-one-arabian-sea.png",
-      alt: "Astra One cruising off the Kerala coast",
-    },
-    lengthMetres: 46,
-    guests: 12,
-    suites: 6,
-    description:
-      "Our flagship superyacht. Spacious suites, open-air living, and the freedom to venture further.",
-  },
-  {
-    id: "malabar",
-    name: "Malabar",
-    location: "Kochi",
-    area: "Kochi",
-    image: { src: unsplash("1569263979104-865ab7cd8d13"), alt: "Malabar motor yacht" },
-    lengthMetres: 28,
-    guests: 8,
-    suites: 4,
-    description:
-      "An intimate coastal retreat, made for hidden anchorages and unhurried days on the Arabian Sea.",
-  },
-  {
-    id: "neelam",
-    name: "Neelam",
-    location: "Kochi",
-    area: "Alleppey",
-    image: { src: unsplash("1593693411515-c20261bcad6e"), alt: "Neelam houseboat" },
-    lengthMetres: 24,
-    guests: 6,
-    suites: 3,
-    description:
-      "The traditional Kerala houseboat, beautifully reimagined for a slower, more private escape.",
-  },
-  {
-    id: "ananta",
-    name: "Ananta",
-    location: "Kochi",
-    area: "Kochi",
-    image: { src: unsplash("1540946485063-a40da27545f8"), alt: "Ananta sailing yacht" },
-    lengthMetres: 26,
-    guests: 8,
-    suites: 4,
-    description:
-      "The romance of sailing, with every modern comfort. For those who prefer to follow the wind.",
-  },
-];
 
 /* ------------------------------------------------------------------ */
 /* Sections                                                            */
@@ -135,22 +70,28 @@ function Intro() {
 }
 
 function YachtCard({ yacht }: { yacht: FleetYacht }) {
-  const href = userRoutes.yacht(yacht.id);
+  const href = userRoutes.yacht(yacht.slug);
   return (
     <article>
       <Link href={href} className="group relative block overflow-hidden" aria-label={yacht.name}>
-        <img
-          src={yacht.image.src}
-          alt={yacht.image.alt}
-          loading="lazy"
-          className="aspect-[642/394] w-full object-cover transition-transform duration-700 group-hover:scale-105"
-        />
-        <span
-          className="absolute top-[17px] left-[17px] flex h-[26px] items-center bg-white/95 px-[10px] text-[12px] tracking-[0.1em] uppercase"
-          style={{ color: INK }}
-        >
-          {yacht.location}
-        </span>
+        {yacht.image ? (
+          <img
+            src={yacht.image.src}
+            alt={yacht.image.alt}
+            loading="lazy"
+            className="aspect-[642/394] w-full object-cover transition-transform duration-700 group-hover:scale-105"
+          />
+        ) : (
+          <span aria-hidden="true" className="block aspect-[642/394] w-full bg-[#e5e7eb]" />
+        )}
+        {yacht.location && (
+          <span
+            className="absolute top-[17px] left-[17px] flex h-[26px] items-center bg-white/95 px-[10px] text-[12px] tracking-[0.1em] uppercase"
+            style={{ color: INK }}
+          >
+            {yacht.location}
+          </span>
+        )}
         <span
           aria-hidden="true"
           className="absolute right-[18px] bottom-[17px] flex size-[37px] items-center justify-center rounded-full border border-white/80 text-white transition-colors group-hover:bg-white/20"
@@ -166,27 +107,44 @@ function YachtCard({ yacht }: { yacht: FleetYacht }) {
         >
           {yacht.name}
         </h2>
-        <span className="text-[9px] tracking-[0.15em] uppercase" style={{ color: AREA }}>
-          {yacht.area}
-        </span>
+        {yacht.area && (
+          <span className="text-[9px] tracking-[0.15em] uppercase" style={{ color: AREA }}>
+            {yacht.area}
+          </span>
+        )}
       </div>
 
       <p
-        className="mt-[6px] flex items-center gap-[12px] text-[14px] leading-[20px]"
+        className="mt-[6px] flex flex-wrap items-center gap-[12px] text-[14px] leading-[20px]"
         style={{ color: META }}
       >
-        {[`${yacht.lengthMetres} metres`, `${yacht.guests} guests`, `${yacht.suites} suites`].map(
-          (m, i) => (
-            <span key={m} className="flex items-center gap-[12px]">
-              {i > 0 && <span aria-hidden="true" className="h-[10px] w-px bg-[#c4c7cb]" />}
-              {m}
-            </span>
-          ),
-        )}
+        {yacht.specs.map((m, i) => (
+          <span key={m} className="flex items-center gap-[12px]">
+            {i > 0 && <span aria-hidden="true" className="h-[10px] w-px bg-[#c4c7cb]" />}
+            {m}
+          </span>
+        ))}
       </p>
 
-      <p className="mt-[13px] max-w-[495px] text-[16px] leading-[25px]" style={{ color: BODY }}>
-        {yacht.description}
+      {yacht.availabilityNote && (
+        <p className="mt-[6px] text-[14px] leading-[20px]" style={{ color: META }}>
+          {yacht.availabilityNote}
+        </p>
+      )}
+
+      {yacht.description && (
+        <p className="mt-[13px] max-w-[495px] text-[16px] leading-[25px]" style={{ color: BODY }}>
+          {yacht.description}
+        </p>
+      )}
+
+      <p className="mt-[13px] text-[16px] leading-[25px]" style={{ color: INK }}>
+        {yacht.startingPrice ?? "Price on request"}
+        {yacht.startingPrice && (
+          <span className="ml-[10px] text-[14px]" style={{ color: META }}>
+            Starting from · excl. GST
+          </span>
+        )}
       </p>
 
       <div className="mt-[21px]">
@@ -213,21 +171,56 @@ function YachtCard({ yacht }: { yacht: FleetYacht }) {
 
 /**
  * "Our yachts" listing screen, built from the Figma design (1728px frame).
- * Renders dummy data by default; pass the API response as `yachts` once it is ready.
  */
-/** Shown when the list is filtered by a search. */
+/** The result count, and what was searched for when the list is filtered. */
 export interface ResultsSummary {
   shown: number;
   total: number;
+  filtered: boolean;
+  /** The applied filters in words. */
+  selected: string[];
+  /** The search holds a preference the API cannot filter by. */
+  unsupportedSelected: boolean;
   editHref: Route;
 }
 
+/** Previous/Next links; a null href means there is no such page. */
+export interface ListPagination {
+  page: number;
+  totalPages: number;
+  previousHref: Route | null;
+  nextHref: Route | null;
+}
+
+function PageLink({ href, children }: { href: Route | null; children: ReactNode }) {
+  const style = "text-[12px] tracking-[0.18em] uppercase";
+  if (!href) {
+    return (
+      <span aria-disabled="true" className={`${style} opacity-40`}>
+        {children}
+      </span>
+    );
+  }
+  return (
+    <Link href={href} className={`${style} border-b pb-1`} style={{ borderColor: INK }}>
+      {children}
+    </Link>
+  );
+}
+
 export default function OurYachts({
-  yachts = dummyFleet,
+  yachts,
   summary,
+  pagination,
+  failure,
+  editHref,
 }: {
-  yachts?: FleetYacht[];
+  yachts: FleetYacht[];
   summary?: ResultsSummary;
+  pagination?: ListPagination;
+  failure?: "invalid-filter" | "unavailable";
+  /** Back to the search, keeping its selections. */
+  editHref?: Route;
 }) {
   return (
     <div className="bg-white antialiased" style={{ ...SANS, color: INK }}>
@@ -238,27 +231,86 @@ export default function OurYachts({
 
         {summary && (
           <div className="mt-[56px] flex flex-wrap items-center justify-between gap-4 border-y border-[#e5e7eb] py-[18px] lg:mt-[80px]">
-            <p className="text-[14px]" style={{ color: BODY }}>
-              Showing {summary.shown} of {summary.total} yachts for your search.
-            </p>
-            <div className="flex gap-[24px] text-[12px] tracking-[0.18em] uppercase">
-              <Link href={summary.editHref} className="border-b pb-1" style={{ borderColor: INK }}>
-                Edit filters
-              </Link>
-              <Link
-                href={userRoutes.yachts}
-                className="border-b border-transparent pb-1 hover:border-current"
-                style={{ color: MUTED }}
-              >
-                Clear
-              </Link>
+            <div className="min-w-0">
+              <p className="text-[14px]" style={{ color: BODY }}>
+                Showing {summary.shown} of {summary.total}{" "}
+                {summary.total === 1 ? "yacht" : "yachts"}
+                {summary.filtered ? " for your search" : ""}.
+              </p>
+              {summary.selected.length > 0 && (
+                <p className="mt-[4px] text-[14px]" style={{ color: INK }}>
+                  {summary.selected.join(" · ")}
+                </p>
+              )}
+              {summary.unsupportedSelected && (
+                <p className="mt-[4px] text-[12px]" style={{ color: MUTED }}>
+                  Duration and On board preferences don’t narrow these results yet.
+                </p>
+              )}
             </div>
+            {summary.filtered && (
+              <div className="flex gap-[24px] text-[12px] tracking-[0.18em] uppercase">
+                <Link
+                  href={summary.editHref}
+                  className="border-b pb-1"
+                  style={{ borderColor: INK }}
+                >
+                  Edit filters
+                </Link>
+                <Link
+                  href={userRoutes.yachts}
+                  className="border-b border-transparent pb-1 hover:border-current"
+                  style={{ color: MUTED }}
+                >
+                  Clear
+                </Link>
+              </div>
+            )}
           </div>
         )}
 
-        {yachts.length === 0 && (
+        {failure === "invalid-filter" && (
+          <p
+            role="alert"
+            className="mt-[56px] max-w-[520px] text-[16px] leading-[27px]"
+            style={{ color: BODY }}
+          >
+            We couldn’t search with those filters. The date may be in the past or too far ahead,
+            or the price range may be reversed.{" "}
+            {editHref && (
+              <>
+                <Link href={editHref} className="underline underline-offset-2">
+                  Edit your filters
+                </Link>{" "}
+                or{" "}
+              </>
+            )}
+            <Link href={userRoutes.yachts} className="underline underline-offset-2">
+              see all yachts
+            </Link>
+            .
+          </p>
+        )}
+
+        {failure === "unavailable" && (
+          <p
+            role="alert"
+            className="mt-[56px] max-w-[520px] text-[16px] leading-[27px]"
+            style={{ color: BODY }}
+          >
+            We couldn’t load our yachts just now. Please refresh the page in a moment, or{" "}
+            <Link href={userRoutes.planCharter} className="underline underline-offset-2">
+              ask our concierge
+            </Link>
+            .
+          </p>
+        )}
+
+        {!failure && yachts.length === 0 && (
           <p className="mt-[56px] max-w-[520px] text-[16px] leading-[27px]" style={{ color: BODY }}>
-            No yachts match every filter yet. Try fewer options, or{" "}
+            {summary?.filtered
+              ? "No yachts match every filter yet. Try fewer options, or "
+              : "No yachts are listed just now. Please "}
             <Link href={userRoutes.planCharter} className="underline underline-offset-2">
               ask our concierge
             </Link>{" "}
@@ -272,9 +324,22 @@ export default function OurYachts({
           }`}
         >
           {yachts.map((yacht) => (
-            <YachtCard key={yacht.id} yacht={yacht} />
+            <YachtCard key={yacht.slug} yacht={yacht} />
           ))}
         </div>
+
+        {pagination && (
+          <nav
+            aria-label="Yacht pages"
+            className="mt-[56px] flex flex-wrap items-center justify-between gap-4 border-t border-[#e5e7eb] pt-[18px]"
+          >
+            <PageLink href={pagination.previousHref}>Previous</PageLink>
+            <p className="text-[14px]" style={{ color: BODY }}>
+              Page {pagination.page} of {pagination.totalPages}
+            </p>
+            <PageLink href={pagination.nextHref}>Next</PageLink>
+          </nav>
+        )}
       </section>
 
       <MarinaFooter />
