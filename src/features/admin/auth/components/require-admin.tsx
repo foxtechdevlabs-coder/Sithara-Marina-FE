@@ -4,7 +4,7 @@ import type { Route } from "next";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
 
-import { Spinner } from "@/components/ui/spinner";
+import { LoadingLogo } from "@/components/shared/loading-logo";
 import { adminRoutes } from "@/constants/routes";
 
 import { useAdminSession } from "./admin-session-provider";
@@ -77,7 +77,7 @@ export function RequireAdmin({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-dvh items-center justify-center">
-      <Spinner label="Checking your session" />
+      <LoadingLogo label="Checking your session" size="page" />
     </div>
   );
 }
