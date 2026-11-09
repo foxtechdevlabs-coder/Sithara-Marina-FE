@@ -12,11 +12,15 @@ import {
 import { ApiError } from "@/services/http/api-error";
 import type { BookingStatus, BookingStatusResponse } from "@/services/user/booking.service";
 
-const answer = (status: BookingStatus): BookingStatusResponse => ({
+const answer = (
+  status: BookingStatus,
+  payment_status: BookingStatusResponse["payment_status"] = "pending",
+): BookingStatusResponse => ({
   id: "b-1",
   reference: "SM-2026-0001",
   status,
   hold_expires_at: null,
+  payment_status,
 });
 
 beforeEach(() => {
@@ -70,6 +74,27 @@ describe("pollBookingStatus", () => {
     await expect(result).resolves.toMatchObject({ outcome: "confirmed" });
     await vi.advanceTimersByTimeAsync(10_000);
     expect(read).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(["failed", "cancelled"] as const)(
+    "stops when the payment is %s, while the booking waits",
+    async (payment) => {
+      const result = pollBookingStatus({ read: async () => answer("pending_payment", payment) });
+      await vi.advanceTimersByTimeAsync(0);
+      await expect(result).resolves.toMatchObject({ outcome: "failed" });
+    },
+  );
+
+  it("keeps polling while the payment is processing or just succeeded", async () => {
+    const read = vi
+      .fn<() => Promise<BookingStatusResponse>>()
+      .mockResolvedValueOnce(answer("pending_payment", "processing"))
+      .mockResolvedValueOnce(answer("pending_payment", "succeeded"))
+      .mockResolvedValueOnce(answer("confirmed", "succeeded"));
+    const result = pollBookingStatus({ read });
+    await vi.advanceTimersByTimeAsync(4_000);
+    await expect(result).resolves.toMatchObject({ outcome: "confirmed" });
+    expect(read).toHaveBeenCalledTimes(3);
   });
 
   it("stops on a status that can no longer be paid", async () => {

@@ -6,7 +6,7 @@
 
 **Notes:** No payment-gateway SDK or card handling lives in this repo yet. Payment status is authoritative only from the backend; a failed or abandoned payment must not be shown as a confirmed booking.
 
-Status polling only: the backend has no payment endpoints yet, so nothing is charged. See `docs/api-integration.md`. Add only the folders you need:
+Razorpay Checkout, payment verification and status polling. See `docs/api-integration.md`. Add only the folders you need:
 
 ```
 payments/

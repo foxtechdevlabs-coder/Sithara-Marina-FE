@@ -338,7 +338,7 @@ export function ReviewStep({ sessionId, checkoutToken }: ReviewStepProps) {
             className={primaryButtonClass}
             style={primaryButtonStyle}
           >
-            {submitting ? "Confirming…" : "Confirm & Pay"}
+            {submitting ? "Confirming…" : "Confirm & continue to payment"}
             <ArrowRight aria-hidden="true" strokeWidth={1.5} className="size-3.5 shrink-0" />
           </button>
           <button
@@ -351,8 +351,8 @@ export function ReviewStep({ sessionId, checkoutToken }: ReviewStepProps) {
           </button>
         </div>
         <p className="mt-[16px] text-[14px] leading-[20px]" style={{ color: MUTED }}>
-          Online payment isn’t open yet, so you won’t be charged. Confirming reserves your charter
-          until the time shown on the next step.
+          Confirming creates your booking and holds the charter. You’ll pay the total above
+          securely with Razorpay on the next step; nothing is charged until then.
         </p>
       </div>
     </CheckoutPage>

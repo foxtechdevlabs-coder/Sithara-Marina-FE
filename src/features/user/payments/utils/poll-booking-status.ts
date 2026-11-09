@@ -1,4 +1,4 @@
-import { bookingOutcome } from "@/features/user/booking/utils/booking-status";
+import { paymentOutcome } from "@/features/user/booking/utils/booking-status";
 import { isApiError } from "@/services/http/api-error";
 import type { BookingStatusResponse } from "@/services/user/booking.service";
 
@@ -29,7 +29,8 @@ function isPermanent(error: unknown): boolean {
 /**
  * Reads the booking status at once, then every 2 seconds for at most 60 seconds.
  * A tick that finds the previous request still running is skipped, so requests
- * never overlap. Only the backend's answer can end in success.
+ * never overlap. Only the backend's answer can end in success; a failed payment or
+ * a closed booking ends it too. Nothing else does before 60 seconds.
  */
 export function pollBookingStatus({ read, signal }: PollOptions): Promise<PollResult> {
   return new Promise((resolve) => {
@@ -61,9 +62,11 @@ export function pollBookingStatus({ read, signal }: PollOptions): Promise<PollRe
       inFlight = true;
       try {
         const status = await read(requests.signal);
-        const outcome = bookingOutcome(status.status);
+        const outcome = paymentOutcome(status);
         if (outcome === "confirmed") finish({ outcome: "confirmed", status });
-        else if (outcome === "closed") finish({ outcome: "failed", status });
+        else if (outcome === "closed" || outcome === "payment_failed") {
+          finish({ outcome: "failed", status });
+        }
       } catch (error) {
         if (isPermanent(error)) finish({ outcome: "error", error });
       } finally {

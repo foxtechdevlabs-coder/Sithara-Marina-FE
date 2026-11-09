@@ -16,7 +16,12 @@ import { useCheckoutState } from "@/features/user/checkout/utils/checkout-store"
 import { useApiQuery } from "@/hooks/use-api-query";
 import { getBooking } from "@/services/user/booking.service";
 
-import { BOOKING_STATUS_LABELS, bookingOutcome } from "../utils/booking-status";
+import {
+  BOOKING_STATUS_LABELS,
+  bookingOutcome,
+  PAYMENT_STATUS_LABELS,
+} from "../utils/booking-status";
+import { InvoicePanel } from "./invoice-panel";
 
 const HEADING = { heading: "Booking", headingSerif: "confirmation" };
 
@@ -60,7 +65,8 @@ function LoadedConfirmation({
           <p className="text-[16px] leading-[26px]">We look forward to welcoming you aboard.</p>
         ) : outcome === "pending" ? (
           <Notice>
-            This booking isn’t confirmed: it’s still awaiting payment.{" "}
+            This booking isn’t confirmed yet: its payment is{" "}
+            {PAYMENT_STATUS_LABELS[data.payment_status].toLowerCase()}.{" "}
             <Link href={userRoutes.checkout} className={textLinkClass}>
               Back to checkout
             </Link>
@@ -68,7 +74,40 @@ function LoadedConfirmation({
         ) : (
           <Notice>This booking isn’t active: {BOOKING_STATUS_LABELS[data.status]}.</Notice>
         )}
+        <dl className="mt-[24px] grid gap-x-[32px] gap-y-[12px] text-[15px] leading-[22px] sm:grid-cols-2">
+          <div>
+            <dt className="text-[#7a7f85]">Booking status</dt>
+            <dd>{BOOKING_STATUS_LABELS[data.status]}</dd>
+          </div>
+          <div>
+            <dt className="text-[#7a7f85]">Payment</dt>
+            <dd>{PAYMENT_STATUS_LABELS[data.payment_status]}</dd>
+          </div>
+          <div className="min-w-0">
+            <dt className="text-[#7a7f85]">Contact</dt>
+            <dd className="break-words">
+              {data.contact.full_name}
+              <br />
+              {data.contact.email}
+              {data.contact.phone && (
+                <>
+                  <br />
+                  {data.contact.phone}
+                </>
+              )}
+            </dd>
+          </div>
+          {data.special_requests && (
+            <div className="min-w-0">
+              <dt className="text-[#7a7f85]">Special requests</dt>
+              <dd className="break-words">{data.special_requests}</dd>
+            </div>
+          )}
+        </dl>
         <BookingRows booking={data} />
+        {outcome === "confirmed" && (
+          <InvoicePanel bookingId={bookingId} checkoutToken={checkoutToken} />
+        )}
       </div>
     </CheckoutPage>
   );
