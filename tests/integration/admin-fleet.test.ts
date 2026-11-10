@@ -55,12 +55,17 @@ const photo = (n: number) => ({
   url: `https://cdn.test/${n}.jpg`,
   sort_order: n,
 });
+// PriceRuleResponseDto as the backend sends it now (fixed / percent, bulk batches).
 const rule = {
   id: "r-1",
+  yacht_id: "y-1",
   slot_type_id: "s-1",
   kind: "base",
   name: null,
+  adjustment: "fixed",
   amount: 4_000_000,
+  percent: null,
+  batch_id: null,
   included_guests: null,
   extra_guest_amount: null,
   starts_on: null,
@@ -352,6 +357,78 @@ describe("slot types and price rules", () => {
       ["DELETE", "/admin/price-rules/r-1", undefined],
     ]);
     expect(calls.every((c) => c.auth === "Bearer access-1")).toBe(true);
+  });
+
+  it("reads percent rules and rules from before fixed / percent existed", async () => {
+    const { pricing } = await load();
+    const percentRule = {
+      ...rule,
+      id: "r-p",
+      kind: "holiday",
+      adjustment: "percent",
+      amount: null,
+      percent: 20,
+      batch_id: "b-1",
+    };
+    // An older response: no adjustment, percent or batch_id.
+    const { adjustment: _a, percent: _p, batch_id: _b, yacht_id: _y, ...legacy } = rule;
+    void [_a, _p, _b, _y];
+    stub(() =>
+      json({ items: [percentRule, { ...legacy, id: "r-old" }], total: 2, page: 1, limit: 100 }),
+    );
+    const rules = await pricing.listPriceRules(YACHT_ID);
+    expect(rules[0]).toMatchObject({
+      adjustment: "percent",
+      amount: null,
+      percent: 20,
+      batch_id: "b-1",
+    });
+    expect(rules[1]).toMatchObject({
+      adjustment: "fixed",
+      amount: 4_000_000,
+      percent: null,
+      batch_id: null,
+    });
+  });
+
+  it("creates, edits and removes a bulk percent rule", async () => {
+    const { pricing } = await load();
+    const batch = {
+      batch_id: "b-1",
+      count: 1,
+      rules: [
+        {
+          ...rule,
+          kind: "holiday",
+          adjustment: "percent",
+          amount: null,
+          percent: 20,
+          batch_id: "b-1",
+        },
+      ],
+    };
+    stub((_url, method) =>
+      method === "DELETE"
+        ? new Response(null, { status: 204 })
+        : json(batch, method === "POST" ? 201 : 200),
+    );
+    await pricing.createBulkPriceRules({
+      yacht_ids: ["y-1", "y-2"],
+      kind: "holiday",
+      percent: 20,
+      name: "Christmas +20%",
+    });
+    await pricing.updatePriceRuleBatch("b-1", { percent: 25 });
+    await pricing.deletePriceRuleBatch("b-1");
+    expect(calls.map((c) => [c.method, c.url.replace(API, ""), c.body])).toEqual([
+      [
+        "POST",
+        "/admin/price-rules/bulk",
+        { yacht_ids: ["y-1", "y-2"], kind: "holiday", percent: 20, name: "Christmas +20%" },
+      ],
+      ["PATCH", "/admin/price-rules/batches/b-1", { percent: 25 }],
+      ["DELETE", "/admin/price-rules/batches/b-1", undefined],
+    ]);
   });
 
   it("reads every page of a yacht's price rules", async () => {

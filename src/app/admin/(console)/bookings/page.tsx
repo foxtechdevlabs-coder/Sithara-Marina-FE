@@ -1,13 +1,18 @@
-import { RoutePlaceholder } from "@/components/shared/route-placeholder";
 import type { Metadata } from "next";
+
+import { BookingList } from "@/features/admin/bookings/components/booking-list";
 
 export const metadata: Metadata = { title: "Bookings" };
 
-export default function BookingsPage() {
+const one = (value: string | string[] | undefined) => (typeof value === "string" ? value : "");
+
+export default async function BookingsPage({ searchParams }: PageProps<"/admin/bookings">) {
+  const q = await searchParams;
+  const customer = one(q.customer);
   return (
-    <RoutePlaceholder
-      title="Bookings"
-      description="Booking management. Feature module: features/admin/bookings."
+    <BookingList
+      key={customer}
+      customer={customer ? { id: customer, name: one(q.name) } : undefined}
     />
   );
 }

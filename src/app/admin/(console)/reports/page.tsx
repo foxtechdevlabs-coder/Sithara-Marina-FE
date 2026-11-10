@@ -1,13 +1,9 @@
-import { RoutePlaceholder } from "@/components/shared/route-placeholder";
 import type { Metadata } from "next";
 
-export const metadata: Metadata = { title: "Reports & analytics" };
+import { ReportsOverview } from "@/features/admin/reports/components/reports-overview";
+
+export const metadata: Metadata = { title: "Reports" };
 
 export default function ReportsPage() {
-  return (
-    <RoutePlaceholder
-      title="Reports & analytics"
-      description="Reporting and analytics. Feature module: features/admin/reports."
-    />
-  );
+  return <ReportsOverview />;
 }

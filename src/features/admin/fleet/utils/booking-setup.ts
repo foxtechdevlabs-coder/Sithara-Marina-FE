@@ -83,7 +83,14 @@ const inDisplayOrder = (slots: SlotType[]) =>
 /** The base price of a slot type: its plain rule, preferring an active one. */
 function baseRule(rules: PriceRule[], slotId: string | undefined) {
   return rules
-    .filter((r) => r.slot_type_id === slotId && r.kind === "base" && !r.starts_on && !r.ends_on)
+    .filter(
+      (r) =>
+        r.slot_type_id === slotId &&
+        r.kind === "base" &&
+        r.amount !== null && // base rules are fixed prices
+        !r.starts_on &&
+        !r.ends_on,
+    )
     .sort((a, b) => Number(b.is_active) - Number(a.is_active) || b.priority - a.priority)[0];
 }
 
@@ -104,9 +111,10 @@ export function draftFromSaved(
       name: slot.name,
       hours: slot.duration_minutes / 60,
       enabled: slot.is_active,
-      price: rule
-        ? paiseToRupees(rule.amount)
-        : priceForHours(hourlyRate, slot.duration_minutes / 60),
+      price:
+        rule?.amount != null
+          ? paiseToRupees(rule.amount)
+          : priceForHours(hourlyRate, slot.duration_minutes / 60),
       ...(custom ? { custom } : {}),
     };
   };
