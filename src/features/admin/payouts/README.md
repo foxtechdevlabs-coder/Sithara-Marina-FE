@@ -1,20 +1,31 @@
 # Feature: `payouts` (admin area)
 
-**Scope:** Partner payout management.
+**Scope:** Partner statements, recording transfers already made, and the payout history.
 
-**Routes:** `/admin/payouts`
+**Routes (admin Figma screen):**
 
-Not implemented yet. When building this feature, add only the folders you need:
+| Route                                         | Screen                                                              |
+| --------------------------------------------- | ------------------------------------------------------------------- |
+| `/admin/payouts`                              | Open a statement (partner + period); recorded payouts               |
+| `/admin/payouts/statement?partner=&from=&to=` | A18 "A transparent statement." → A39 "Confirm the recorded payout." |
+| `/admin/payouts/[id]`                         | A recorded payout with its bookings (`?recorded=1` after saving)    |
 
-```
-payouts/
-├── components/   UI used only by this feature
-├── hooks/        React hooks for this feature
-├── types/        Types for this feature's data
-└── utils/        Pure helpers for this feature
-```
+## Backend contract (`payouts:read` / `payouts:write`)
 
-API calls for this feature belong in `src/services/admin/payouts.service.ts`, which uses
-`src/services/http/api-client.ts`. Route files in `src/app` stay thin and render components
-from this folder.
-See [docs/folder-structure.md](../../../../docs/folder-structure.md).
+| Endpoint                     | Used by                                          |
+| ---------------------------- | ------------------------------------------------ |
+| `GET /admin/payouts/summary` | The statement: lines, paid / outstanding, totals |
+| `POST /admin/payouts`        | "Mark statement paid" (A39)                      |
+| `GET /admin/payouts`         | Recorded payouts (filter by partner)             |
+| `GET /admin/payouts/{id}`    | Payout page                                      |
+
+## Notes
+
+- A payout records a transfer already made; it doesn't move money.
+- Only completed, unpaid bookings can be paid (`INVALID_PAYOUT` otherwise; `BOOKING_ALREADY_PAID`
+  if another payout got there first, nothing saved). Payable lines start selected and can be
+  left for a later transfer; the amount sent is their partner payable total, as the API requires.
+- The statement's "Booking total" is the booking total incl. GST (`gross_amount`). The API has no
+  charter-only basis on statements; the commission report shows that one.
+- The API has no statement number, so a statement is named by partner and period.
+- A paid line whose booking later stops being completed is flagged for follow-up.

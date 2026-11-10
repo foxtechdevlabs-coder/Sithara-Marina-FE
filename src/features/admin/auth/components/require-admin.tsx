@@ -64,6 +64,10 @@ export function RequireAdmin({ children }: { children: ReactNode }) {
         <p className="text-[15px]">
           We couldn&rsquo;t reach the server to check your session. Trying again automatically…
         </p>
+        <p className="max-w-[460px] text-[13px] text-[#4a4f55]">
+          The server may be starting up, which can take up to a minute. If this doesn&rsquo;t clear,
+          check your connection.
+        </p>
         <button
           type="button"
           onClick={() => void reload()}

@@ -1,13 +1,12 @@
-import { RoutePlaceholder } from "@/components/shared/route-placeholder";
 import type { Metadata } from "next";
 
-export const metadata: Metadata = { title: "Slot management" };
+import { PricingHub } from "@/features/admin/pricing/components/pricing-hub";
 
-export default function AvailabilitySlotsPage() {
-  return (
-    <RoutePlaceholder
-      title="Slot management"
-      description="Bookable slot definitions. Feature module: features/admin/availability."
-    />
-  );
+export const metadata: Metadata = { title: "Pricing & slots" };
+
+export default async function PricingSlotsPage({
+  searchParams,
+}: PageProps<"/admin/availability/slots">) {
+  const q = await searchParams;
+  return <PricingHub removed={typeof q.removed === "string" ? q.removed : undefined} />;
 }

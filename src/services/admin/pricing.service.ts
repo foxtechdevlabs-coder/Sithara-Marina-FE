@@ -12,13 +12,30 @@ import { adminApiClient } from "./admin-api-client";
 export const PRICE_RULE_KINDS = ["base", "weekend", "season", "holiday"] as const;
 export type PriceRuleKind = (typeof PRICE_RULE_KINDS)[number];
 
+/** fixed: `amount` is the whole charter price. percent: the base price moved by `percent` (not for base rules). */
+export const PRICE_ADJUSTMENTS = ["fixed", "percent"] as const;
+export type PriceAdjustment = (typeof PRICE_ADJUSTMENTS)[number];
+
+/** Percent rules: -90 to +500, up to 2 decimals (20 = 20% more, -20 = 20% less). */
+export const PERCENT_MIN = -90;
+export const PERCENT_MAX = 500;
+
 /** PriceRuleResponseDto */
 export const priceRuleSchema = z.object({
   id: z.string(),
+  /** Older responses may not carry it. */
+  yacht_id: z.string().optional(),
   slot_type_id: z.string(),
   kind: z.enum(PRICE_RULE_KINDS),
   name: z.string().nullable(),
-  amount: z.number(),
+  /** Older responses had no adjustment: those rules are fixed. */
+  adjustment: z.enum(PRICE_ADJUSTMENTS).default("fixed"),
+  /** Fixed rules: paise excl. GST. Null for percent rules. */
+  amount: z.number().nullable(),
+  /** Percent rules: the change to the base price. Null for fixed rules. */
+  percent: z.number().nullable().default(null),
+  /** Set on rules created together by POST /admin/price-rules/bulk. */
+  batch_id: z.string().nullable().default(null),
   included_guests: z.number().nullable(),
   extra_guest_amount: z.number().nullable(),
   /** YYYY-MM-DD */
@@ -46,7 +63,12 @@ const PRICE_RULES_PAGE_SIZE = 100;
 export interface PriceRuleInput {
   slot_type_id: string;
   kind: PriceRuleKind;
-  amount: number;
+  /** Default fixed; percent isn't allowed for base rules. */
+  adjustment?: PriceAdjustment;
+  /** Fixed rules only (required for them). */
+  amount?: number;
+  /** Percent rules only (required for them). */
+  percent?: number;
   included_guests?: number;
   extra_guest_amount?: number;
   name?: string;
@@ -60,7 +82,10 @@ export interface PriceRuleInput {
 /** UpdatePriceRuleDto: any field except the slot type; null clears an optional field. */
 export interface PriceRulePatch {
   kind?: PriceRuleKind;
+  /** Switching to percent needs `percent` (clears amount and guest pricing); to fixed needs `amount`. */
+  adjustment?: PriceAdjustment;
   amount?: number;
+  percent?: number;
   included_guests?: number | null;
   extra_guest_amount?: number | null;
   name?: string | null;
@@ -107,4 +132,73 @@ export function updatePriceRule(ruleId: string, patch: PriceRulePatch): Promise<
 /** DELETE /admin/price-rules/{id} (204) */
 export async function deletePriceRule(ruleId: string): Promise<void> {
   await adminApiClient.delete(rule(ruleId));
+}
+
+/* Bulk percent rules across yachts ------------------------------------- */
+
+/** The kinds a bulk rule can have (no base: bulk rules are percent changes to it). */
+export const BULK_RULE_KINDS = ["holiday", "season", "weekend"] as const;
+export type BulkRuleKind = (typeof BULK_RULE_KINDS)[number];
+
+/** BulkPriceRulesDto — one percent rule on every active package of each yacht. */
+export interface BulkPriceRuleInput {
+  /** 1 to 100 different yachts. */
+  yacht_ids: string[];
+  kind: BulkRuleKind;
+  percent: number;
+  name?: string;
+  /** Required for season rules. */
+  starts_on?: string;
+  /** Inclusive; required for season rules. */
+  ends_on?: string;
+  priority?: number;
+  is_active?: boolean;
+}
+
+/** UpdatePriceRuleBatchDto: applied to every rule in the batch. */
+export interface PriceRuleBatchPatch {
+  percent?: number;
+  name?: string | null;
+  starts_on?: string | null;
+  ends_on?: string | null;
+  priority?: number;
+  is_active?: boolean;
+}
+
+/** PriceRuleBatchResponseDto */
+const priceRuleBatchSchema = z.object({
+  batch_id: z.string(),
+  /** Rules in the batch, one per yacht package. */
+  count: z.number(),
+  /** By yacht, then package. */
+  rules: z.array(priceRuleSchema),
+});
+export type PriceRuleBatch = z.infer<typeof priceRuleBatchSchema>;
+
+const batch = (batchId: string) => `/admin/price-rules/batches/${encodeURIComponent(batchId)}`;
+
+/** POST /admin/price-rules/bulk (201). 400 INVALID_PRICE_RULE, 404 YACHT_NOT_FOUND. */
+export function createBulkPriceRules(input: BulkPriceRuleInput): Promise<PriceRuleBatch> {
+  return adminApiClient.post("/admin/price-rules/bulk", {
+    body: input,
+    schema: priceRuleBatchSchema,
+  });
+}
+
+/** GET /admin/price-rules/batches/{batchId} */
+export function getPriceRuleBatch(batchId: string, signal?: AbortSignal): Promise<PriceRuleBatch> {
+  return adminApiClient.get(batch(batchId), { schema: priceRuleBatchSchema, signal });
+}
+
+/** PATCH /admin/price-rules/batches/{batchId} — changes every rule in the batch. */
+export function updatePriceRuleBatch(
+  batchId: string,
+  patch: PriceRuleBatchPatch,
+): Promise<PriceRuleBatch> {
+  return adminApiClient.patch(batch(batchId), { body: patch, schema: priceRuleBatchSchema });
+}
+
+/** DELETE /admin/price-rules/batches/{batchId} (204). 409 NOT_PUBLISHABLE: nothing is saved. */
+export async function deletePriceRuleBatch(batchId: string): Promise<void> {
+  await adminApiClient.delete(batch(batchId));
 }

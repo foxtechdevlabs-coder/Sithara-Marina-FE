@@ -116,9 +116,29 @@ export function attachPartnerDocument(
   });
 }
 
-/** GET /admin/partners/{id}/yachts — sorted by name. */
-export function listPartnerYachts(id: string, signal?: AbortSignal): Promise<Yacht[]> {
-  return adminApiClient.get(`${path(id)}/yachts`, { schema: z.array(yachtSchema), signal });
+/** YachtListResponseDto; a bare array is accepted too. */
+const partnerYachtsSchema = z.union([
+  z.object({ items: z.array(yachtSchema), total: z.number(), page: z.number(), limit: z.number() }),
+  z.array(yachtSchema),
+]);
+
+/**
+ * GET /admin/partners/{id}/yachts — sorted by name. The endpoint is paged
+ * (at most 100 a page), so this reads every page.
+ */
+export async function listPartnerYachts(id: string, signal?: AbortSignal): Promise<Yacht[]> {
+  const yachts: Yacht[] = [];
+  for (let page = 1; page <= 50; page++) {
+    const res = await adminApiClient.get(`${path(id)}/yachts`, {
+      query: { page, limit: 100 },
+      schema: partnerYachtsSchema,
+      signal,
+    });
+    if (Array.isArray(res)) return res;
+    yachts.push(...res.items);
+    if (!res.items.length || page * res.limit >= res.total) break;
+  }
+  return yachts;
 }
 
 /**

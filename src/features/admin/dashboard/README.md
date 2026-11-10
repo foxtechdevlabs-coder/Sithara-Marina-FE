@@ -9,14 +9,14 @@
 Called with `from` and `to` for the selected reporting period (the last three calendar months).
 API function: `src/services/admin/dashboard.service.ts`.
 
-| Block              | Source                                 | Needs permission |
-| ------------------ | -------------------------------------- | ---------------- |
-| Confirmed bookings | `activity.confirmed`                   | `bookings:read`  |
-| Revenue booked     | `revenue.booked_amount`                | `reports:read`   |
-| Utilisation        | `utilisation.percent`                  | `reports:read`   |
-| Upcoming bookings  | `charters.today` + `charters.upcoming` | `bookings:read`  |
-| Needs attention    | `pending_payments` + `alerts`          | `bookings:read`  |
-| Revenue over time  | Not in the API yet, so it stays empty  | —                |
+| Block              | Source                                                                                                      | Needs permission |
+| ------------------ | ----------------------------------------------------------------------------------------------------------- | ---------------- |
+| Confirmed bookings | `activity.confirmed`                                                                                        | `bookings:read`  |
+| Revenue booked     | `revenue.booked_amount`                                                                                     | `reports:read`   |
+| Utilisation        | `utilisation.percent`                                                                                       | `reports:read`   |
+| Upcoming bookings  | `charters.today` + `charters.upcoming`                                                                      | `bookings:read`  |
+| Needs attention    | `pending_payments` + `alerts`                                                                               | `bookings:read`  |
+| Revenue over time  | `GET /admin/reports/revenue` rows, summed by weekday of departure (confirmed + completed); best day in navy | `reports:read`   |
 
 ## Notes
 

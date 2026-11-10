@@ -48,7 +48,12 @@ export async function login(email: string, password: string): Promise<void> {
 
 /** GET /admin/auth/me — the signed-in admin's profile and permissions. */
 export function getCurrentAdmin(signal?: AbortSignal): Promise<AdminProfile> {
-  return adminApiClient.get("/admin/auth/me", { schema: adminProfileSchema, signal });
+  // The first call of a visit: give the hosted backend time to wake from idle (~40 s on Render).
+  return adminApiClient.get("/admin/auth/me", {
+    schema: adminProfileSchema,
+    signal,
+    timeoutMs: 60_000,
+  });
 }
 
 /**

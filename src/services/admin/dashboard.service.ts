@@ -94,3 +94,63 @@ export function getDashboard(query: DashboardQuery = {}, signal?: AbortSignal): 
     signal,
   });
 }
+
+/* Revenue by day (backend: GET /admin/reports/revenue, needs reports:read) ----- */
+
+const revenueReportSchema = z.object({
+  total: z.number(),
+  limit: z.number(),
+  items: z.array(
+    z.object({
+      charter_date: z.string(),
+      status: z.string(),
+      total_amount: z.number(),
+    }),
+  ),
+});
+
+/** The statuses the backend counts as booked revenue (its `gross_amount`). */
+const BOOKED = new Set(["confirmed", "completed"]);
+
+export interface RevenueDay {
+  /** Local charter date, YYYY-MM-DD. */
+  date: string;
+  /** Paise incl. GST. */
+  amount: number;
+  bookings: number;
+}
+
+/**
+ * Booked revenue (incl. GST) per charter day from `from` to `to`, every day
+ * included. The report has no daily totals, so this adds up its rows (100 a page).
+ */
+export async function getRevenueByDay(
+  from: string,
+  to: string,
+  signal?: AbortSignal,
+  /** Narrow to one yacht or one partner's yachts. */
+  filter: { yacht_id?: string; partner_id?: string } = {},
+): Promise<RevenueDay[]> {
+  const byDate = new Map<string, RevenueDay>();
+  for (let d = from; d <= to;) {
+    byDate.set(d, { date: d, amount: 0, bookings: 0 });
+    const next = new Date(`${d}T00:00:00Z`);
+    next.setUTCDate(next.getUTCDate() + 1);
+    d = next.toISOString().slice(0, 10);
+  }
+  for (let page = 1; page <= 50; page++) {
+    const report = await adminApiClient.get("/admin/reports/revenue", {
+      query: { from, to, ...filter, page, limit: 100 },
+      schema: revenueReportSchema,
+      signal,
+    });
+    for (const row of report.items) {
+      const day = byDate.get(row.charter_date);
+      if (!day || !BOOKED.has(row.status)) continue;
+      day.amount += row.total_amount;
+      day.bookings += 1;
+    }
+    if (page * report.limit >= report.total || !report.items.length) break;
+  }
+  return [...byDate.values()];
+}

@@ -1,20 +1,33 @@
 # Feature: `commissions` (admin area)
 
-**Scope:** Partner commission management.
+**Scope:** Commission rules for partner yachts, and the commission each partner has earned.
 
-**Routes:** `/admin/commissions`
+**Routes:**
 
-Not implemented yet. When building this feature, add only the folders you need:
+| Route                    | Screen                                                                            |
+| ------------------------ | --------------------------------------------------------------------------------- |
+| `/admin/commissions`     | "Commission earned": the commission report, all partners or `?partner=` one       |
+| `/admin/commissions/new` | A16 "Fair value, clearly defined." rule form; `?partner=` or `?yacht=` preselects |
 
-```
-commissions/
-├── components/   UI used only by this feature
-├── hooks/        React hooks for this feature
-├── types/        Types for this feature's data
-└── utils/        Pure helpers for this feature
-```
+"Add custom commission" on the report opens the form on the partner being viewed.
 
-API calls for this feature belong in `src/services/admin/commissions.service.ts`, which uses
-`src/services/http/api-client.ts`. Route files in `src/app` stay thin and render components
-from this folder.
-See [docs/folder-structure.md](../../../../docs/folder-structure.md).
+## Backend contract
+
+| Endpoint                              | Used by                                                      |
+| ------------------------------------- | ------------------------------------------------------------ |
+| `GET /admin/partners?status=active`   | The partner / yacht picker                                   |
+| `GET /admin/yachts?ownership=partner` | Partner yachts and their own rates                           |
+| `PUT /admin/partners/{id}/commission` | The partner's default rate (yachts without their own use it) |
+| `PATCH /admin/partners/{id}`          | "Effective from / until" = the partner's agreement dates     |
+| `PUT /admin/yachts/{id}/commission`   | A yacht's own rate (wins over the partner's)                 |
+| `GET /admin/reports/commission`       | "Commission earned" for the selected partner, with export    |
+
+## Notes
+
+- Only percentage rates exist, on the charter amount excluding GST and add-ons, so "Commission
+  type" and "Calculation basis" are shown but fixed.
+- Dates belong to the partner's agreement; a yacht rule shows them read-only.
+- The API keeps no history of rates, so the rule table lists the current rules only. An agreement
+  whose end date has passed shows as "Historical". Each booking keeps the rate snapshotted when its
+  payment was confirmed (see the report).
+- A rate change affects new bookings only.

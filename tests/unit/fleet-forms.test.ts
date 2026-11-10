@@ -320,7 +320,10 @@ describe("pricing form → API", () => {
     slot_type_id: "s-1",
     kind: "season",
     name: "Diwali week",
+    adjustment: "fixed",
     amount: 4_000_000,
+    percent: null,
+    batch_id: null,
     included_guests: 10,
     extra_guest_amount: 150_000,
     starts_on: "2026-12-20",
@@ -330,6 +333,32 @@ describe("pricing form → API", () => {
     created_at: "",
     updated_at: "",
   };
+
+  it("validates percent rules and switches between fixed and percent", () => {
+    const draft = { ...draftFromRule(rule), adjustment: "percent" as const, percent: "" };
+    expect(validateRuleDraft(draft).percent).toMatch(/change to the base price/);
+    expect(validateRuleDraft({ ...draft, percent: "600" }).percent).toMatch(/-90 to \+500/);
+    expect(validateRuleDraft({ ...draft, percent: "-12.5" }).percent).toBeUndefined();
+    // A percent rule doesn't need an amount.
+    expect(validateRuleDraft({ ...draft, amount: "", percent: "20" }).amount).toBeUndefined();
+    expect(toRuleInput({ ...draft, percent: "20" })).toMatchObject({
+      adjustment: "percent",
+      percent: 20,
+    });
+    expect(toRuleInput({ ...draft, percent: "20" }).amount).toBeUndefined();
+    // Switching to percent sends the percent; back to fixed sends the amount.
+    expect(toRulePatch({ ...draft, percent: "20" }, rule)).toMatchObject({
+      adjustment: "percent",
+      percent: 20,
+    });
+    const percentRule = { ...rule, adjustment: "percent" as const, amount: null, percent: 20 };
+    expect(toRulePatch(draftFromRule(rule), percentRule)).toMatchObject({
+      adjustment: "fixed",
+      amount: 4_000_000,
+    });
+    // Base rules are always fixed.
+    expect(toRuleInput({ ...draft, kind: "base", percent: "20" }).adjustment).toBe("fixed");
+  });
 
   it("requires dates for season rules and keeps them in order", () => {
     const draft = { ...emptyRuleDraft("s-1"), kind: "season" as const, amount: "100" };
@@ -343,6 +372,7 @@ describe("pricing form → API", () => {
     expect(toRuleInput({ ...emptyRuleDraft("s-1"), amount: "40000" })).toEqual({
       slot_type_id: "s-1",
       kind: "base",
+      adjustment: "fixed",
       amount: 4_000_000,
       priority: 0,
       is_active: true,
