@@ -8,7 +8,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 
-import { bookingNav, primaryNav } from "@/config/user-navigation";
+import { accountNav, bookingNav, primaryNav } from "@/config/user-navigation";
 import { userRoutes } from "@/constants/routes";
 import { signOut, useAuthSession } from "@/features/user/auth/session";
 import { cx } from "@/lib/cx";
@@ -36,6 +36,8 @@ export function SiteHeader() {
   const userName = session?.user?.fullName;
   const pathname = usePathname();
   const isOverlay = pathname === userRoutes.home;
+  const isAccountArea =
+    pathname === userRoutes.account || pathname.startsWith(`${userRoutes.account}/`);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [logoutFailed, setLogoutFailed] = useState(false);
   const menuId = useId();
@@ -151,15 +153,21 @@ export function SiteHeader() {
                   {userName}
                 </span>
               ) : null}
-              <button
-                type="button"
-                onClick={logOut}
-                aria-label="Logout"
+              {/* Signed in: "My account" (Figma). Logout lives in the account menu and the phone menu. */}
+              <Link
+                href={accountNav.href}
+                onClick={closeMenu}
+                aria-label={accountNav.label}
+                aria-current={isAccountArea ? "page" : undefined}
                 className={cx(accountButtonClass, focusRing)}
               >
-                <LogOut aria-hidden="true" strokeWidth={1.5} className="size-[1.125rem] shrink-0" />
-                <span className="hidden lg:inline">Logout</span>
-              </button>
+                <UserRound
+                  aria-hidden="true"
+                  strokeWidth={1.5}
+                  className="size-[1.125rem] shrink-0"
+                />
+                <span className="hidden lg:inline">{accountNav.label}</span>
+              </Link>
             </>
           ) : (
             <Link
@@ -245,8 +253,21 @@ export function SiteHeader() {
               {userName}
             </li>
           ) : null}
-          {/* Phones have no room for the header's Sign in / Logout button. */}
-          <li className="sm:hidden">
+          {/* Phones have no room for the header's Sign in / My account button. */}
+          {session ? (
+            <li className="sm:hidden">
+              <Link
+                href={accountNav.href}
+                onClick={closeMenu}
+                aria-current={isAccountArea ? "page" : undefined}
+                className={cx(accountMenuItemClass, focusRingBase, "focus-visible:outline-white")}
+              >
+                <UserRound aria-hidden="true" strokeWidth={1.25} className="size-5" />
+                {accountNav.label}
+              </Link>
+            </li>
+          ) : null}
+          <li className={session ? undefined : "sm:hidden"}>
             {session ? (
               <button
                 type="button"

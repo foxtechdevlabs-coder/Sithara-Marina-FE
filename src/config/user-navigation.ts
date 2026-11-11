@@ -17,3 +17,6 @@ export const primaryNav: readonly NavItem[] = [
 
 /** Booking call to action in the top-right corner of the header. */
 export const bookingNav: NavItem = { label: "Book yachts", href: userRoutes.yachts };
+
+/** Account shortcut beside the booking button. */
+export const accountNav: NavItem = { label: "My account", href: userRoutes.accountProfile };

@@ -32,6 +32,9 @@ export const userRoutes = {
   /** After registering: "Check your inbox", until the emailed link is opened. */
   verifyEmailPending: "/verify-email/pending",
 
+  account: "/account",
+  accountProfile: "/account/profile",
+
   planCharter: "/plan-your-charter",
   /** The custom quote page with this yacht already chosen. */
   planCharterFor: (slug: string) => `/plan-your-charter?yacht=${id(slug)}` as Route,

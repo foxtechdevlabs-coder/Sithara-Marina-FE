@@ -2,19 +2,17 @@
 
 **Scope:** Customer account details.
 
-**Routes:** `/account`
-
-Not implemented yet. When building this feature, add only the folders you need:
+**Routes:** `/account/profile` (`/account` redirects here until the account overview exists)
 
 ```
 profile/
-├── components/   UI used only by this feature
-├── hooks/        React hooks for this feature
-├── types/        Types for this feature's data
-└── utils/        Pure helpers for this feature
+├── components/   profile-details-form.tsx — the "Your details" form
+└── types/        profile.schema.ts — Zod schemas for the form and the API response
 ```
 
-API calls for this feature belong in `src/services/user/profile.service.ts`, which uses
-`src/services/http/api-client.ts`. Route files in `src/app` stay thin and render components
-from this folder.
+- The account sidebar / mobile menu is shared account chrome: `src/components/user/account-nav.tsx`,
+  rendered by `src/app/(user)/(site)/account/layout.tsx`.
+- `src/services/user/profile.service.ts` returns **dummy data** until the account API and
+  authentication exist. Saving only validates on the client (see the TODO in the form).
+
 See [docs/folder-structure.md](../../../../docs/folder-structure.md).

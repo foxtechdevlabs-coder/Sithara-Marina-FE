@@ -279,7 +279,6 @@ test("removed pages are no longer served", async ({ page }) => {
   for (const path of [
     "/about",
     "/contact",
-    "/account",
     "/account/bookings",
     "/terms",
     "/privacy",
@@ -299,4 +298,31 @@ test("unknown URLs return 404 with the not-found page", async ({ page }) => {
 test("user pages are indexable and not served with admin robots headers", async ({ request }) => {
   const response = await request.get("/yachts");
   expect(response.headers()["x-robots-tag"]).toBeUndefined();
+});
+
+test("layout has no horizontal overflow at the current viewport", async ({ page }) => {
+  for (const path of ["/", "/yachts", "/checkout", "/plan-your-charter", "/login"]) {
+    await page.goto(path);
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    expect(overflow, path).toBeLessThanOrEqual(0);
+  }
+});
+
+test("account profile page renders inside the site layout with account navigation", async ({
+  page,
+}) => {
+  await page.goto("/account");
+  await expect(page).toHaveURL("/account/profile");
+  await expect(page).toHaveTitle("Your details | Sithara Marina");
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Your details, kept personal." }),
+  ).toBeVisible();
+  await expect(page.getByLabel("Full name")).toHaveValue("Ananya Menon");
+  await expect(page.getByRole("contentinfo")).toBeVisible();
+
+  await page.getByLabel("Full name").fill("");
+  await page.getByRole("button", { name: "Save profile" }).click();
+  await expect(page.getByText("Enter your full name.")).toBeVisible();
 });
