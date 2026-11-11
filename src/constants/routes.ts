@@ -32,9 +32,17 @@ export const userRoutes = {
   /** After registering: "Check your inbox", until the emailed link is opened. */
   verifyEmailPending: "/verify-email/pending",
 
+  /** Signed-in customer pages. */
+  accountEnquiries: "/account/enquiries",
+  accountEnquiry: (reference: string) => `/account/enquiries/${id(reference)}` as Route,
+  accountProposal: (proposalId: string) => `/account/proposals/${id(proposalId)}` as Route,
+  accountCancellations: "/account/cancellations",
+  accountBookingCancel: (reference: string) => `/account/bookings/${id(reference)}/cancel` as Route,
+
   planCharter: "/plan-your-charter",
   /** The custom quote page with this yacht already chosen. */
-  planCharterFor: (slug: string) => `/plan-your-charter?yacht=${id(slug)}` as Route,
+  planCharterFor: (slug: string, yachtId?: string) =>
+    `/plan-your-charter?yacht=${id(slug)}${yachtId ? `&yacht_id=${id(yachtId)}` : ""}` as Route,
   search: "/search",
 } as const satisfies Record<string, Route | ((...args: string[]) => Route)>;
 

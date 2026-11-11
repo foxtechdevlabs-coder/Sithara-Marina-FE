@@ -101,7 +101,7 @@ function TitleBlock({ yacht }: { yacht: YachtDetailsData }) {
             <UnderlineLink href="#reserve">Check availability</UnderlineLink>
             {yacht.enquiryEnabled && (
               <a
-                href={userRoutes.planCharterFor(yacht.slug)}
+                href={userRoutes.planCharterFor(yacht.slug, yacht.id)}
                 className="border-b border-[#b5b8bc] pb-[7px] text-[12px] leading-[16px] tracking-[0.18em] uppercase"
                 style={{ color: MUTED }}
               >

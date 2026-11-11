@@ -29,9 +29,12 @@ const HEADING = { heading: "Booking", headingSerif: "confirmation" };
 function LoadedConfirmation({
   bookingId,
   checkoutToken,
+  signedIn,
 }: {
   bookingId: string;
   checkoutToken: string | null;
+  /** The cancellation endpoints need the customer's own sign-in. */
+  signedIn: boolean;
 }) {
   const booking = useApiQuery((signal) => getBooking(bookingId, checkoutToken, signal), bookingId);
   const data = booking.data;
@@ -108,6 +111,14 @@ function LoadedConfirmation({
         {outcome === "confirmed" && (
           <InvoicePanel bookingId={bookingId} checkoutToken={checkoutToken} />
         )}
+        {outcome === "confirmed" && signedIn && (
+          <p className="mt-[32px] text-[14px] leading-[21px] text-[#4a4f55]">
+            Plans changed?{" "}
+            <Link href={userRoutes.accountBookingCancel(data.reference)} className={textLinkClass}>
+              Request a cancellation
+            </Link>
+          </p>
+        )}
       </div>
     </CheckoutPage>
   );
@@ -145,5 +156,11 @@ export function BookingConfirmation({ bookingId }: { bookingId: string }) {
     );
   }
 
-  return <LoadedConfirmation bookingId={bookingId} checkoutToken={checkoutToken} />;
+  return (
+    <LoadedConfirmation
+      bookingId={bookingId}
+      checkoutToken={checkoutToken}
+      signedIn={authSession !== null}
+    />
+  );
 }

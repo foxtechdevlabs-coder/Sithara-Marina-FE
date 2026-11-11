@@ -89,7 +89,11 @@ const statusSchema = z.object({
 });
 export type BookingStatusResponse = z.infer<typeof statusSchema>;
 
-/** GET /bookings/{id}/status. 404 `BOOKING_NOT_FOUND`. */
+/**
+ * GET /bookings/{id}/status. 404 `BOOKING_NOT_FOUND`. The backend sends a weak
+ * ETag and no Cache-Control, so the browser would revalidate (304) and replay
+ * its cached body; `no-store` makes every poll a fresh read.
+ */
 export function getBookingStatus(
   id: string,
   checkoutToken: string | null,
@@ -97,6 +101,7 @@ export function getBookingStatus(
 ): Promise<BookingStatusResponse> {
   return apiClient.get(`${bookingPath(id)}/status`, {
     ...credentialOptions(checkoutToken),
+    init: { cache: "no-store" },
     signal,
     schema: statusSchema,
   });
@@ -156,6 +161,7 @@ export function getBooking(
   return apiClient.get(bookingPath(id), {
     ...SLOW_START,
     ...credentialOptions(checkoutToken),
+    init: { cache: "no-store" },
     signal,
     schema: bookingSchema,
   });

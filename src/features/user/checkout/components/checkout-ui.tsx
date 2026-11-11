@@ -87,7 +87,7 @@ export function CheckoutPage({ heading, headingSerif, intro, aside, children }: 
         className={cx(
           FRAME,
           "mt-[48px] grid gap-[56px]",
-          aside && "xl:grid-cols-[minmax(0,1fr)_minmax(0,480px)] xl:gap-[80px]",
+          Boolean(aside) && "xl:grid-cols-[minmax(0,1fr)_minmax(0,480px)] xl:gap-[80px]",
         )}
       >
         <div className="min-w-0">{children}</div>

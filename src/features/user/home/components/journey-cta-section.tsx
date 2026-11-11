@@ -13,7 +13,7 @@ const SHADE =
   "bg-[linear-gradient(101.67deg,rgba(0,0,0,0.9)_0%,rgba(4,18,30,0.4)_39.47%,rgba(4,18,30,0)_76.65%)]";
 
 const buttonBase =
-  "font-attribution inline-flex h-[3.25rem] items-center justify-center gap-4 px-7 text-[11px] leading-none tracking-[2.42px] uppercase transition-colors duration-300 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white lg:h-[max(calc(var(--r)*54),2.75rem)] lg:px-[calc(var(--r)*32)]";
+  "font-attribution inline-flex max-md:w-full h-[3.25rem] items-center justify-center gap-4 px-7 text-[11px] leading-none tracking-[2.42px] uppercase transition-colors duration-300 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white lg:h-[max(calc(var(--r)*54),2.75rem)] lg:px-[calc(var(--r)*32)]";
 
 /**
  * Closing call to action: full-bleed backwaters photo under a dark gradient,
@@ -26,7 +26,7 @@ export function JourneyCtaSection() {
     <section
       aria-labelledby="journey-cta-heading"
       className={cx(
-        "bg-brand-950 relative isolate flex min-h-[40rem] items-center overflow-hidden text-white lg:h-[calc(var(--r)*800)] lg:min-h-0 lg:[--r:min(calc(100vw/1728),calc(100svh/800))]",
+        "bg-brand-950 relative isolate flex min-h-[40rem] items-center max-md:min-h-[47rem] max-md:items-start overflow-hidden text-white lg:h-[calc(var(--r)*800)] lg:min-h-0 lg:[--r:min(calc(100vw/1728),calc(100svh/800))]",
         SWITZER,
       )}
     >
@@ -47,13 +47,13 @@ export function JourneyCtaSection() {
       />
       <div aria-hidden="true" className={cx("absolute inset-0 -z-10", SHADE)} />
 
-      <div className="px-5 py-20 sm:px-10 lg:px-[calc(100vw*90/1728)] lg:py-0">
+      <div className="px-5 py-20 max-md:flex max-md:min-h-[47rem] max-md:w-full max-md:flex-col max-md:pt-16 max-md:pb-8 sm:px-10 lg:px-[calc(100vw*90/1728)] lg:py-0">
         <p className="text-[0.6875rem] leading-none tracking-[0.18em] text-white/85 uppercase lg:text-[max(calc(var(--r)*11),10px)]">
           A conversation is all it takes.
         </p>
         <h2
           id="journey-cta-heading"
-          className="mt-6 text-[3rem] leading-[1.08] font-normal tracking-[-0.03em] md:text-[4rem] lg:mt-[calc(var(--r)*28)] lg:text-[calc(var(--r)*76)] lg:leading-[calc(var(--r)*86)]"
+          className="mt-6 text-[clamp(2.375rem,10.5vw,3rem)] leading-[1.12] font-normal tracking-[-0.03em] md:text-[4rem] md:leading-[1.08] lg:mt-[calc(var(--r)*28)] lg:text-[calc(var(--r)*76)] lg:leading-[calc(var(--r)*86)]"
         >
           Your Kerala
           <br />
@@ -61,10 +61,10 @@ export function JourneyCtaSection() {
           <br />
           <span className="font-serif tracking-[-0.01em]">on the water.</span>
         </h2>
-        <p className="mt-8 text-[19px] leading-[30.4px] font-light tracking-normal text-[#FAFAF7]/85 lg:mt-[calc(var(--r)*44)] lg:text-[max(calc(var(--r)*19),16px)] lg:leading-[1.6]">
+        <p className="mt-8 text-[19px] leading-[30.4px] max-md:mt-6 max-md:text-[1.0625rem] font-light tracking-normal text-[#FAFAF7]/85 lg:mt-[calc(var(--r)*44)] lg:text-[max(calc(var(--r)*19),16px)] lg:leading-[1.6]">
           Let us create a journey around you.
         </p>
-        <div className="mt-8 flex flex-wrap gap-[0.875rem] lg:mt-[calc(var(--r)*44)] lg:gap-[calc(var(--r)*14)]">
+        <div className="mt-8 flex flex-wrap gap-[0.875rem] max-md:mt-auto max-md:flex-col max-md:pt-10 lg:mt-[calc(var(--r)*44)] lg:gap-[calc(var(--r)*14)]">
           <Link
             href={userRoutes.planCharter}
             className={cx(buttonBase, "bg-surface text-brand-950 hover:bg-pearl font-medium")}

@@ -121,6 +121,17 @@ describe("pollBookingStatus", () => {
     expect(read).toHaveBeenCalledTimes(30);
   });
 
+  it("can run a shorter check, stopping exactly at its own limit", async () => {
+    const read = vi.fn(async () => answer("pending_payment"));
+    const result = pollBookingStatus({ read, timeoutMs: 20_000 });
+    await vi.advanceTimersByTimeAsync(19_999);
+    expect(read).toHaveBeenCalledTimes(10); // 0, 2, … 18 s
+    await vi.advanceTimersByTimeAsync(1);
+    await expect(result).resolves.toEqual({ outcome: "timeout" });
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(read).toHaveBeenCalledTimes(10);
+  });
+
   it("never overlaps requests", async () => {
     let finishFirst: (value: BookingStatusResponse) => void = () => {};
     const read = vi

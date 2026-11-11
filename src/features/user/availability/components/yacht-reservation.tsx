@@ -224,7 +224,6 @@ export function YachtReservation({
   capacity,
   suites,
   slotTypes,
-  enquiryEnabled,
   bookingMode,
   startingPrice,
   departureCity,
@@ -360,7 +359,7 @@ export function YachtReservation({
       aria-labelledby="reserve-heading"
       className={cx(
         "min-w-0 scroll-mt-[24px] xl:col-start-1 xl:row-start-2",
-        intro && "xl:mt-[64px] xl:border-t xl:border-[#e5e7eb] xl:pt-[64px]",
+        Boolean(intro) && "xl:mt-[64px] xl:border-t xl:border-[#e5e7eb] xl:pt-[64px]",
       )}
     >
       <p className="text-[12px] leading-[16px] tracking-[0.18em] uppercase">Reserve {name}</p>
@@ -746,25 +745,22 @@ export function YachtReservation({
           </>
         )}
 
-        {enquiryEnabled && (
-          <>
-            <div className="mt-[24px] h-px bg-white/15" />
-            <p className="mt-[24px] text-[28px] leading-[34px] italic" style={SERIF}>
-              Planning something bespoke?
-            </p>
-            <p className="mt-[10px] text-[14px] leading-[22px] text-white/75">
-              Longer voyages, weddings, corporate charters or more than one yacht — our concierge
-              will build a proposal around you.
-            </p>
-            <Link
-              href={userRoutes.planCharterFor(slug)}
-              className="mt-[20px] flex h-[50px] items-center justify-between border border-white/40 px-[16px] text-[12px] tracking-[0.18em] uppercase transition-colors hover:bg-white/10"
-            >
-              Request a custom quote
-              <ArrowRight aria-hidden="true" strokeWidth={1.5} className="size-[13px]" />
-            </Link>
-          </>
-        )}
+        {/* Always shown, as in the design. The custom quote page opens with this yacht chosen. */}
+        <div className="mt-[24px] h-px bg-white/15" />
+        <p className="mt-[24px] text-[28px] leading-[34px] italic" style={SERIF}>
+          Planning something bespoke?
+        </p>
+        <p className="mt-[10px] text-[14px] leading-[22px] text-white/75">
+          Longer voyages, weddings, corporate charters or more than one yacht — our concierge will
+          build a proposal around you.
+        </p>
+        <Link
+          href={userRoutes.planCharterFor(slug, yachtId)}
+          className="mt-[20px] flex h-[50px] items-center justify-between border border-white/40 px-[16px] text-[12px] tracking-[0.18em] uppercase transition-colors hover:bg-white/10"
+        >
+          Request a custom quote
+          <ArrowRight aria-hidden="true" strokeWidth={1.5} className="size-[13px]" />
+        </Link>
       </aside>
     </div>
   );

@@ -4,7 +4,7 @@
 
 **Routes:** `/account`
 
-Not implemented yet. When building this feature, add only the folders you need:
+`components/account-ui.tsx`: the sign-in guard used by `src/app/(user)/(site)/account/layout.tsx`, the account page frame and tabs, status pills and pagination. Add only the folders you need:
 
 ```
 profile/

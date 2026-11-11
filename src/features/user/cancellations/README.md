@@ -2,11 +2,11 @@
 
 **Scope:** Cancellation requests for a booking.
 
-**Routes:** `/account/bookings/[bookingId]/cancel`
+**Routes:** `/account/bookings/[reference]/cancel` (preview and request), `/account/cancellations` (history)
 
 **Notes:** Eligibility and refund amounts are decided by the backend according to the cancellation policy; the UI only presents them.
 
-Not implemented yet. When building this feature, add only the folders you need:
+Connected to `GET /me/bookings/{ref}/cancellation-preview`, `POST /me/bookings/{ref}/cancellation-requests` and `GET /me/cancellation-requests` (`src/services/user/cancellations.service.ts`). A request is only a request: staff decide. Add only the folders you need:
 
 ```
 cancellations/

@@ -166,6 +166,7 @@ export function GuestsSection() {
             <br />
             worth <span className="font-serif">remembering.</span>
           </h2>
+          <div className="mt-9 md:hidden">{controls}</div>
         </div>
 
         <div className="mb-2 hidden md:block lg:mb-[calc(var(--r)*-26)]">{controls}</div>
@@ -182,13 +183,13 @@ export function GuestsSection() {
         aria-label="Guest testimonials"
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
-        className="mt-12 ml-5 overflow-hidden sm:ml-10 lg:mt-[calc(var(--r)*91)] lg:ml-[calc(var(--rw)*114)]"
+        className="mt-12 ml-5 overflow-hidden max-md:mt-8 max-md:mr-5 sm:ml-10 sm:max-md:mr-10 lg:mt-[calc(var(--r)*91)] lg:ml-[calc(var(--rw)*114)]"
       >
         <div
           onTransitionEnd={onTransitionEnd}
           style={{ transform: `translateX(calc(var(--step) * ${-position}))` }}
           className={cx(
-            "flex gap-6 [--step:calc(min(82vw,24.5rem)+1.5rem)] lg:gap-[calc(var(--rw)*48)] lg:[--step:calc(var(--rw)*440)]",
+            "flex gap-6 max-md:[--step:calc(100%+1.5rem)] md:[--step:calc(min(82vw,24.5rem)+1.5rem)] lg:gap-[calc(var(--rw)*48)] lg:[--step:calc(var(--rw)*440)]",
             isAnimating &&
               "transition-transform duration-700 ease-[cubic-bezier(0.22,0.61,0.36,1)]",
           )}
@@ -201,10 +202,10 @@ export function GuestsSection() {
                 // Only the middle copy is exposed to assistive tech and keyboard focus.
                 aria-hidden={copy === 1 ? undefined : true}
                 inert={copy !== 1}
-                className="w-[min(82vw,24.5rem)] shrink-0 lg:w-[calc(var(--rw)*392)]"
+                className="w-full shrink-0 md:w-[min(82vw,24.5rem)] lg:w-[calc(var(--rw)*392)]"
               >
                 <figure>
-                  <div className="relative aspect-[392/490] lg:aspect-auto lg:h-[calc(var(--r)*490)]">
+                  <div className="relative aspect-[707/760] md:aspect-[392/490] lg:aspect-auto lg:h-[calc(var(--r)*490)]">
                     <Image
                       src={item.image}
                       alt={item.imageAlt}
@@ -220,7 +221,7 @@ export function GuestsSection() {
                       <Play className="ml-0.5 size-4 fill-current" strokeWidth={0} />
                     </span>
                   </div>
-                  <blockquote className="text-[#F5F1E8] mt-6 font-serif text-2xl leading-[31.65px] tracking-normal italic lg:mt-[calc(var(--r)*26)] lg:text-[max(calc(var(--r)*24),18px)] lg:leading-[1.319]">
+                  <blockquote className="text-[#F5F1E8] mt-6 font-serif text-[1.25rem] leading-[1.6] md:text-2xl md:leading-[31.65px] tracking-normal italic lg:mt-[calc(var(--r)*26)] lg:text-[max(calc(var(--r)*24),18px)] lg:leading-[1.319]">
                     <p>{item.quote}</p>
                   </blockquote>
                   <figcaption className="font-attribution mt-5 text-[10px] leading-[1.6] lg:leading-none font-normal tracking-[2.23px] text-[#F8F8F8] uppercase lg:mt-[calc(var(--r)*22)] lg:text-[max(calc(var(--r)*10),9px)] lg:tracking-[calc(var(--r)*2.23)]">
@@ -232,7 +233,6 @@ export function GuestsSection() {
         </div>
       </div>
 
-      <div className="mt-8 flex justify-end px-5 sm:px-10 md:hidden">{controls}</div>
     </section>
   );
 }

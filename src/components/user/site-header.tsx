@@ -8,7 +8,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 
-import { bookingNav, primaryNav } from "@/config/user-navigation";
+import { accountNav, bookingNav, primaryNav } from "@/config/user-navigation";
 import { userRoutes } from "@/constants/routes";
 import { signOut, useAuthSession } from "@/features/user/auth/session";
 import { cx } from "@/lib/cx";
@@ -240,6 +240,24 @@ export function SiteHeader() {
               </Link>
             </li>
           ))}
+          {session
+            ? accountNav.map((item) => (
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    onClick={closeMenu}
+                    aria-current={isCurrent(item.href) ? "page" : undefined}
+                    className={cx(
+                      "block py-3 text-[0.9375rem] opacity-90 transition-opacity duration-300 hover:opacity-100 aria-[current=page]:underline",
+                      focusRingBase,
+                      "focus-visible:outline-white",
+                    )}
+                  >
+                    {item.label}
+                  </Link>
+                </li>
+              ))
+            : null}
           {userName ? (
             <li title={userName} className="truncate py-3 text-[0.875rem] opacity-90 xl:hidden">
               {userName}
