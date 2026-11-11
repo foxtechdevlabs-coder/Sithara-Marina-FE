@@ -108,7 +108,9 @@ describe("partners", () => {
 
   it("attaches a document and lists the partner's yachts", async () => {
     const partners = await load();
-    stub((_url, method) => (method === "POST" ? json(document, 201) : json([])));
+    stub((_url, method) =>
+      method === "POST" ? json(document, 201) : json({ items: [], total: 0, page: 1, limit: 100 }),
+    );
     await partners.attachPartnerDocument(ID, { media_id: document.media_id, title: "Agreement" });
     await expect(partners.listPartnerYachts(ID)).resolves.toEqual([]);
     expect(calls.map((c) => [c.method, c.url.replace(API, ""), c.body])).toEqual([
@@ -117,7 +119,58 @@ describe("partners", () => {
         `/admin/partners/${ID}/documents`,
         { media_id: document.media_id, title: "Agreement" },
       ],
-      ["GET", `/admin/partners/${ID}/yachts`, undefined],
+      ["GET", `/admin/partners/${ID}/yachts?page=1&limit=100`, undefined],
+    ]);
+  });
+
+  it("reads every page of the partner's yachts", async () => {
+    const partners = await load();
+    const yacht = (n: number) => ({
+      id: `y-${n}`,
+      name: `Yacht ${n}`,
+      slug: `y-${n}`,
+      ownership_type: "partner",
+      partner: { id: ID, name: partner.name },
+      commission_rate: null,
+      registration_number: null,
+      built_year: null,
+      refit_year: null,
+      cruising_speed_kmh: null,
+      card_tagline: null,
+      hourly_rate: null,
+      cruising_regions: [],
+      type: null,
+      length_ft: null,
+      capacity: 10,
+      suites: null,
+      description: null,
+      departure_city: null,
+      departure_points: [],
+      amenities: [],
+      inclusions: [],
+      crew: [],
+      policies: null,
+      booking_mode: "instant",
+      enquiry_enabled: false,
+      opens_at: null,
+      closes_at: null,
+      turnaround_minutes: 30,
+      is_active: true,
+      is_visible: true,
+      is_featured: false,
+      created_at: "2026-11-01T10:00:00.000Z",
+      updated_at: "2026-11-01T10:00:00.000Z",
+    });
+    stub((url) => {
+      const page = Number(new URL(url).searchParams.get("page"));
+      const items = page === 1 ? [yacht(1), yacht(2)] : [yacht(3)];
+      return json({ items, total: 3, page, limit: 2 });
+    });
+    const yachts = await partners.listPartnerYachts(ID);
+    expect(yachts.map((y) => y.name)).toEqual(["Yacht 1", "Yacht 2", "Yacht 3"]);
+    expect(calls.map((c) => c.url.replace(API, ""))).toEqual([
+      `/admin/partners/${ID}/yachts?page=1&limit=100`,
+      `/admin/partners/${ID}/yachts?page=2&limit=100`,
     ]);
   });
 

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { BODY, GRADIENT, INK, MUTED, SAND } from "@/components/admin/admin-theme";
-import { Spinner } from "@/components/ui/spinner";
+import { LoadingLogo } from "@/components/shared/loading-logo";
 import { adminRoutes } from "@/constants/routes";
 import { useAdminQuery } from "@/features/admin/fleet/hooks/use-admin-query";
 import { useDebounced } from "@/features/admin/fleet/hooks/use-debounced";
@@ -154,7 +154,7 @@ export function PartnerList() {
               {list.loading && !list.data ? (
                 <tr>
                   <td colSpan={4} className="h-[80px] px-[13px]" style={{ color: MUTED }}>
-                    <Spinner label="Loading partners" />
+                    <LoadingLogo label="Loading partners" size="compact" />
                   </td>
                 </tr>
               ) : (
@@ -188,7 +188,7 @@ export function PartnerList() {
           <ul aria-busy={list.loading} className="mt-[44px] flex flex-col gap-[22px] lg:hidden">
             {list.loading && !list.data && (
               <li style={{ color: MUTED }}>
-                <Spinner label="Loading partners" />
+                <LoadingLogo label="Loading partners" size="compact" />
               </li>
             )}
             {rows.map((p) => (

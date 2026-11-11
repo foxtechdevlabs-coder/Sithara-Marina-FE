@@ -1,13 +1,9 @@
-import { RoutePlaceholder } from "@/components/shared/route-placeholder";
 import type { Metadata } from "next";
 
-export const metadata: Metadata = { title: "Blocked dates" };
+import { BlockList } from "@/features/admin/availability/components/block-list";
+
+export const metadata: Metadata = { title: "Availability blocks" };
 
 export default function AvailabilityBlockedPage() {
-  return (
-    <RoutePlaceholder
-      title="Blocked dates"
-      description="Blocked dates and unavailable slots. Feature module: features/admin/availability."
-    />
-  );
+  return <BlockList />;
 }

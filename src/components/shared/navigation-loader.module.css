@@ -1,0 +1,31 @@
+.overlay {
+  position: fixed;
+  /* Under the first-load splash. */
+  z-index: 9998;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgb(255 255 255 / 90%);
+  -webkit-backdrop-filter: blur(14px) saturate(115%);
+  backdrop-filter: blur(14px) saturate(115%);
+  pointer-events: none;
+  animation: appear 120ms ease-out;
+  transition: opacity 200ms ease-out;
+}
+
+.isLeaving {
+  opacity: 0;
+}
+
+@keyframes appear {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .overlay {
+    animation: none;
+    transition: none;
+  }
+}

@@ -2,7 +2,7 @@
 
 import { ArrowRight, ChevronDown } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 import { adminRoutes } from "@/constants/routes";
 import { useAdminQuery } from "@/features/admin/fleet/hooks/use-admin-query";
@@ -13,16 +13,20 @@ import {
   formatPercent,
   pendingPaymentsText,
   recentMonths,
+  type DashboardPeriod,
   statusLabel,
 } from "@/features/admin/dashboard/utils/dashboard-format";
 import {
   getDashboard,
+  getRevenueByDay,
+  type RevenueDay,
   type Dashboard,
   type DashboardCharter,
 } from "@/services/admin/dashboard.service";
 
-import { BODY, GRADIENT, INK, MUTED, SAND } from "./admin-theme";
+import { BODY, GRADIENT, INK, MUTED, NAVY, SAND } from "./admin-theme";
 import { LoadState } from "./form-parts";
+import { isApiError } from "@/services/http/api-error";
 
 /*
  * Data: GET /admin/dashboard. A block the account has no permission for comes
@@ -55,24 +59,170 @@ function Kpi({ title, caption, value }: { title: string; caption: string; value?
   );
 }
 
-/** The API has no revenue-by-day figures yet, so this stays empty. */
-function RevenueChart({ period }: { period: string }) {
+/** Bar colours from the design: sage, with the best day in navy. */
+const BAR = "#6e7f5f";
+const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const charters = (n: number) => `${n} ${n === 1 ? "charter" : "charters"}`;
+/** "Wed, 18 Nov · ₹ 37,170 · 1 charter" */
+const revenueLine = (d: RevenueDay) =>
+  `${new Date(`${d.date}T00:00:00Z`).toLocaleDateString("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+  })} · ${formatCompactRupees(d.amount)} · ${charters(d.bookings)}`;
+
+/**
+ * Booked revenue (confirmed and completed charters, incl. GST) in the period,
+ * by weekday of departure; the best day is navy. Added up from
+ * GET /admin/reports/revenue. Needs reports:read.
+ */
+export function RevenueChart({
+  period,
+  filter = {},
+}: {
+  period: DashboardPeriod;
+  /** Narrow to one yacht or one partner's yachts (the Reports page). */
+  filter?: { yacht_id?: string; partner_id?: string };
+}) {
+  const query = useAdminQuery(
+    (signal) => getRevenueByDay(period.from, period.to, signal, filter),
+    `revenue-days:${period.from}:${period.to}:${filter.yacht_id ?? ""}:${filter.partner_id ?? ""}`,
+  );
+  const [hover, setHover] = useState<number | null>(null);
+  const days = query.error ? undefined : query.data;
+  const max = days ? Math.max(0, ...days.map((d) => d.amount)) : 0;
+  const forbidden = isApiError(query.error) && query.error.status === 403;
+
+  const empty = (text: ReactNode) => (
+    <div
+      className="mt-[16px] flex h-[104px] items-center justify-center border border-dashed border-[#d8d6d1] px-[12px] text-center text-[12px] lg:mt-[18px] lg:h-[158px]"
+      style={{ color: MUTED }}
+    >
+      {text}
+    </div>
+  );
+
+  let body: ReactNode;
+  if (!days && query.loading) body = empty("Loading revenue…");
+  else if (forbidden) body = empty(NO_ACCESS);
+  else if (!days)
+    body = empty(
+      <span role="alert">
+        Couldn’t load revenue. {fleetErrorMessage(query.error)}{" "}
+        <button type="button" onClick={query.reload} className="underline">
+          Try again
+        </button>
+      </span>,
+    );
+  else if (max === 0) body = empty("No confirmed charters depart in this period.");
+  else {
+    // The period's revenue added up by weekday, Monday first.
+    const weekdays = WEEKDAYS.map((name) => ({
+      name,
+      amount: 0,
+      bookings: 0,
+      dates: [] as RevenueDay[],
+    }));
+    for (const d of days) {
+      const w = weekdays[(new Date(`${d.date}T00:00:00Z`).getUTCDay() + 6) % 7]!;
+      w.amount += d.amount;
+      w.bookings += d.bookings;
+      if (d.amount > 0) w.dates.push(d);
+    }
+    const top = Math.max(...weekdays.map((w) => w.amount));
+    body = (
+      <div className={`mt-[18px] lg:mt-[22px] ${query.loading ? "opacity-60" : ""}`}>
+        <div
+          aria-hidden="true"
+          className="flex h-[120px] items-end gap-[10px] lg:h-[182px] lg:gap-[23px]"
+          onMouseLeave={() => setHover(null)}
+        >
+          {weekdays.map((w, i) => (
+            <div
+              key={w.name}
+              onMouseEnter={() => setHover(i)}
+              className="relative flex h-full min-w-0 flex-1 items-end"
+            >
+              {hover === i && w.dates.length > 0 && (
+                <span
+                  className={`absolute bottom-full z-10 mb-[6px] ${i < 2 ? "left-0" : i > 4 ? "right-0" : "left-1/2 -translate-x-1/2"} border border-[#e3e1dc] bg-white px-[8px] py-[4px] text-[11px] leading-[17px] whitespace-nowrap shadow-sm`}
+                  style={{ color: INK }}
+                >
+                  {w.dates.length === 1 ? (
+                    revenueLine(w.dates[0]!)
+                  ) : (
+                    <>
+                      <span className="block">
+                        {w.name} · {formatCompactRupees(w.amount)} · {charters(w.bookings)}
+                      </span>
+                      {w.dates.map((d) => (
+                        <span key={d.date} className="block" style={{ color: BODY }}>
+                          {revenueLine(d)}
+                        </span>
+                      ))}
+                    </>
+                  )}
+                </span>
+              )}
+              <span
+                className="block w-full transition-opacity"
+                style={{
+                  height: w.amount > 0 ? `${Math.max(2, (w.amount / top) * 100)}%` : 0,
+                  backgroundColor: w.amount === top ? NAVY : BAR,
+                  opacity: hover === null || hover === i ? 1 : 0.7,
+                }}
+              />
+            </div>
+          ))}
+        </div>
+        <div aria-hidden="true" className="mt-[10px] flex gap-[10px] lg:mt-[12px] lg:gap-[23px]">
+          {weekdays.map((w) => (
+            <span
+              key={w.name}
+              className="min-w-0 flex-1 text-[10px] tracking-[0.06em] lg:text-[11px]"
+              style={{ color: BODY }}
+            >
+              {w.name}
+            </span>
+          ))}
+        </div>
+        <div className="sr-only">
+          <table>
+            <caption>Booked revenue by weekday of departure, {period.label}</caption>
+            <thead>
+              <tr>
+                <th scope="col">Weekday</th>
+                <th scope="col">Revenue</th>
+                <th scope="col">Charters</th>
+              </tr>
+            </thead>
+            <tbody>
+              {weekdays.map((w) => (
+                <tr key={w.name}>
+                  <td>{w.name}</td>
+                  <td>{formatCompactRupees(w.amount)}</td>
+                  <td>{w.bookings}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <section className={`${card} px-[20px] pt-[24px] pb-[16px] lg:px-[20px]`}>
       <h2 className="text-[20px] leading-[26px]">Revenue over time</h2>
       <p className="mt-[10px] text-[12px] leading-[17px]" style={{ color: BODY }}>
-        {period}
+        {period.label}
         <span aria-hidden="true" className="mx-[5px]">
           ·
         </span>
         Revenue by departure day
       </p>
-      <div
-        className="mt-[16px] flex h-[104px] items-center justify-center border border-dashed border-[#d8d6d1] text-[12px] lg:mt-[18px] lg:h-[158px]"
-        style={{ color: MUTED }}
-      >
-        {NO_DATA}
-      </div>
+      {body}
     </section>
   );
 }
@@ -307,7 +457,7 @@ export default function AdminDashboard() {
 
       <div className="mt-[20px] grid gap-[24px] lg:mt-[27px] lg:grid-cols-[minmax(0,743fr)_minmax(0,333fr)] lg:gap-[54px]">
         <div>
-          <RevenueChart period={period.label} />
+          <RevenueChart period={period} />
           <UpcomingBookings
             charters={data ? data.charters : { today: [], upcoming: [], upcoming_total: 0 }}
           />

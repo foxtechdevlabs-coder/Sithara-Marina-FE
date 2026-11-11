@@ -4,7 +4,7 @@ import type { Route } from "next";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
 
-import { Spinner } from "@/components/ui/spinner";
+import { LoadingLogo } from "@/components/shared/loading-logo";
 import { adminRoutes } from "@/constants/routes";
 
 import { useAdminSession } from "./admin-session-provider";
@@ -64,6 +64,10 @@ export function RequireAdmin({ children }: { children: ReactNode }) {
         <p className="text-[15px]">
           We couldn&rsquo;t reach the server to check your session. Trying again automatically…
         </p>
+        <p className="max-w-[460px] text-[13px] text-[#4a4f55]">
+          The server may be starting up, which can take up to a minute. If this doesn&rsquo;t clear,
+          check your connection.
+        </p>
         <button
           type="button"
           onClick={() => void reload()}
@@ -77,7 +81,7 @@ export function RequireAdmin({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-dvh items-center justify-center">
-      <Spinner label="Checking your session" />
+      <LoadingLogo label="Checking your session" size="page" />
     </div>
   );
 }

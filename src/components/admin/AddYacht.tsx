@@ -6,6 +6,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
+import { resolvePartner, searchPartners } from "@/components/admin/lookups";
+import { SearchSelect } from "@/components/admin/search-select";
 import { adminRoutes } from "@/constants/routes";
 import { BookingSetupFields } from "@/features/admin/fleet/components/booking-setup-fields";
 import { YachtGallery, type QueuedPhoto } from "@/features/admin/fleet/components/yacht-gallery";
@@ -44,7 +46,6 @@ import {
   deactivateYacht,
   getSlotTypes,
   getYacht,
-  listActivePartners,
   listCruisingRegions,
   replaceSlotTypes,
   updateYacht,
@@ -426,11 +427,6 @@ function YachtEditor({
   // The last usable rate, so clearing the field and typing a new one still updates prices.
   const lastRate = useRef(hourlyPaise(form.rate));
 
-  const partners = useAdminQuery(
-    (signal) => (form.ownership === "partner" ? listActivePartners(signal) : Promise.resolve(null)),
-    form.ownership,
-  );
-
   // Regions other yachts use, as extra suggestions; the form works without them.
   const usedRegions = useAdminQuery((signal) => listCruisingRegions(signal), "regions");
 
@@ -650,18 +646,6 @@ function YachtEditor({
 
   const cover = editing ? photos[0]?.url : queued[0]?.src;
   const rate = rupeesToPaise(form.rate);
-  const partnerOptions = (() => {
-    const list = partners.data ?? [];
-    const current = saved?.partner;
-    const all =
-      current && !list.some((p) => p.id === current.id)
-        ? [...list, { ...current, is_active: false }]
-        : list;
-    return [
-      { value: "", label: partners.loading ? "Loading partners…" : "Choose a partner" },
-      ...all.map((p) => ({ value: p.id, label: p.is_active ? p.name : `${p.name} (inactive)` })),
-    ];
-  })();
   const typeOptions = [
     ...VESSEL_TYPES,
     ...(form.type && !VESSEL_TYPES.includes(form.type) ? [form.type] : []),
@@ -826,31 +810,25 @@ function YachtEditor({
                   <Label htmlFor="partner" required>
                     Partner
                   </Label>
-                  <SelectBox
+                  <SearchSelect
                     id="partner"
                     value={form.partnerId}
                     onChange={(v) => {
                       set("partnerId", v);
                       clearError("partner");
                     }}
-                    options={partnerOptions}
-                    disabled={partners.loading}
+                    load={searchPartners({ status: "active" })}
+                    resolve={resolvePartner}
+                    selectedLabel={
+                      saved?.partner && saved.partner.id === form.partnerId
+                        ? saved.partner.name
+                        : undefined
+                    }
+                    placeholder="Search active partners by name"
+                    noResults="No active partner matches. Add one under Partners first."
                     invalid={errors["partner"]}
                   />
                   <FieldError id="partner" message={errors["partner"]} />
-                  {Boolean(partners.error) && (
-                    <p className="mt-[6px] text-[11px] leading-[16px] text-[#9b2c2c]">
-                      Couldn&rsquo;t load partners. {fleetErrorMessage(partners.error, "This list")}{" "}
-                      <button type="button" onClick={partners.reload} className="underline">
-                        Try again
-                      </button>
-                    </p>
-                  )}
-                  {partners.data?.length === 0 && (
-                    <p className="mt-[6px] text-[11px] leading-[16px]" style={{ color: BODY }}>
-                      There are no active partners yet. Add one under Partners first.
-                    </p>
-                  )}
                 </div>
               )}
 

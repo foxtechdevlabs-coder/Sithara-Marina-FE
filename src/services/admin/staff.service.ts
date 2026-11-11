@@ -74,7 +74,8 @@ const rolePath = (id: string) => `/admin/roles/${encodeURIComponent(id)}`;
 
 /** GET /admin/staff — sorted by name. */
 export function listStaff(
-  query: { page?: number; limit?: number } = {},
+  /** `search` matches name or email. */
+  query: { page?: number; limit?: number; search?: string } = {},
   signal?: AbortSignal,
 ): Promise<StaffList> {
   return adminApiClient.get("/admin/staff", {

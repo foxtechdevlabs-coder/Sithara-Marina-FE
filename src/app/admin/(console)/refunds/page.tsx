@@ -1,13 +1,11 @@
-import { RoutePlaceholder } from "@/components/shared/route-placeholder";
 import type { Metadata } from "next";
 
-export const metadata: Metadata = { title: "Refunds" };
+import { MoneyList } from "@/features/admin/refunds/components/money-list";
 
-export default function RefundsPage() {
-  return (
-    <RoutePlaceholder
-      title="Refunds"
-      description="Refund management. Feature module: features/admin/refunds."
-    />
-  );
+export const metadata: Metadata = { title: "Payments & refunds" };
+
+export default async function RefundsPage({ searchParams }: PageProps<"/admin/refunds">) {
+  const q = await searchParams;
+  const tab = q.tab === "refunds" || q.tab === "exceptions" ? q.tab : "payments";
+  return <MoneyList initialTab={tab} />;
 }

@@ -80,6 +80,12 @@ type Props =
  * POST /admin/yachts/{id}/photos; reorder = PATCH …/photos/order; remove =
  * DELETE …/photos/{photoId}.
  */
+/** The list without repeated ids (the first copy wins), so React keys stay unique. */
+export function uniqueById<T extends { id: string }>(items: T[]): T[] {
+  const seen = new Set<string>();
+  return items.filter((item) => (seen.has(item.id) ? false : (seen.add(item.id), true)));
+}
+
 export function YachtGallery(props: Props) {
   const [dragId, setDragId] = useState<string | null>(null);
   const [viewing, setViewing] = useState<number | null>(null);
@@ -92,7 +98,7 @@ export function YachtGallery(props: Props) {
   const tiles: Tile[] =
     props.mode === "queued"
       ? props.queued.map((p) => ({ id: p.key, src: p.src, alt: p.file.name }))
-      : props.photos.map((p, i) => ({ id: p.id, src: p.url, alt: `Photo ${i + 1}` }));
+      : uniqueById(props.photos).map((p, i) => ({ id: p.id, src: p.url, alt: `Photo ${i + 1}` }));
 
   // Free the preview blob URLs of queued photos when leaving the page.
   const queuedRef = useRef(props.mode === "queued" ? props.queued : []);
@@ -135,8 +141,16 @@ export function YachtGallery(props: Props) {
     try {
       if (mediaIds.length) {
         const attached = await attachPhotos(props.yachtId, mediaIds);
-        props.onPhotosChange([...props.photos, ...attached]);
-        setNotice(`${attached.length} ${attached.length === 1 ? "photo" : "photos"} added.`);
+        const known = new Set(props.photos.map((p) => p.id));
+        const added = attached.filter((p) => !known.has(p.id));
+        // The response may be the whole gallery (it then repeats photos already shown):
+        // use it as is; otherwise append the new photos. Never show a photo twice.
+        props.onPhotosChange(
+          attached.some((p) => known.has(p.id))
+            ? uniqueById(attached)
+            : uniqueById([...props.photos, ...added]),
+        );
+        setNotice(`${added.length} ${added.length === 1 ? "photo" : "photos"} added.`);
       }
       if (failed.length) {
         const text = `${failed.length} ${failed.length === 1 ? "photo wasn't" : "photos weren't"} added. ${photoUploadMessage(failed[0]!.reason)}`;

@@ -3,7 +3,7 @@
 import { ChevronDown, X } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { Spinner } from "@/components/ui/spinner";
+import { LoadingLogo } from "@/components/shared/loading-logo";
 import { cx } from "@/lib/cx";
 
 import { BODY, GRADIENT, INK, MUTED, SAND } from "./admin-theme";
@@ -317,7 +317,7 @@ export function LoadState({
   if (loading) {
     return (
       <div className="flex min-h-[200px] items-center justify-center" style={{ color: MUTED }}>
-        <Spinner label={label} />
+        <LoadingLogo label={label} />
       </div>
     );
   }

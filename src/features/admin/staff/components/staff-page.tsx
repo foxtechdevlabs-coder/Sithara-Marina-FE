@@ -16,7 +16,7 @@ import {
   outlineButton,
   primaryButton,
 } from "@/components/admin/form-parts";
-import { Spinner } from "@/components/ui/spinner";
+import { LoadingLogo } from "@/components/shared/loading-logo";
 import { adminRoutes } from "@/constants/routes";
 import { useAdminSession } from "@/features/admin/auth/components/admin-session-provider";
 import { useAdminQuery } from "@/features/admin/fleet/hooks/use-admin-query";
@@ -349,7 +349,7 @@ export function StaffPage() {
               {list.loading && !list.data ? (
                 <tr>
                   <td colSpan={5} className="h-[80px] px-[13px]" style={{ color: MUTED }}>
-                    <Spinner label="Loading staff" />
+                    <LoadingLogo label="Loading staff" size="compact" />
                   </td>
                 </tr>
               ) : (
@@ -374,7 +374,7 @@ export function StaffPage() {
           <ul aria-busy={list.loading} className="mt-[28px] flex flex-col gap-[22px] lg:hidden">
             {list.loading && !list.data && (
               <li style={{ color: MUTED }}>
-                <Spinner label="Loading staff" />
+                <LoadingLogo label="Loading staff" size="compact" />
               </li>
             )}
             {staff.map((s) => (

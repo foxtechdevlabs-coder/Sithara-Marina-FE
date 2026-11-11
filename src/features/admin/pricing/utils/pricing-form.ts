@@ -1,10 +1,13 @@
 import { formatTime, parseTime } from "@/lib/time";
 import type { SlotSetupInput } from "@/services/admin/fleet.service";
-import type {
-  PriceRule,
-  PriceRuleInput,
-  PriceRuleKind,
-  PriceRulePatch,
+import {
+  PERCENT_MAX,
+  PERCENT_MIN,
+  type PriceAdjustment,
+  type PriceRule,
+  type PriceRuleInput,
+  type PriceRuleKind,
+  type PriceRulePatch,
 } from "@/services/admin/pricing.service";
 
 /* Money: the backend works in paise; the form shows rupees. ------------ */
@@ -126,12 +129,34 @@ export function toSlotSetupInput(draft: SlotSetupDraft): SlotSetupInput {
 
 /* Price rules ------------------------------------------------------------ */
 
+/** "20", "-12.5" → a percent change (-90 to +500, up to 2 decimals); null when invalid. */
+export function parsePercent(value: string): number | null {
+  const clean = value.replace(/[\s%+]/g, "");
+  if (!/^-?\d{1,3}(\.\d{1,2})?$/.test(clean)) return null;
+  const n = Number(clean);
+  return n >= PERCENT_MIN && n <= PERCENT_MAX ? n : null;
+}
+
+/** 20 → "+20%", -12.5 → "−12.5%" */
+export const formatPercent = (percent: number) =>
+  `${percent > 0 ? "+" : percent < 0 ? "−" : ""}${Math.abs(percent)}%`;
+
+/** What a rule charges: "₹ 40,000", or "+20% on the base price". */
+export function rulePriceText(rule: Pick<PriceRule, "adjustment" | "amount" | "percent">): string {
+  if (rule.adjustment === "percent" && rule.percent !== null)
+    return `${formatPercent(rule.percent)} on the base price`;
+  return rule.amount !== null ? formatPaise(rule.amount) : "—";
+}
+
 export interface PriceRuleDraft {
   slotTypeId: string;
   kind: PriceRuleKind;
+  adjustment: PriceAdjustment;
   name: string;
-  /** Rupees. */
+  /** Rupees (fixed rules). */
   amount: string;
+  /** Percent change (percent rules), as typed. */
+  percent: string;
   includedGuests: string;
   /** Rupees per guest above the included guests. */
   extraGuestAmount: string;
@@ -144,8 +169,10 @@ export interface PriceRuleDraft {
 export const emptyRuleDraft = (slotTypeId: string): PriceRuleDraft => ({
   slotTypeId,
   kind: "base",
+  adjustment: "fixed",
   name: "",
   amount: "",
+  percent: "",
   includedGuests: "",
   extraGuestAmount: "",
   startsOn: "",
@@ -157,8 +184,10 @@ export const emptyRuleDraft = (slotTypeId: string): PriceRuleDraft => ({
 export const draftFromRule = (rule: PriceRule): PriceRuleDraft => ({
   slotTypeId: rule.slot_type_id,
   kind: rule.kind,
+  adjustment: rule.adjustment,
   name: rule.name ?? "",
-  amount: paiseToRupees(rule.amount),
+  amount: rule.amount === null ? "" : paiseToRupees(rule.amount),
+  percent: rule.percent === null ? "" : String(rule.percent),
   includedGuests: rule.included_guests === null ? "" : String(rule.included_guests),
   extraGuestAmount: rule.extra_guest_amount === null ? "" : paiseToRupees(rule.extra_guest_amount),
   startsOn: rule.starts_on ?? "",
@@ -167,20 +196,30 @@ export const draftFromRule = (rule: PriceRule): PriceRuleDraft => ({
   active: rule.is_active,
 });
 
+/** A base rule is always a fixed price; other kinds may be a percent of it. */
+export const effectiveAdjustment = (draft: Pick<PriceRuleDraft, "kind" | "adjustment">) =>
+  draft.kind === "base" ? "fixed" : draft.adjustment;
+
 /** Field errors keyed by input name, following the backend rules. */
 export function validateRuleDraft(draft: PriceRuleDraft): Record<string, string> {
   const errors: Record<string, string> = {};
   if (!draft.slotTypeId) errors.slotTypeId = "Choose a slot type.";
-  const amount = rupeesToPaise(draft.amount);
-  if (draft.amount.trim() === "") errors.amount = "Enter the price of one charter.";
-  else if (amount === null || amount > MAX_AMOUNT_PAISE)
-    errors.amount = "Enter an amount in rupees (up to 2 decimals), at most ₹ 1 crore.";
-  if (draft.includedGuests && !intIn(draft.includedGuests, 1, 1000))
-    errors.includedGuests = "Enter a whole number from 1 to 1000.";
-  if (draft.extraGuestAmount) {
-    const extra = rupeesToPaise(draft.extraGuestAmount);
-    if (extra === null || extra > MAX_AMOUNT_PAISE)
-      errors.extraGuestAmount = "Enter an amount in rupees (up to 2 decimals).";
+  if (effectiveAdjustment(draft) === "percent") {
+    if (draft.percent.trim() === "") errors.percent = "Enter the change to the base price.";
+    else if (parsePercent(draft.percent) === null)
+      errors.percent = `Enter a percentage from ${PERCENT_MIN} to +${PERCENT_MAX}, up to 2 decimals.`;
+  } else {
+    const amount = rupeesToPaise(draft.amount);
+    if (draft.amount.trim() === "") errors.amount = "Enter the price of one charter.";
+    else if (amount === null || amount > MAX_AMOUNT_PAISE)
+      errors.amount = "Enter an amount in rupees (up to 2 decimals), at most ₹ 1 crore.";
+    if (draft.includedGuests && !intIn(draft.includedGuests, 1, 1000))
+      errors.includedGuests = "Enter a whole number from 1 to 1000.";
+    if (draft.extraGuestAmount) {
+      const extra = rupeesToPaise(draft.extraGuestAmount);
+      if (extra === null || extra > MAX_AMOUNT_PAISE)
+        errors.extraGuestAmount = "Enter an amount in rupees (up to 2 decimals).";
+    }
   }
   if (draft.name.trim().length > 100) errors.name = "Use 100 characters or fewer.";
   if (draft.kind === "season") {
@@ -196,37 +235,59 @@ export function validateRuleDraft(draft: PriceRuleDraft): Record<string, string>
 
 /** POST /admin/yachts/{id}/price-rules body; optional fields only when filled in. */
 export function toRuleInput(draft: PriceRuleDraft): PriceRuleInput {
+  const adjustment = effectiveAdjustment(draft);
   const input: PriceRuleInput = {
     slot_type_id: draft.slotTypeId,
     kind: draft.kind,
-    amount: rupeesToPaise(draft.amount)!,
+    adjustment,
     priority: Number(draft.priority),
     is_active: draft.active,
   };
+  if (adjustment === "percent") input.percent = parsePercent(draft.percent)!;
+  else {
+    input.amount = rupeesToPaise(draft.amount)!;
+    if (draft.includedGuests) input.included_guests = Number(draft.includedGuests);
+    if (draft.extraGuestAmount) input.extra_guest_amount = rupeesToPaise(draft.extraGuestAmount)!;
+  }
   if (draft.name.trim()) input.name = draft.name.trim();
-  if (draft.includedGuests) input.included_guests = Number(draft.includedGuests);
-  if (draft.extraGuestAmount) input.extra_guest_amount = rupeesToPaise(draft.extraGuestAmount)!;
   if (draft.startsOn) input.starts_on = draft.startsOn;
   if (draft.endsOn) input.ends_on = draft.endsOn;
   return input;
 }
 
-/** PATCH /admin/price-rules/{id} body: changed fields only; emptied optional fields → null. */
+/**
+ * PATCH /admin/price-rules/{id} body: changed fields only; emptied optional
+ * fields → null. Switching between fixed and percent sends the field the new
+ * kind needs (the backend clears the other one).
+ */
 export function toRulePatch(draft: PriceRuleDraft, rule: PriceRule): PriceRulePatch {
-  const next: Required<PriceRulePatch> = {
+  const adjustment = effectiveAdjustment(draft);
+  const switching = adjustment !== rule.adjustment;
+  const next: PriceRulePatch = {
     kind: draft.kind,
-    amount: rupeesToPaise(draft.amount)!,
-    included_guests: draft.includedGuests ? Number(draft.includedGuests) : null,
-    extra_guest_amount: draft.extraGuestAmount ? rupeesToPaise(draft.extraGuestAmount)! : null,
     name: draft.name.trim() || null,
     starts_on: draft.startsOn || null,
     ends_on: draft.endsOn || null,
     priority: Number(draft.priority),
     is_active: draft.active,
   };
+  if (adjustment === "percent") next.percent = parsePercent(draft.percent)!;
+  else {
+    next.amount = rupeesToPaise(draft.amount)!;
+    next.included_guests = draft.includedGuests ? Number(draft.includedGuests) : null;
+    next.extra_guest_amount = draft.extraGuestAmount
+      ? rupeesToPaise(draft.extraGuestAmount)!
+      : null;
+  }
   const patch: PriceRulePatch = {};
   for (const key of Object.keys(next) as (keyof PriceRulePatch)[]) {
-    if (next[key] !== rule[key]) (patch as Record<string, unknown>)[key] = next[key];
+    if (next[key] !== rule[key as keyof PriceRule])
+      (patch as Record<string, unknown>)[key] = next[key];
+  }
+  if (switching) {
+    patch.adjustment = adjustment;
+    if (adjustment === "percent") patch.percent = next.percent;
+    else patch.amount = next.amount;
   }
   return patch;
 }

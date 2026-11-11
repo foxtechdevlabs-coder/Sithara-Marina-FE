@@ -19,6 +19,30 @@ function pageLabel(pathname: string, yacht: { id: string; name: string } | null)
   // Screen codes from the Figma designs.
   if (pathname === adminRoutes.dashboard) return "Operations / A02";
   if (pathname === adminRoutes.fleet) return "Operations / A03";
+  if (pathname === adminRoutes.bookings) return "Operations / A08";
+  if (pathname === adminRoutes.bookingNew) return "Operations / A09";
+  if (pathname.startsWith(adminRoutes.cancellationRequests))
+    return "Operations / Bookings / Cancellation requests";
+  const bookingMatch = pathname.match(
+    /^\/admin\/bookings\/[^/]+(\/payment|\/reschedule|\/cancel)?$/,
+  );
+  if (bookingMatch) {
+    const sub = bookingMatch[1];
+    return `Operations / ${sub === "/payment" ? "A10" : sub === "/reschedule" ? "A12" : sub === "/cancel" ? "A13" : "A11"}`;
+  }
+  if (pathname === adminRoutes.blockBatchNew) return "Operations / Availability / Bulk block";
+  if (/^\/admin\/availability\/blocked\/[^/]+$/.test(pathname)) return "Operations / A07";
+  if (pathname === "/admin/commissions/new") return "Partners & finance / A16";
+  if (pathname === "/admin/payouts/statement") return "Partners & finance / A18";
+  if (pathname === adminRoutes.refunds) return "Partners & finance / A19";
+  if (pathname === adminRoutes.reports) return "Workspace / A23";
+  if (pathname === adminRoutes.audit) return "Workspace / A42";
+  if (pathname === "/admin/reports/export") return "Workspace / A37";
+  if (/^\/admin\/refunds\/payments\/[^/]+\/refund$/.test(pathname))
+    return "Partners & finance / A20";
+  if (pathname === adminRoutes.customers) return "Operations / A21";
+  if (pathname === adminRoutes.customerNew) return "Operations / Customers / New";
+  if (/^\/admin\/customers\/[^/]+$/.test(pathname)) return "Operations / A22";
   if (pathname === adminRoutes.fleetNew) return "Operations / Yachts / New";
   const yachtMatch = pathname.match(/^\/admin\/fleet\/([^/]+)(\/edit|\/pricing)?$/);
   if (yachtMatch && yachtMatch[1] !== "new") {

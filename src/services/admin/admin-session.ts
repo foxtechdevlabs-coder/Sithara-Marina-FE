@@ -177,6 +177,8 @@ export function refreshSession(): Promise<boolean> {
         auth: false,
         body: { refresh_token: latest.refreshToken },
         schema: tokenPairSchema,
+        // Often the first call of a visit, while the hosted backend wakes from idle.
+        timeoutMs: 60_000,
       });
       saveTokens(pair);
       return true;
