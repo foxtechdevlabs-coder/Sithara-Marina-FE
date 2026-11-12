@@ -71,10 +71,12 @@ export function MarinaFooter() {
     <footer
       // Explicit: on the standalone pages this sits inside <main>, which drops the implicit role.
       role="contentinfo"
-      className="mx-auto w-full max-w-[1728px] text-white"
+      // The gradient spans the full width; only the content keeps the 1728px Figma frame.
+      // (Capping the footer itself left white bands beside it on screens wider than 1728px.)
+      className="w-full text-white"
       style={{ background: "linear-gradient(180deg, #061527 0%, #0a223d 55%, #0e2f52 100%)" }}
     >
-      <div className="px-5 pt-[96px] lg:px-[100px] lg:pt-[129px]">
+      <div className="mx-auto max-w-[1728px] px-5 pt-[96px] lg:px-[100px] lg:pt-[129px]">
         <div className="flex justify-center">
           <Logo light size="lg" />
         </div>

@@ -1,18 +1,32 @@
 /**
  * Yacht search: what the URL (query string) holds, and how it becomes a
- * GET /yachts request. Shared by the home search bar, the "Find your perfect
- * fit" page and Our yachts. Plain module, so server and client components can
+ * GET /yachts request. Shared by the "Find your perfect fit" page and the
+ * filter bar on Our yachts. Plain module, so server and client components can
  * both use it. Filter options come from GET /yachts/filters.
  */
 import { formatMinorUnits } from "@/features/user/yachts/utils/yacht-view";
 import type {
   ListYachtsParams,
+  YachtCard,
   YachtFilterOptions,
   YachtSort,
 } from "@/services/user/yachts.service";
 
-/** GET /yachts/filters has no guest list, so the capacity choices stay here. */
+/** GET /yachts/filters has no guest list, so the suggested counts stay here. */
 export const GUEST_COUNTS = Array.from({ length: 12 }, (_, i) => i + 1);
+
+/** Digits only while a guest count is typed (at most 4: no yacht takes more). */
+export const guestDigits = (text: string) => text.replace(/\D/g, "").slice(0, 4);
+
+/**
+ * A typed guest count as the search keeps it: GET /yachts takes any whole number
+ * (`guests`, "at least this many"); 0 or blank means any, kept as "".
+ */
+export function parseGuestCount(text: string): string | null {
+  if (!/^\d+$/.test(text.trim())) return null;
+  const count = Number(text.trim());
+  return count > 0 ? String(count) : "";
+}
 /** No API filter: kept in the URL as a preference only. */
 export const DURATIONS = ["2 hours", "4 hours", "Half day", "Full day", "Overnight", "Multi-day"];
 /** No API filter: kept in the URL as a preference only. */
@@ -211,4 +225,52 @@ export function toListParams(filters: YachtFilters): ListYachtsParams {
     ...(filters.date ? { date: filters.date } : {}),
     ...(API_SORTS[filters.sort] ? { sort: API_SORTS[filters.sort] } : {}),
   };
+}
+
+/* ------------------------------------------------------------------ */
+/* Instant preview from the full catalogue                             */
+/* ------------------------------------------------------------------ */
+
+const sameText = (a: string | null, b: string) =>
+  a !== null && a.trim().toLocaleLowerCase() === b.trim().toLocaleLowerCase();
+
+/**
+ * The yachts GET /yachts would return for these filters, worked out from the
+ * complete catalogue (every published yacht), following the documented rules:
+ * `destination` and `type` exact ignoring case, `guests` "at least this many",
+ * prices on the starting price (yachts without one never match), and the sort
+ * orders (by name when none; no starting price last in both price orders).
+ *
+ * Only an instant preview while the backend's own answer is on its way, which
+ * always replaces it. Null when it cannot be worked out here: a `date` needs the
+ * backend's availability.
+ */
+export function previewFromCatalogue(catalogue: YachtCard[], filters: YachtFilters): YachtCard[] | null {
+  if (filters.date) return null;
+  const { region, type, guests, minPrice, maxPrice } = filters;
+  const matches = catalogue.filter(
+    (yacht) =>
+      (!region || sameText(yacht.departure_city, region)) &&
+      (!type || sameText(yacht.type, type)) &&
+      (!guests || yacht.capacity >= guests) &&
+      (minPrice === null || (yacht.starting_price !== null && yacht.starting_price >= minPrice)) &&
+      (maxPrice === null || (yacht.starting_price !== null && yacht.starting_price <= maxPrice)),
+  );
+  const byName = (a: YachtCard, b: YachtCard) => a.name.localeCompare(b.name);
+  const byPrice = (direction: 1 | -1) => (a: YachtCard, b: YachtCard) => {
+    if (a.starting_price === null || b.starting_price === null) {
+      return a.starting_price === b.starting_price ? byName(a, b) : a.starting_price === null ? 1 : -1;
+    }
+    return (a.starting_price - b.starting_price) * direction || byName(a, b);
+  };
+  const byCapacity = (direction: 1 | -1) => (a: YachtCard, b: YachtCard) =>
+    (a.capacity - b.capacity) * direction || byName(a, b);
+  const order = {
+    recommended: byName,
+    "price-asc": byPrice(1),
+    "price-desc": byPrice(-1),
+    "capacity-asc": byCapacity(1),
+    "capacity-desc": byCapacity(-1),
+  }[filters.sort];
+  return [...matches].sort(order);
 }

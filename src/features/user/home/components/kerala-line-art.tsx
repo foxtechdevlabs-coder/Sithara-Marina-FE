@@ -14,7 +14,8 @@ export function KeralaLineArt() {
       aria-hidden="true"
       className="pointer-events-none relative overflow-hidden mix-blend-multiply xl:-mt-[calc(5rem+7.2vw)]"
     >
-      <div className="relative left-1/2 aspect-[1728/521] w-[160vw] -translate-x-1/2 md:w-full">
+      {/* Phones: a closer crop centred on the harbour drawing (sun and fishing net). */}
+      <div className="relative left-[-62vw] aspect-[1728/521] w-[205vw] md:left-1/2 md:w-full md:-translate-x-1/2">
         <div className="absolute inset-y-0 left-0 w-[32.12%] overflow-hidden">
           <Image
             src="/images/home/kerala-line-art-houseboat.png"

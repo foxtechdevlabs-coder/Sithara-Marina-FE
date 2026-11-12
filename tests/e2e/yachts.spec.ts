@@ -21,10 +21,9 @@ const noHorizontalOverflow = async (page: Page) =>
     ),
   ).toBeLessThanOrEqual(1);
 
+/** The booking card's − [number] + guest field: typed straight into the number. */
 const setGuests = async (page: Page, guests: number) => {
-  for (let added = 0; added < guests; added += 1) {
-    await page.getByRole("button", { name: "More: guests" }).click();
-  }
+  await page.getByRole("textbox", { name: "Number of guests" }).fill(String(guests));
 };
 
 test.beforeEach(async ({ page }) => {
@@ -74,7 +73,7 @@ test.describe("listing", () => {
     await expect(
       main(page).getByText("Kochi · 4+ guests · Price: High to Low"),
     ).toBeVisible();
-    await expect(main(page).getByRole("link", { name: "Edit filters" })).toHaveAttribute(
+    await expect(main(page).getByRole("link", { name: "More filters" })).toHaveAttribute(
       "href",
       "/search?region=Kochi&guests=4&sort=price-desc",
     );
@@ -98,10 +97,23 @@ test.describe("listing", () => {
 
   test("changing filters returns to page 1", async ({ page }) => {
     await page.goto("/yachts?region=Kochi&guests=4&page=2");
-    await main(page).getByRole("link", { name: "Edit filters" }).click();
-    await page.getByLabel("Region").selectOption("Alleppey");
-    await page.getByRole("button", { name: /^Show \d+ yachts?/ }).click();
+    await page.getByRole("combobox", { name: "Location" }).fill("allep");
+    await page.getByRole("option", { name: "Alleppey" }).click();
     await expect(page).toHaveURL("/yachts?region=Alleppey&guests=4");
+  });
+
+  test("the location filter is sent to the backend, and Clear filters resets", async ({ page }) => {
+    await page.goto("/yachts");
+    await page.getByRole("combobox", { name: "Location" }).fill("Kochi");
+    await page.getByRole("combobox", { name: "Location" }).press("Enter");
+    await expect(page).toHaveURL("/yachts?region=Kochi");
+    await expect
+      .poll(async () => (await apiRequests(page)).some((url) => url.includes("destination=Kochi")))
+      .toBe(true);
+    await page.getByRole("radio", { name: "Motor yacht" }).click();
+    await expect(page).toHaveURL("/yachts?region=Kochi&type=Motor+yacht");
+    await page.getByRole("button", { name: "Clear filters" }).click();
+    await expect(page).toHaveURL("/yachts");
   });
 
   test("leaves out null fields instead of printing them", async ({ page }) => {
@@ -164,8 +176,13 @@ test.describe("filters", () => {
   test("options come from the backend, and price bands stay in paise", async ({ page }) => {
     await page.goto("/search");
     await expect(page.getByRole("radio", { name: "Motor yacht" })).toBeVisible();
-    await expect(page.getByLabel("Region").getByRole("option", { name: "Alleppey" })).toHaveCount(1);
-    await page.getByLabel("Region").selectOption("Kochi");
+    const region = page.getByRole("combobox", { name: "Region" });
+    await region.click();
+    await expect(page.getByRole("option", { name: "Alleppey" })).toHaveCount(1);
+    await region.fill("koc");
+    await region.press("ArrowDown");
+    await region.press("Enter");
+    await expect(region).toHaveValue("Kochi");
     await expect(page.getByRole("button", { name: "Show 11 yachts" })).toBeEnabled();
 
     const price = page.getByLabel("Price range");
@@ -176,6 +193,26 @@ test.describe("filters", () => {
     await expect(page).toHaveURL(/\/yachts\?region=Kochi&min_price=4600000&max_price=\d+/);
     const sent = await apiRequests(page);
     expect(sent.some((url) => url.includes("min_price=4600000"))).toBe(true);
+  });
+
+  test("region and guests can be typed; only backend values are applied", async ({ page }) => {
+    await page.goto("/yachts");
+    const location = page.getByRole("combobox", { name: "Location" });
+    await location.fill("nowhere");
+    await expect(page.getByText("No matching location")).toBeVisible();
+    await location.press("Tab");
+    await expect(location).toHaveValue("");
+    await expect(page).toHaveURL("/yachts");
+
+    const guests = page.getByRole("combobox", { name: "Number of guests" });
+    await guests.fill("11");
+    await guests.press("Enter");
+    await expect(page).toHaveURL("/yachts?guests=11");
+    await expect
+      .poll(async () => (await apiRequests(page)).some((url) => url.includes("guests=11")))
+      .toBe(true);
+    await page.getByRole("button", { name: "Clear" }).click();
+    await expect(page).toHaveURL("/yachts");
   });
 
   test("no matches disables the submit button", async ({ page }) => {
@@ -243,19 +280,39 @@ test.describe("availability", () => {
     await expect(page.getByRole("heading", { level: 1, name: "Check availability" })).toBeVisible();
     await expect(page.getByRole("button", { name: /: Past$/ }).first()).toBeDisabled();
     await expect(page.getByRole("button", { name: /: Unavailable$/ }).first()).toBeDisabled();
-    await expect(page.getByRole("button", { name: /: Partly available$/ }).first()).toBeEnabled();
+    // A partly available day (some times taken) can be picked; there is no separate category.
+    await expect(
+      page.getByRole("button", { name: /: Available, some times taken$/ }).first(),
+    ).toBeEnabled();
+    await expect(main(page).getByText("Partly available")).toHaveCount(0);
     await expect(main(page).getByText(/Asia\/Kolkata/)).toBeVisible();
     await noHorizontalOverflow(page);
   });
 
-  test("packages come from open slots, with a time input and no list of times", async ({ page }) => {
+  test("packages list their times: open ones selectable, taken ones disabled", async ({ page }) => {
     await openDate(page);
     await expect(page.getByRole("button", { name: /4 hours/ })).toHaveAttribute("aria-pressed", "true");
     await expect(main(page).getByText("From ₹ 45,000 · excl. GST")).toBeVisible();
     await expect(main(page).getByText(/₹ 2,000 per extra guest/)).toBeVisible();
     await expect(page.getByLabel("Start time")).toHaveAttribute("type", "time");
-    await expect(page.getByRole("button", { name: "10:00 am" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /: available$/ })).toBeEnabled();
+    await expect(page.getByRole("button", { name: /: Booked$/ })).toBeDisabled();
+    await expect(page.getByRole("button", { name: /: Not bookable$/ })).toBeDisabled();
+    await expect(main(page).getByText(/^Unavailable:/)).toBeVisible();
     await noHorizontalOverflow(page);
+  });
+
+  test("the booking card has no Disembark box and keeps guests within capacity", async ({ page }) => {
+    await page.goto("/yachts/test-yacht-01/availability");
+    await expect(page.getByText("Disembark")).toHaveCount(0);
+    const guests = page.getByRole("textbox", { name: "Number of guests" });
+    await expect(guests).toHaveValue("1");
+    await expect(page.getByRole("button", { name: "Fewer guests" })).toBeDisabled();
+    await guests.fill("13");
+    await expect(main(page).getByText("Test Yacht 01 takes up to 12 guests.")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Reserve these dates" })).toBeDisabled();
+    await page.getByRole("button", { name: "Fewer guests" }).click();
+    await expect(guests).toHaveValue("12");
   });
 
   test("choosing a date logs no errors", async ({ page }) => {
@@ -283,7 +340,7 @@ test.describe("availability", () => {
     await openDate(page);
     await setGuests(page, 11);
     await expect(main(page).getByText("That’s more guests than this yacht can take.")).toBeVisible();
-    await page.getByRole("button", { name: "Fewer: guests" }).click();
+    await page.getByRole("button", { name: "Fewer guests" }).click();
     await expect(main(page).getByText("From ₹ 49,000 · excl. GST")).toBeVisible();
   });
 

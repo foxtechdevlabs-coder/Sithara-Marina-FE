@@ -9,6 +9,7 @@ import { userRoutes } from "@/constants/routes";
 import { cx } from "@/lib/cx";
 import { dummyFleet } from "../data/dummy-fleet";
 import { ROUND_BUTTON_GRADIENT } from "./round-button";
+import { Reveal } from "@/components/shared/reveal";
 
 // Carousel photos that show the fleet at different times of day. `focusX` is
 // the horizontal crop point. Yachts without an entry here use their photo
@@ -154,12 +155,12 @@ export function FeaturedYachtSection() {
           <p className="text-[0.6875rem] tracking-[0.2em] uppercase lg:text-[max(calc(var(--r)*11),10px)]">
             The yacht collection
           </p>
-          <h2
+          <Reveal as="h2"
             id="featured-heading"
             className="mt-4 text-[2.75rem] leading-none font-normal tracking-[-0.03em] lg:mt-[calc(var(--r)*19)] lg:text-[calc(var(--r)*72.9)]"
           >
             Featured <span className="font-serif tracking-[-0.01em]">yacht.</span>
-          </h2>
+          </Reveal>
         </div>
 
         <div aria-hidden="true">

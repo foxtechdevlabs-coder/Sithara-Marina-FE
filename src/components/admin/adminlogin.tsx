@@ -5,6 +5,7 @@ import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type SubmitEvent } from "react";
 
+import { PasswordInput } from "@/components/ui/password-input";
 import { adminRoutes } from "@/constants/routes";
 import { useAdminSession } from "@/features/admin/auth/components/admin-session-provider";
 import { authErrorMessage } from "@/features/admin/auth/utils/auth-error-message";
@@ -123,15 +124,15 @@ export default function AdminLogin() {
 
         <div className="mt-[40px] lg:mt-[62px]">
           <AuthLabel htmlFor="password">Password</AuthLabel>
-          <input
+          <PasswordInput
             id="password"
             name="password"
-            type="password"
             required
             autoComplete="current-password"
             placeholder="Your password"
             aria-invalid={error ? true : undefined}
-            className={cx(authField, "mt-[10px]")}
+            className={authField}
+            wrapperClassName="mt-[10px]"
             style={{ borderColor: AUTH_BORDER }}
           />
         </div>

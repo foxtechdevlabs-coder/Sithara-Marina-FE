@@ -1,5 +1,6 @@
 import { ArrowRight } from "lucide-react";
 import Image from "next/image";
+import { Reveal } from "@/components/shared/reveal";
 
 /**
  * "Welcome to Sithara Marina" introduction with the Heritage / Mission gallery.
@@ -18,7 +19,7 @@ export function AboutSection() {
         <p className="text-midnight text-[0.625rem] tracking-[0.2em] uppercase md:text-[0.6875rem]">
           Welcome to Sithara Marina
         </p>
-        <h2
+        <Reveal as="h2"
           id="about-heading"
           className="text-midnight mt-4 text-[clamp(2.125rem,10.3vw,2.5rem)] leading-[1.02] font-normal tracking-[-0.03em] md:mt-5 md:text-[clamp(2.5rem,4.03vw,4.35rem)] md:leading-[1.08] lg:mt-6"
         >
@@ -26,7 +27,7 @@ export function AboutSection() {
           <br />
           with a <span className="font-serif tracking-[-0.01em]">Kerala</span>{" "}
           <em className="font-serif tracking-[-0.01em]">soul.</em>
-        </h2>
+        </Reveal>
         <p className="text-graphite mt-7 max-w-[32rem] text-[0.8125rem] leading-[1.6] md:mx-auto md:text-lg md:leading-[1.3] lg:text-[1.2875rem] lg:leading-[1.24]">
           From the historic shores of Kochi to the tranquil waters of Kumarakom, Sithara Marina
           brings a new perspective to Kerala.
@@ -62,7 +63,7 @@ export function AboutSection() {
             alt="Aerial view of a yacht cruising the Kerala backwaters at sunset"
             fill
             sizes="(min-width: 1280px) 29vw, 100vw"
-            unoptimized
+            quality={90}
             className="object-cover"
           />
         </div>

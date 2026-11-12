@@ -32,6 +32,8 @@ export interface CheckoutState {
   /** Sent as `X-Checkout-Token`; null when the session is the signed-in customer's. */
   checkoutToken: string | null;
   bookingId: string | null;
+  /** Set when an accepted proposal's price changed: the review page says so. */
+  proposalPriceChanged?: boolean;
 }
 
 const EMPTY: CheckoutState = {
@@ -89,6 +91,16 @@ export function updateCheckoutState(update: Partial<CheckoutState>): void {
 /** Starts a new checkout, keeping the contact details already typed. */
 export function startCheckout(draft: CheckoutDraft): void {
   write({ ...EMPTY, contact: readCheckoutState().contact, draft });
+}
+
+/**
+ * Opens the checkout session the backend started for an accepted proposal. It
+ * belongs to the signed-in customer, so it uses their bearer token: no draft,
+ * no checkout token. Everything else (totals, hold, booking, payment) is the
+ * existing checkout's.
+ */
+export function continueProposalCheckout(sessionId: string, priceChanged: boolean): void {
+  write({ ...EMPTY, sessionId, proposalPriceChanged: priceChanged });
 }
 
 export function clearCheckoutState(): void {

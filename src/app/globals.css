@@ -46,6 +46,33 @@
 
   --font-sans:
     ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  /* Customer-website motion: short, eased, transform/opacity only (no layout shift). */
+  --ease-luxe: cubic-bezier(0.22, 1, 0.36, 1);
+  --animate-fade-up: fade-up 800ms var(--ease-luxe) both;
+  --animate-menu-in: menu-in 260ms var(--ease-luxe) both;
+
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translate3d(0, 1rem, 0);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes menu-in {
+    from {
+      opacity: 0;
+      transform: translate3d(0, -0.5rem, 0);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
 }
 
 /*
@@ -96,5 +123,33 @@
 @media (prefers-reduced-motion: reduce) {
   .not-found-reveal {
     animation: none;
+  }
+}
+
+/*
+ * Scroll reveals (customer website). `Reveal` (components/shared/reveal.tsx)
+ * marks its element pending only when it starts below the fold, and releases it as
+ * it scrolls into view; without JavaScript, or with reduced motion, nothing is hidden.
+ * `--reveal-delay` staggers neighbours (e.g. cards in a row).
+ */
+[data-reveal].reveal-pending,
+[data-reveal].reveal-in {
+  transition:
+    opacity 900ms var(--ease-luxe),
+    transform 900ms var(--ease-luxe);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+
+[data-reveal].reveal-pending {
+  opacity: 0;
+  transform: translate3d(0, 1.5rem, 0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-reveal].reveal-pending,
+  [data-reveal].reveal-in {
+    opacity: 1;
+    transform: none;
+    transition: none;
   }
 }

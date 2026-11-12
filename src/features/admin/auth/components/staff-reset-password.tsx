@@ -15,6 +15,7 @@ import {
   authField,
   authPrimaryButton,
 } from "@/components/admin/admin-auth-layout";
+import { PasswordInput } from "@/components/ui/password-input";
 import { adminRoutes } from "@/constants/routes";
 import { cx } from "@/lib/cx";
 import { resetPassword, verifyResetLink, type ResetToken } from "@/services/admin/auth.service";
@@ -255,14 +256,14 @@ export function StaffResetPassword({ purpose = "reset" }: { purpose?: "reset" | 
           className="mt-[28px] max-w-[560px] lg:mt-[30px]"
         >
           <AuthLabel htmlFor="new_password">{copy.passwordLabel}</AuthLabel>
-          <input
+          <PasswordInput
             id="new_password"
             name="new_password"
-            type="password"
             required
             autoComplete="new-password"
             aria-describedby="password-rules"
-            className={cx(authField, "mt-[10px]")}
+            className={authField}
+            wrapperClassName="mt-[10px]"
             style={{ borderColor: AUTH_BORDER }}
           />
           <p id="password-rules" className="mt-[8px] text-[12px]" style={{ color: AUTH_BODY }}>
@@ -271,13 +272,13 @@ export function StaffResetPassword({ purpose = "reset" }: { purpose?: "reset" | 
 
           <div className="mt-[32px]">
             <AuthLabel htmlFor="confirm_password">{copy.confirmLabel}</AuthLabel>
-            <input
+            <PasswordInput
               id="confirm_password"
               name="confirm_password"
-              type="password"
               required
               autoComplete="new-password"
-              className={cx(authField, "mt-[10px]")}
+              className={authField}
+              wrapperClassName="mt-[10px]"
               style={{ borderColor: AUTH_BORDER }}
             />
           </div>

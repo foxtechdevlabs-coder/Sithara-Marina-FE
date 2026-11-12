@@ -8,7 +8,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 
-import { bookingNav, primaryNav } from "@/config/user-navigation";
+import { accountNav, bookingNav, primaryNav } from "@/config/user-navigation";
 import { userRoutes } from "@/constants/routes";
 import { signOut, useAuthSession } from "@/features/user/auth/session";
 import { cx } from "@/lib/cx";
@@ -21,6 +21,20 @@ const focusRingBase = "focus-visible:outline-2 focus-visible:outline-offset-4";
 
 const accountButtonClass =
   "hidden h-[3.3125rem] w-11 items-center justify-center gap-2.5 border border-[#0d1b2a] bg-white text-[0.875rem] text-[#0d1b2a] transition-colors duration-300 hover:bg-[#0d1b2a] hover:text-white sm:inline-flex lg:w-[11.75rem]";
+/**
+ * "asha menon" or "ASHA MENON" → "Asha Menon". Mixed capitals already typed (e.g.
+ * "McKenzie") are kept.
+ */
+const titleCase = (name: string) =>
+  (name === name.toUpperCase() ? name.toLowerCase() : name).replace(
+    /(^|[\s'-])(\p{Ll})/gu,
+    (_, before: string, letter: string) => before + letter.toUpperCase(),
+  );
+
+/** Every item in the menu dropdown: the main links, the account links, the name and Logout. */
+const menuItemClass =
+  "font-serif block py-3 text-[1.625rem] leading-tight opacity-90 transition-opacity duration-300 hover:opacity-100 aria-[current=page]:italic";
+
 const accountMenuItemClass =
   "flex items-center gap-3 py-3 font-serif text-[1.625rem] leading-tight opacity-90 transition-opacity duration-300 hover:opacity-100 aria-[current=page]:italic";
 
@@ -28,12 +42,14 @@ const accountMenuItemClass =
  * Site-wide header: menu toggle on the left, logo centred, booking button on
  * the right. On the home page it floats transparently over the hero video with
  * white text and logo; on every other page it is a white bar with dark text,
- * as in the Figma designs. Signed in, Logout replaces Sign in, next to the
- * user's name when the session has one (POST /auth/login returns no user).
+ * as in the Figma designs. Signed out, Sign in sits beside the booking button;
+ * signed in, the account links, the user's name (when the session has one: POST
+ * /auth/login returns no user) and Logout are all inside the menu.
  */
 export function SiteHeader() {
   const session = useAuthSession();
-  const userName = session?.user?.fullName;
+  const fullName = session?.user?.fullName?.trim();
+  const userName = fullName ? titleCase(fullName) : undefined;
   const pathname = usePathname();
   const isOverlay = pathname === userRoutes.home;
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -139,29 +155,9 @@ export function SiteHeader() {
         </Link>
 
         <div className="flex gap-1.5 md:gap-2.5 lg:gap-[1.125rem]">
-          {/* Sign in / Logout: full button from lg, icon-only from sm; inside the menu on phones. */}
-          {session ? (
-            <>
-              {/* From xl only: narrower headers would run into the logo; the menu shows it there. */}
-              {userName ? (
-                <span
-                  title={userName}
-                  className="hidden max-w-36 self-center truncate text-[0.875rem] xl:block"
-                >
-                  {userName}
-                </span>
-              ) : null}
-              <button
-                type="button"
-                onClick={logOut}
-                aria-label="Logout"
-                className={cx(accountButtonClass, focusRing)}
-              >
-                <LogOut aria-hidden="true" strokeWidth={1.5} className="size-[1.125rem] shrink-0" />
-                <span className="hidden lg:inline">Logout</span>
-              </button>
-            </>
-          ) : (
+          {/* Sign in: full button from lg, icon-only from sm; inside the menu on phones.
+              Signed in, the account (name and Logout) lives in the menu instead. */}
+          {session ? null : (
             <Link
               href={userRoutes.login}
               onClick={closeMenu}
@@ -221,7 +217,7 @@ export function SiteHeader() {
         aria-label="Main"
         hidden={!isMenuOpen}
         // Compact dropdown just below the Menu button, aligned with its left edge.
-        className="bg-brand-950 absolute top-[4.25rem] text-white left-4 w-[min(17rem,calc(100vw-2rem))] px-6 py-3 shadow-2xl sm:top-[3.75rem] sm:left-7 lg:left-10"
+        className="bg-brand-950 motion-safe:animate-menu-in absolute top-[4.25rem] text-white left-4 w-[min(17rem,calc(100vw-2rem))] px-6 py-3 shadow-2xl sm:top-[3.75rem] sm:left-7 lg:left-10"
       >
         <ul className="flex flex-col divide-y divide-white/10">
           {primaryNav.map((item) => (
@@ -230,23 +226,34 @@ export function SiteHeader() {
                 href={item.href}
                 onClick={closeMenu}
                 aria-current={isCurrent(item.href) ? "page" : undefined}
-                className={cx(
-                  "font-serif block py-3 text-[1.625rem] leading-tight opacity-90 transition-opacity duration-300 hover:opacity-100 aria-[current=page]:italic",
-                  focusRingBase,
-                  "focus-visible:outline-white",
-                )}
+                className={cx(menuItemClass, focusRingBase, "focus-visible:outline-white")}
               >
                 {item.label}
               </Link>
             </li>
           ))}
-          {userName ? (
-            <li title={userName} className="truncate py-3 text-[0.875rem] opacity-90 xl:hidden">
+          {session
+            ? accountNav.map((item) => (
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    onClick={closeMenu}
+                    aria-current={isCurrent(item.href) ? "page" : undefined}
+                    className={cx(menuItemClass, focusRingBase, "focus-visible:outline-white")}
+                  >
+                    {item.label}
+                  </Link>
+                </li>
+              ))
+            : null}
+          {session && userName ? (
+            <li title={userName} className={cx(menuItemClass, "truncate hover:opacity-90")}>
+              <span className="sr-only">Signed in as </span>
               {userName}
             </li>
           ) : null}
-          {/* Phones have no room for the header's Sign in / Logout button. */}
-          <li className="sm:hidden">
+          {/* Logout at every width; Sign in only on phones, which have no room for the header button. */}
+          <li className={session ? undefined : "sm:hidden"}>
             {session ? (
               <button
                 type="button"

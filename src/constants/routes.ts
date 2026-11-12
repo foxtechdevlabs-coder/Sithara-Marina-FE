@@ -38,12 +38,22 @@ export const userRoutes = {
   /** After registering: "Check your inbox", until the emailed link is opened. */
   verifyEmailPending: "/verify-email/pending",
 
+  /** Signed-in customer pages. */
+  accountEnquiries: "/account/enquiries",
+  accountEnquiry: (reference: string) => `/account/enquiries/${id(reference)}` as Route,
+  accountProposal: (proposalId: string) => `/account/proposals/${id(proposalId)}` as Route,
+  accountCancellations: "/account/cancellations",
+  accountBookingCancel: (reference: string) => `/account/bookings/${id(reference)}/cancel` as Route,
+
   planCharter: "/plan-your-charter",
-  /** The custom quote page with this yacht already chosen. */
-  planCharterFor: (slug: string) => `/plan-your-charter?yacht=${id(slug)}` as Route,
+  /** The custom quote page with this yacht (and optionally a guest count) already chosen. */
+  planCharterFor: (slug: string, yachtId = "", guests = "") =>
+    `/plan-your-charter${withQuery({ yacht: slug, yacht_id: yachtId, guests })}` as Route,
   search: "/search",
   /** Payment link staff send for an office booking: `<this>#token=…` (`?token=` also works). */
   payLink: "/pay",
+  /** A published content page (GET /content/pages/{slug}). */
+  contentPage: (slug: string) => `/pages/${id(slug)}` as Route,
 } as const satisfies Record<string, Route | ((...args: string[]) => Route)>;
 
 /** Admin dashboard routes (`src/app/admin`). */
