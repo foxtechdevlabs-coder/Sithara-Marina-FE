@@ -31,4 +31,24 @@ describe("parsePublicEnv", () => {
   it("rejects a relative API URL", () => {
     expect(() => parsePublicEnv({ NEXT_PUBLIC_API_URL: "/api" })).toThrow(/NEXT_PUBLIC_API_URL/);
   });
+
+  it("accepts a Google OAuth client ID, and treats a blank one as not configured", () => {
+    const api = { NEXT_PUBLIC_API_URL: "https://api.example.com" };
+    const clientId = "123-abc.apps.googleusercontent.com";
+    expect(
+      parsePublicEnv({ ...api, NEXT_PUBLIC_GOOGLE_CLIENT_ID: clientId }).NEXT_PUBLIC_GOOGLE_CLIENT_ID,
+    ).toBe(clientId);
+    expect(
+      parsePublicEnv({ ...api, NEXT_PUBLIC_GOOGLE_CLIENT_ID: "  " }).NEXT_PUBLIC_GOOGLE_CLIENT_ID,
+    ).toBeUndefined();
+  });
+
+  it("rejects a value that is not a Google client ID (e.g. a secret pasted by mistake)", () => {
+    expect(() =>
+      parsePublicEnv({
+        NEXT_PUBLIC_API_URL: "https://api.example.com",
+        NEXT_PUBLIC_GOOGLE_CLIENT_ID: "GOCSPX-not-a-client-id",
+      }),
+    ).toThrow(/NEXT_PUBLIC_GOOGLE_CLIENT_ID/);
+  });
 });

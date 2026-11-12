@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
 
+import { PasswordInput } from "@/components/ui/password-input";
 import { userRoutes } from "@/constants/routes";
 import { cx } from "@/lib/cx";
 import { isApiError } from "@/services/http/api-error";
@@ -26,6 +27,7 @@ import {
   primaryButtonClass,
   secondaryButtonClass,
 } from "./auth-form-styles";
+import { GoogleSignIn } from "./google-sign-in";
 
 type Status =
   | { kind: "idle" }
@@ -165,16 +167,16 @@ export function SignInForm() {
         >
           Password
         </label>
-        <input
+        <PasswordInput
           id={`${formId}-password`}
           name="password"
-          type="password"
           autoComplete="current-password"
           disabled={isSubmitting}
           placeholder="••••••••••••"
           aria-invalid={errors.password ? true : undefined}
           aria-describedby={errors.password ? passwordErrorId : undefined}
-          className={cx(inputClass, "mt-3.5 lg:mt-[calc(var(--r)*14)]")}
+          className={inputClass}
+          wrapperClassName="mt-3.5 lg:mt-[calc(var(--r)*14)]"
         />
         {errors.password ? (
           <p id={passwordErrorId} className={fieldErrorClass}>
@@ -206,6 +208,11 @@ export function SignInForm() {
         {isSubmitting ? "Signing in…" : "Sign in"}
         <ArrowRight aria-hidden="true" strokeWidth={1.5} className="size-3.5" />
       </button>
+
+      <GoogleSignIn
+        context="signin"
+        className="mt-10 max-w-[35rem] lg:mt-[calc(var(--r)*44)] lg:w-[calc(var(--rw)*560)] lg:max-w-none"
+      />
 
       <p className="mt-12 pl-9 text-[0.8125rem] leading-none lg:mt-[calc(var(--r)*52)]">
         <Link

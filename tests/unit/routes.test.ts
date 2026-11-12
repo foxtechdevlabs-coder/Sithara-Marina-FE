@@ -19,4 +19,17 @@ describe("route builders", () => {
     expect(userRoutes.yacht("a b/c")).toBe("/yachts/a%20b%2Fc");
     expect(adminRoutes.fleetYachtPricing("y 1")).toBe("/admin/fleet/y%201/pricing");
   });
+
+  it("opens the custom quote page with the yacht and, when given, the guest count", () => {
+    expect(userRoutes.planCharterFor("astra-one")).toBe("/plan-your-charter?yacht=astra-one");
+    expect(userRoutes.planCharterFor("astra-one", "id-1")).toBe(
+      "/plan-your-charter?yacht=astra-one&yacht_id=id-1",
+    );
+    expect(userRoutes.planCharterFor("astra-one", "id-1", "4")).toBe(
+      "/plan-your-charter?yacht=astra-one&yacht_id=id-1&guests=4",
+    );
+    expect(new URL(userRoutes.planCharterFor("a b&c"), "https://x.test").searchParams.get("yacht")).toBe(
+      "a b&c",
+    );
+  });
 });

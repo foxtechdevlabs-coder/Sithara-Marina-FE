@@ -125,14 +125,25 @@ Implemented in `src/services/user/checkout.service.ts` and `booking.service.ts`:
 - **Polling** (`poll-booking-status.ts`): at once, then every 2 s, for at most 60 s. Overlapping ticks
   are skipped; network errors, 5xx and 429 keep polling; other 4xx stop it.
 
-### Payment is not integrated
+### Payment (Razorpay)
 
-The deployed backend has no payment API. On the hosted backend `POST /bookings/{id}/payments` and
-`POST /bookings/{id}/verify-payment` answer `404 Cannot POST`, neither is in Swagger, and Swagger has
-no Razorpay or webhook route. So the app does not call them and does not load the Razorpay SDK.
-`/checkout` stops at a `pending_payment` booking and tells the customer nothing was charged. When
-the endpoints ship, add them to `booking.service.ts`, open Razorpay from `PaymentStep` and call the
-existing `useBookingStatusPoll().start()` when the modal closes.
+| Function           | Endpoint                             | Credential                     |
+| ------------------ | ------------------------------------ | ------------------------------ |
+| `startPayment()`   | `POST /bookings/{id}/payments`       | one of bearer / checkout token |
+| `verifyPayment()`  | `POST /bookings/{id}/verify-payment` | one of bearer / checkout token |
+| `getInvoice()`     | `GET /bookings/{id}/invoice`         | one of bearer / checkout token |
+
+- Swagger declares no credential on these three, but the hosted backend answers a bad
+  `X-Checkout-Token` with 401 "Invalid checkout token", like the other booking endpoints.
+- `startPayment` sends no body: the backend creates the Razorpay order and sets the amount. A 200
+  returns the attempt already open, so retrying never opens a second order.
+- `features/user/payments/utils/razorpay.ts` loads `https://checkout.razorpay.com/v1/checkout.js` and
+  opens it with the returned `key_id`, `order_id`, `amount` and `currency`. No secret is in the frontend.
+- Razorpay's success result goes to `verifyPayment` as `{ payload }`. Whatever it answers, only
+  `GET /bookings/{id}/status` confirms the booking (the webhook may finish it later).
+- Status mapping (`paymentOutcome()`): booking `confirmed`/`completed` → confirmed; `cancelled`,
+  `refunded`, `no_show` → closed; while `pending_payment`, `payment_status` `failed`/`cancelled` →
+  payment failed (pay again while the hold lasts), `processing`/`succeeded` → keep polling.
 
 ## Customer authentication
 

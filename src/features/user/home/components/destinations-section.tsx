@@ -6,6 +6,7 @@ import { userRoutes } from "@/constants/routes";
 import { cx } from "@/lib/cx";
 
 import { ROUND_BUTTON_GRADIENT } from "./round-button";
+import { Reveal } from "@/components/shared/reveal";
 
 // Content from the design reference. Add destinations here; one indicator
 // is shown per entry.
@@ -67,36 +68,36 @@ export function DestinationsSection() {
         <p className="text-onyx text-[0.6875rem] tracking-[0.2em] uppercase lg:text-[max(calc(var(--r)*11),10px)]">
           Places that stay with you
         </p>
-        <h2
+        <Reveal as="h2"
           id="destinations-heading"
           className="text-onyx mt-4 text-[2.75rem] leading-[1.03] font-normal tracking-[-0.03em] lg:mt-[calc(var(--r)*20)] lg:text-[calc(var(--r)*72.9)]"
         >
           Follow a
           <br />
           different <span className="font-serif tracking-[-0.01em]">horizon.</span>
-        </h2>
-        <p className="text-graphite mt-6 max-w-[28rem] text-[1.0625rem] leading-[1.3] lg:mt-[calc(var(--r)*19)] lg:max-w-[calc(var(--r)*445)] lg:text-[max(calc(var(--r)*17.5),15px)]">
+        </Reveal>
+        <p className="text-graphite mt-6 max-w-[28rem] text-[1.0625rem] max-md:text-[0.9375rem] max-md:leading-[1.45] leading-[1.3] lg:mt-[calc(var(--r)*19)] lg:max-w-[calc(var(--r)*445)] lg:text-[max(calc(var(--r)*17.5),15px)]">
           Our home waters and a little beyond. Discover a coast, an island, or a quiet corner of the
           world that feels like it was waiting for you.
         </p>
         <Link
           href={userRoutes.planCharter}
-          className="border-brand-950 text-brand-950 hover:bg-brand-950 hover:text-pearl mt-8 inline-flex h-[3.3125rem] items-center gap-5 border px-[1.875rem] text-[0.6875rem] tracking-[0.2em] uppercase transition-colors duration-300 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-current lg:mt-[calc(var(--r)*43)] lg:h-[max(calc(var(--r)*53),2.75rem)] lg:w-[max(calc(var(--r)*265),13rem)] lg:justify-center lg:gap-[calc(var(--r)*20)] lg:px-0 lg:text-[max(calc(var(--r)*11),10px)]"
+          className="border-brand-950 text-brand-950 hover:bg-brand-950 hover:text-pearl mt-8 inline-flex max-md:flex max-md:w-full max-md:justify-center h-[3.3125rem] items-center gap-5 border px-[1.875rem] text-[0.6875rem] tracking-[0.2em] uppercase transition-colors duration-300 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-current lg:mt-[calc(var(--r)*43)] lg:h-[max(calc(var(--r)*53),2.75rem)] lg:w-[max(calc(var(--r)*265),13rem)] lg:justify-center lg:gap-[calc(var(--r)*20)] lg:px-0 lg:text-[max(calc(var(--r)*11),10px)]"
         >
           Explore destinations
           <ArrowRight aria-hidden="true" strokeWidth={1.5} className="size-3.5" />
         </Link>
       </div>
 
-      {/* Phones: the card overlaps only the photo's lower edge. From `md` it sits inside the photo. */}
-      <div className="relative mx-5 mt-12 sm:mx-10 md:aspect-[834/935] md:overflow-hidden lg:order-first lg:mx-0 lg:mt-0">
-        <div className="relative aspect-[4/3] overflow-hidden md:absolute md:inset-0 md:aspect-auto">
+      {/* The card sits inside the photo at every size; phones use a taller 3:4 frame. */}
+      <div className="relative mx-5 mt-12 aspect-[3/4] overflow-hidden max-md:mt-10 sm:mx-10 md:aspect-[834/935] lg:order-first lg:mx-0 lg:mt-0">
+        <div className="absolute inset-0 overflow-hidden">
           <Image
             src={destination.image}
             alt={destination.imageAlt}
             fill
             sizes="(min-width: 1024px) 48vw, 100vw"
-            unoptimized
+            quality={90}
             // Figma crop: the boat sits centred, the houseboat on the right is out of frame.
             className="object-cover object-[61%_50%]"
           />
@@ -104,7 +105,7 @@ export function DestinationsSection() {
 
         <ol
           aria-label="Destinations"
-          className="absolute top-6 right-4 flex md:top-[44%] flex-col gap-[1.1875rem] lg:top-[calc(var(--r)*377)] lg:right-[calc(var(--r)*28)] lg:gap-[calc(var(--r)*19)]"
+          className="absolute top-[38%] right-4 flex md:top-[44%] flex-col gap-[1.1875rem] lg:top-[calc(var(--r)*377)] lg:right-[calc(var(--r)*28)] lg:gap-[calc(var(--r)*19)]"
         >
           {DESTINATIONS.map((item, index) => (
             <li
@@ -120,15 +121,15 @@ export function DestinationsSection() {
           ))}
         </ol>
 
-        <article className="bg-surface relative mx-3 -mt-12 grid grid-cols-[1fr_auto] gap-x-4 p-5 sm:p-6 md:absolute md:inset-x-6 md:bottom-6 md:mx-0 md:mt-0 lg:inset-x-[calc(var(--r)*24)] lg:bottom-[calc(var(--r)*26)] lg:min-h-[calc(var(--r)*200)] lg:pt-[calc(var(--r)*36)] lg:pr-[calc(var(--r)*24)] lg:pb-[calc(var(--r)*20)] lg:pl-[calc(var(--r)*24)]">
+        <article className="bg-surface absolute inset-x-3.5 bottom-3.5 grid grid-cols-[1fr_auto] gap-x-4 p-4 sm:p-6 md:inset-x-6 md:bottom-6 lg:inset-x-[calc(var(--r)*24)] lg:bottom-[calc(var(--r)*26)] lg:min-h-[calc(var(--r)*200)] lg:pt-[calc(var(--r)*36)] lg:pr-[calc(var(--r)*24)] lg:pb-[calc(var(--r)*20)] lg:pl-[calc(var(--r)*24)]">
           <div className="col-span-2 md:col-span-1">
-            <h3 className="text-onyx pr-14 text-[1.625rem] md:pr-0 leading-tight font-normal tracking-[-0.01em] lg:text-[max(calc(var(--r)*29.5),20px)]">
+            <h3 className="text-onyx pr-10 text-[1.0625rem] sm:text-[1.625rem] md:pr-0 leading-tight font-normal tracking-[-0.01em] lg:text-[max(calc(var(--r)*29.5),20px)]">
               {destination.name}
             </h3>
-            <p className="text-onyx mt-3 max-w-[22rem] text-[0.9375rem] leading-[1.65] lg:mt-[calc(var(--r)*12)] lg:max-w-[calc(var(--r)*345)] lg:text-[max(calc(var(--r)*15),12px)]">
+            <p className="text-onyx mt-2 max-w-[22rem] text-[0.8125rem] leading-[1.75] sm:mt-3 sm:text-[0.9375rem] sm:leading-[1.65] lg:mt-[calc(var(--r)*12)] lg:max-w-[calc(var(--r)*345)] lg:text-[max(calc(var(--r)*15),12px)]">
               {destination.description}
             </p>
-            <ul className="mt-4 flex flex-wrap gap-2 text-[0.75rem] tracking-[0.12em] uppercase lg:mt-[calc(var(--r)*20)] lg:gap-[calc(var(--r)*9)] lg:text-[max(calc(var(--r)*13),10px)]">
+            <ul className="mt-3 flex flex-wrap gap-2 text-[0.6875rem] tracking-[0.12em] sm:mt-4 sm:text-[0.75rem] uppercase lg:mt-[calc(var(--r)*20)] lg:gap-[calc(var(--r)*9)] lg:text-[max(calc(var(--r)*13),10px)]">
               <li className="text-onyx bg-[#eaeaea] px-2.5 py-1 leading-tight whitespace-nowrap lg:px-[calc(var(--r)*10)] lg:py-[calc(var(--r)*5)]">
                 {destination.duration}
               </li>
@@ -142,11 +143,11 @@ export function DestinationsSection() {
             href={userRoutes.planCharter}
             aria-label={`Explore ${destination.name}`}
             className={cx(
-              "absolute top-5 right-5 flex size-11 items-center justify-center self-start rounded-full sm:top-6 sm:right-6 md:static text-white transition-transform duration-300 hover:scale-105 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0C2269] motion-reduce:transition-none lg:-mt-[calc(var(--r)*12)] lg:size-[max(calc(var(--r)*45),2.75rem)]",
+              "absolute top-4 right-4 flex size-7 items-center justify-center self-start rounded-full sm:top-6 sm:right-6 sm:size-11 md:static text-white transition-transform duration-300 hover:scale-105 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0C2269] motion-reduce:transition-none lg:-mt-[calc(var(--r)*12)] lg:size-[max(calc(var(--r)*45),2.75rem)]",
               ROUND_BUTTON_GRADIENT,
             )}
           >
-            <ArrowUpRight aria-hidden="true" strokeWidth={1.25} className="size-5" />
+            <ArrowUpRight aria-hidden="true" strokeWidth={1.25} className="size-3.5 sm:size-5" />
           </Link>
         </article>
       </div>

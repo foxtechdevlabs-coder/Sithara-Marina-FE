@@ -22,34 +22,6 @@ export interface YachtSchemaData {
   area?: string;
 }
 
-export const FAQ_DATA: readonly FaqItem[] = [
-  {
-    question: "What kind of journeys do you arrange?",
-    answer:
-      "We curate private backwater day cruises in Alleppey and Kumarakom, coastal voyages along the Malabar Coast, multi-day island expeditions to Lakshadweep and the Maldives, as well as bespoke sunset charters and milestone celebrations.",
-  },
-  {
-    question: "Do I need any sailing experience?",
-    answer:
-      "No sailing experience is required. Every Sithara Marina charter includes a licensed, veteran captain and a dedicated professional crew who handle navigation, vessel operations, and five-star hospitality throughout your voyage.",
-  },
-  {
-    question: "When is the best time to visit?",
-    answer:
-      "The peak sailing season across Kerala and the Arabian Sea runs from October through April, characterized by clear skies, calm waters, and refreshing breezes. Serene backwater charters are also deeply restorative during the lush monsoon months.",
-  },
-  {
-    question: "What is included in a private charter?",
-    answer:
-      "Every charter includes private and exclusive yacht hire, captain and crew services, vessel fuel, custom dining menus crafted by onboard chefs, non-alcoholic beverages, watersports/snorkelling gear, and dedicated concierge itinerary planning.",
-  },
-  {
-    question: "How do I begin planning?",
-    answer:
-      "You can start by submitting an enquiry through our 'Plan your charter' page or reaching out to our concierge via phone at +919724553452 or email at sitharamarina@gmail.com. We design each journey around your schedule and preferences.",
-  },
-];
-
 /**
  * Organization and LocalBusiness schema for Sithara Marina.
  */
@@ -108,9 +80,10 @@ export function generateWebsiteSchema() {
 }
 
 /**
- * FAQPage schema for high-ranking AI Overviews, Perplexity citations, and Google rich results.
+ * FAQPage schema for high-ranking AI Overviews, Perplexity citations, and Google rich results,
+ * from the published FAQs (GET /content/faqs) so it always matches the page.
  */
-export function generateFaqSchema(items: readonly FaqItem[] = FAQ_DATA) {
+export function generateFaqSchema(items: readonly FaqItem[]) {
   return {
     "@context": "https://schema.org",
     "@type": "FAQPage",

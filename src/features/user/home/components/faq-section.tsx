@@ -2,17 +2,19 @@ import { ArrowRight, Plus } from "lucide-react";
 import Link from "next/link";
 
 import { MarinaFonts } from "@/components/user/marina-chrome";
+import { Reveal } from "@/components/shared/reveal";
 import { userRoutes } from "@/constants/routes";
 import { cx } from "@/lib/cx";
-import { FAQ_DATA } from "@/lib/seo-schema";
-
+import type { Faq } from "@/services/user/content.service";
 const SWITZER = "font-['Switzer',ui-sans-serif,system-ui,sans-serif]";
 
 /**
- * "A few things, before you set sail." FAQ section with accessible disclosure markup
- * and factual, authoritative answers for AI/RAG crawlers and users.
+ * "A few things, before you set sail." FAQ section with accessible disclosure markup.
+ * The questions and answers are the published FAQs (GET /content/faqs), in the
+ * backend's order; answers are plain text. Without any, only the introduction and
+ * "Ask us anything" are shown.
  */
-export function FaqSection() {
+export function FaqSection({ faqs }: { faqs: Faq[] }) {
   return (
     <section
       aria-labelledby="faq-heading"
@@ -27,40 +29,42 @@ export function FaqSection() {
         <p className="text-onyx text-[0.6875rem] leading-none tracking-[0.18em] uppercase lg:text-[max(calc(var(--r)*11),10px)]">
           Good to know
         </p>
-        <h2
+        <Reveal as="h2"
           id="faq-heading"
           className="text-forest mt-5 text-[2.75rem] leading-[1.15] font-normal tracking-[-0.03em] md:text-[3.5rem] lg:mt-[calc(var(--r)*24)] lg:text-[calc(var(--r)*72)] lg:leading-[calc(var(--r)*84)]"
         >
           A few things,
           <br />
           before you <span className="font-serif tracking-[-0.01em]">set sail.</span>
-        </h2>
-        <p className="text-graphite mt-6 text-[1.0625rem] leading-snug lg:mt-[calc(var(--r)*28)] lg:text-[max(calc(var(--r)*18),15px)]">
+        </Reveal>
+        <p className="text-graphite mt-6 text-[1.0625rem] max-md:mt-5 max-md:text-[0.9375rem] leading-snug lg:mt-[calc(var(--r)*28)] lg:text-[max(calc(var(--r)*18),15px)]">
           New to private yachting? You’re in good hands.
         </p>
         <Link
           href={userRoutes.planCharter}
-          className="font-attribution border-brand-950 text-brand-950 hover:bg-brand-950 mt-9 inline-flex h-[3.25rem] items-center gap-4 border px-[1.875rem] text-[11px] leading-none font-semibold tracking-[2.42px] uppercase transition-colors duration-300 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-current lg:mt-[calc(var(--r)*58)] lg:h-[max(calc(var(--r)*53),2.75rem)] lg:px-[calc(var(--r)*30)]"
+          className="font-attribution border-brand-950 text-brand-950 hover:bg-brand-950 mt-9 inline-flex h-[3.25rem] items-center gap-4 border px-[1.875rem] max-md:mt-7 max-md:flex max-md:w-full max-md:justify-between max-md:bg-brand-950 max-md:px-5 max-md:text-white max-md:hover:bg-brand-900 text-[11px] leading-none font-semibold tracking-[2.42px] uppercase transition-colors duration-300 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-current lg:mt-[calc(var(--r)*58)] lg:h-[max(calc(var(--r)*53),2.75rem)] lg:px-[calc(var(--r)*30)]"
         >
           Ask us anything
           <ArrowRight aria-hidden="true" strokeWidth={1.5} className="size-3.5" />
         </Link>
       </div>
 
-      <div className="mx-5 mt-14 border-t border-[#E7EAE4] sm:mx-10 lg:mx-0 lg:mt-0">
-        {FAQ_DATA.map((item, index) => (
-          <details
-            key={item.question}
-            className="group border-b border-[#E7EAE4] py-6 lg:py-[calc(var(--r)*24)]"
+      {faqs.length > 0 && (
+      <div className="mx-5 mt-14 border-t border-[#E7EAE4] max-md:mt-10 sm:mx-10 lg:mx-0 lg:mt-0">
+        {faqs.map((item, index) => (
+          <Reveal as="details"
+            key={item.id}
+            delay={Math.min(index, 5) * 60}
+            className="group border-b border-[#E7EAE4] py-6 max-md:py-5 lg:py-[calc(var(--r)*24)]"
           >
             <summary className="flex cursor-pointer list-none items-center justify-between gap-4 focus-visible:outline-2 focus-visible:outline-brand-950 lg:gap-[calc(var(--r)*22)] [&::-webkit-details-marker]:hidden">
               <span
                 aria-hidden="true"
-                className="w-7 shrink-0 text-[0.9375rem] tracking-[0.06em] text-[#A69E83] tabular-nums lg:w-[calc(var(--r)*28)] lg:text-[max(calc(var(--r)*19),14px)]"
+                className="w-7 shrink-0 text-[0.9375rem] max-md:text-[0.6875rem] tracking-[0.06em] text-[#A69E83] tabular-nums lg:w-[calc(var(--r)*28)] lg:text-[max(calc(var(--r)*19),14px)]"
               >
                 {String(index + 1).padStart(2, "0")}
               </span>
-              <span className="text-forest flex-1 text-[1.0625rem] font-medium leading-snug lg:text-[max(calc(var(--r)*20.5),15px)]">
+              <span className="text-forest flex-1 text-[1.0625rem] font-medium leading-snug max-md:text-[0.9375rem] max-md:font-normal lg:text-[max(calc(var(--r)*20.5),15px)]">
                 {item.question}
               </span>
               <Plus
@@ -70,11 +74,12 @@ export function FaqSection() {
               />
             </summary>
             <div className="pt-4 pr-6 pl-11 text-graphite text-[0.9375rem] leading-[1.6] lg:pl-[calc(var(--r)*50)] lg:text-[max(calc(var(--r)*16),14px)]">
-              <p>{item.answer}</p>
+              <p className="whitespace-pre-line">{item.answer}</p>
             </div>
-          </details>
+          </Reveal>
         ))}
       </div>
+      )}
     </section>
   );
 }

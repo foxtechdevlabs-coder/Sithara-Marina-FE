@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// The sitemap against a stubbed `fetch`. It runs during `next build`.
+// The sitemap against a stubbed `fetch`. Card shapes follow the backend Swagger schema.
+const API = "http://api.test";
+
 const card = (slug: string) => ({
   id: `id-${slug}`,
   slug,
@@ -8,7 +10,7 @@ const card = (slug: string) => ({
   type: null,
   length_ft: null,
   suites: null,
-  capacity: 8,
+  capacity: 10,
   departure_city: null,
   card_tagline: null,
   cruising_regions: [],
@@ -20,42 +22,87 @@ const card = (slug: string) => ({
   enquiry_enabled: false,
 });
 
-async function yachtUrls() {
-  const { default: sitemap } = await import("@/app/sitemap");
-  const entries = await sitemap();
-  return entries.map((e) => new URL(e.url).pathname).filter((p) => p.startsWith("/yachts/"));
-}
-
 beforeEach(() => {
   vi.resetModules();
-  vi.stubEnv("NEXT_PUBLIC_API_URL", "http://api.test");
-  vi.spyOn(console, "warn").mockImplementation(() => {});
+  vi.stubEnv("NEXT_PUBLIC_API_URL", API);
+  vi.stubEnv("NEXT_PUBLIC_SITE_URL", "https://site.test");
 });
 afterEach(() => {
   vi.unstubAllEnvs();
-  vi.unstubAllGlobals();
-  vi.restoreAllMocks();
 });
 
-describe("sitemap", () => {
-  it("lists every yacht by slug, across pages", async () => {
-    const slugs = Array.from({ length: 150 }, (_, i) => `yacht-${i}`);
-    const fetchMock = vi.fn(async (url: string) => {
-      const page = Number(new URL(url).searchParams.get("page"));
-      const items = slugs.slice((page - 1) * 100, page * 100).map(card);
-      return new Response(JSON.stringify({ items, total: slugs.length, page, limit: 100 }));
-    });
-    vi.stubGlobal("fetch", fetchMock);
+const homeContent = (pages: { slug: string; title: string }[]) =>
+  new Response(JSON.stringify({ featured_yachts: [], banners: [], sections: [], pages }));
 
-    await expect(yachtUrls()).resolves.toEqual(slugs.map((s) => `/yachts/${s}`));
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+const load = async () => (await import("@/app/sitemap")).default;
+
+describe("sitemap", () => {
+  it("lists the static pages and every published yacht by slug, across pages", async () => {
+    const pages: string[] = [];
+    vi.stubGlobal("fetch", async (url: string) => {
+      if (new URL(url).pathname === "/content/home") return homeContent([]);
+      const page = new URL(url).searchParams.get("page") ?? "1";
+      pages.push(page);
+      const items =
+        page === "1" ? Array.from({ length: 100 }, (_, i) => card(`yacht-${i}`)) : [card("last-one")];
+      return new Response(JSON.stringify({ items, total: 101, page: Number(page), limit: 100 }));
+    });
+
+    const entries = await (await load())();
+    const urls = entries.map((entry) => entry.url);
+
+    expect(urls.slice(0, 3)).toEqual([
+      "https://site.test",
+      "https://site.test/yachts",
+      "https://site.test/plan-your-charter",
+    ]);
+    expect(urls).toContain("https://site.test/yachts/yacht-0");
+    expect(urls).toContain("https://site.test/yachts/last-one");
+    expect(urls).toHaveLength(3 + 101);
+    expect(pages).toEqual(["1", "2"]);
   });
 
-  it("still builds, with the static pages, when the API is down", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("fetch failed")));
-    const { default: sitemap } = await import("@/app/sitemap");
+  it("keeps only one entry per yacht URL and encodes slugs", async () => {
+    vi.stubGlobal("fetch", async (url: string) =>
+      new URL(url).pathname === "/content/home"
+        ? homeContent([])
+        : new Response(
+            JSON.stringify({ items: [card("a b"), card("a b"), card("c")], total: 3, page: 1, limit: 100 }),
+          ),
+    );
+    const urls = (await (await load())()).map((entry) => entry.url);
+    expect(urls.filter((url) => url === "https://site.test/yachts/a%20b")).toHaveLength(1);
+    expect(urls).toHaveLength(5);
+  });
 
-    const paths = (await sitemap()).map((e) => new URL(e.url).pathname);
-    expect(paths).toEqual(["/", "/yachts", "/plan-your-charter"]);
+  it("adds every published content page, by slug", async () => {
+    vi.stubGlobal("fetch", async (url: string) =>
+      new URL(url).pathname === "/content/home"
+        ? homeContent([
+            { slug: "our-story", title: "Our story" },
+            { slug: "terms & more", title: "Terms" },
+          ])
+        : new Response(JSON.stringify({ items: [], total: 0, page: 1, limit: 100 })),
+    );
+    const urls = (await (await load())()).map((entry) => entry.url);
+    expect(urls).toEqual([
+      "https://site.test",
+      "https://site.test/yachts",
+      "https://site.test/plan-your-charter",
+      "https://site.test/pages/our-story",
+      "https://site.test/pages/terms%20%26%20more",
+    ]);
+  });
+
+  it("still serves the static pages when the backend is unavailable, inventing nothing", async () => {
+    vi.stubGlobal("fetch", async () => {
+      throw new TypeError("fetch failed");
+    });
+    const entries = await (await load())();
+    expect(entries.map((entry) => entry.url)).toEqual([
+      "https://site.test",
+      "https://site.test/yachts",
+      "https://site.test/plan-your-charter",
+    ]);
   });
 });

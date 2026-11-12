@@ -5,6 +5,7 @@ import {
   CreditCard,
   Files,
   Handshake,
+  LifeBuoy,
   LayoutGrid,
   type LucideIcon,
   MessagesSquare,
@@ -47,6 +48,7 @@ export const adminNav: readonly AdminNavSection[] = [
       { label: "Yachts", href: adminRoutes.fleet, icon: Ship },
       { label: "Availability", href: adminRoutes.availability, icon: CalendarDays },
       { label: "Customers", href: adminRoutes.customers, icon: Users },
+      { label: "Support", href: adminRoutes.support, icon: LifeBuoy },
     ],
   },
   {

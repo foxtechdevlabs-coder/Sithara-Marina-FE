@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useId, useRef, useState, type FormEvent, type ReactNode } from "react";
 
+import { PasswordInput } from "@/components/ui/password-input";
 import { userRoutes } from "@/constants/routes";
 import { cx } from "@/lib/cx";
 import { isApiError } from "@/services/http/api-error";
@@ -21,6 +22,7 @@ import {
   primaryButtonClass,
   secondaryButtonClass,
 } from "./auth-form-styles";
+import { GoogleSignIn } from "./google-sign-in";
 import { useCooldown } from "../hooks/use-cooldown";
 import { emailRateLimitMessage } from "../utils/auth-error-message";
 import { formatCountdown } from "../utils/format-wait";
@@ -276,20 +278,34 @@ export function SignUpForm() {
               <label htmlFor={id} className={labelClass}>
                 {field.label}
               </label>
-              <input
-                id={id}
-                name={field.name}
-                type={field.type}
-                autoComplete={field.autoComplete}
-                inputMode={field.type === "email" ? "email" : undefined}
-                disabled={isSubmitting}
-                // The limit is per address, so another address is not held back.
-                onChange={field.name === "email" ? () => setLockedUntil(0) : undefined}
-                placeholder={field.placeholder}
-                aria-invalid={error ? true : undefined}
-                aria-describedby={error ? errorId : undefined}
-                className={cx(inputClass, "mt-3.5 lg:mt-[calc(var(--r)*14)]")}
-              />
+              {field.type === "password" ? (
+                <PasswordInput
+                  id={id}
+                  name={field.name}
+                  autoComplete={field.autoComplete}
+                  disabled={isSubmitting}
+                  placeholder={field.placeholder}
+                  aria-invalid={error ? true : undefined}
+                  aria-describedby={error ? errorId : undefined}
+                  className={inputClass}
+                  wrapperClassName="mt-3.5 lg:mt-[calc(var(--r)*14)]"
+                />
+              ) : (
+                <input
+                  id={id}
+                  name={field.name}
+                  type={field.type}
+                  autoComplete={field.autoComplete}
+                  inputMode={field.type === "email" ? "email" : undefined}
+                  disabled={isSubmitting}
+                  // The limit is per address, so another address is not held back.
+                  onChange={field.name === "email" ? () => setLockedUntil(0) : undefined}
+                  placeholder={field.placeholder}
+                  aria-invalid={error ? true : undefined}
+                  aria-describedby={error ? errorId : undefined}
+                  className={cx(inputClass, "mt-3.5 lg:mt-[calc(var(--r)*14)]")}
+                />
+              )}
               {error ? (
                 <p id={errorId} className={fieldErrorClass}>
                   {error}
@@ -328,6 +344,11 @@ export function SignUpForm() {
             : "Create account & verify email"}
         <ArrowRight aria-hidden="true" strokeWidth={1.5} className="size-3.5 shrink-0" />
       </button>
+
+      <GoogleSignIn
+        context="signup"
+        className="mt-10 max-w-[35rem] lg:mt-[calc(var(--r)*44)] lg:w-[calc(var(--rw)*560)] lg:max-w-none"
+      />
 
       <Link
         href={userRoutes.login}

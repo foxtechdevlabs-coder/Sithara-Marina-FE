@@ -43,6 +43,7 @@ function pageLabel(pathname: string, yacht: { id: string; name: string } | null)
   if (/^\/admin\/content\/[^/]+\/[^/]+$/.test(pathname)) return "Workspace / A25";
   if (pathname.startsWith("/admin/notifications/templates/"))
     return "Workspace / Notifications / Email template";
+  if (/^\/admin\/support\/[^/]+$/.test(pathname)) return "Operations / Support / Request";
   if (pathname === adminRoutes.enquiries) return "Operations / A28";
   if (/^\/admin\/enquiries\/[^/]+\/proposal$/.test(pathname)) return "Operations / A44";
   if (/^\/admin\/enquiries\/[^/]+$/.test(pathname)) return "Operations / A29";

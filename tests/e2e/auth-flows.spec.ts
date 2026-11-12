@@ -8,7 +8,6 @@ import { expect, test, type Page } from "@playwright/test";
 // backend's: real emails, tokens and refresh responses need manual verification.
 
 const SESSION_KEY = "sithara-marina:auth-session";
-const SEARCH_BAR = "Find a yacht";
 
 test.use({ viewport: { width: 1280, height: 800 } });
 
@@ -97,13 +96,18 @@ const storedSession = (page: Page) =>
   page.evaluate((key) => sessionStorage.getItem(key), SESSION_KEY);
 
 const signInLink = (page: Page) => page.getByRole("link", { name: "Sign in", exact: true });
-const logoutButton = (page: Page) => page.getByRole("button", { name: "Logout" });
-const searchBar = (page: Page) => page.getByRole("form", { name: SEARCH_BAR });
+/** Logout lives inside the header menu; open it first with `openMenu`. */
+const logoutButton = (page: Page) =>
+  page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Logout" });
+async function openMenu(page: Page) {
+  const toggle = page.getByRole("button", { name: "Open menu" });
+  if (await toggle.isVisible()) await toggle.click();
+}
 const revocationNotice = (page: Page) => page.getByText("signed out on this device");
 
 async function submitLogin(page: Page, password = "fake-password") {
   await page.getByLabel("Email address").fill("guest@example.com");
-  await page.getByLabel("Password").fill(password);
+  await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
 }
 
@@ -210,8 +214,8 @@ test.describe("email verification", () => {
     await page.getByRole("button", { name: "Continue" }).click();
     await expect(page).toHaveURL("/");
     await expect(page.getByText("Asha Menon").filter({ visible: true })).toBeVisible();
+    await openMenu(page);
     await expect(logoutButton(page)).toBeVisible();
-    await expect(searchBar(page)).toBeVisible();
   });
 
   test("an invalid link never reaches the success page", async ({ page }) => {
@@ -244,9 +248,9 @@ test.describe("login", () => {
     await submitLogin(page);
 
     await expect(page).toHaveURL("/");
+    await openMenu(page);
     await expect(logoutButton(page)).toBeVisible();
     await expect(signInLink(page)).toHaveCount(0);
-    await expect(searchBar(page)).toBeVisible();
     expect(calls).toEqual([
       {
         path: "/auth/login",
@@ -290,10 +294,10 @@ test.describe("login", () => {
     });
     await page.goto("/login");
     await page.getByLabel("Email address").fill("guest@example.com");
-    await page.getByLabel("Password").fill("fake-password");
-    await page.getByLabel("Password").press("Enter");
+    await page.getByLabel("Password", { exact: true }).fill("fake-password");
+    await page.getByLabel("Password", { exact: true }).press("Enter");
     await page
-      .getByLabel("Password")
+      .getByLabel("Password", { exact: true })
       .press("Enter")
       .catch(() => {});
     await expect(page).toHaveURL("/");
@@ -376,6 +380,7 @@ test.describe("password reset", () => {
 
     await submitLogin(page, "a-new-password");
     await expect(page).toHaveURL("/");
+    await openMenu(page);
     await expect(logoutButton(page)).toBeVisible();
     expect(calls.at(-1)?.body).toEqual({ email: "guest@example.com", password: "a-new-password" });
   });
@@ -406,10 +411,10 @@ test.describe("logout", () => {
     const { calls } = await mockBackend(page, { "/auth/logout": { status: 204 } });
     await seedSession(page, validSession);
     await page.goto("/");
+    await openMenu(page);
     await logoutButton(page).click();
 
     await expect(signInLink(page)).toBeVisible();
-    await expect(searchBar(page)).toHaveCount(0);
     await expect(page.getByRole("link", { name: "Explore the yachts" }).first()).toBeVisible();
     await expect.poll(() => calls.length).toBe(1);
     expect(calls[0]).toEqual({
@@ -422,7 +427,6 @@ test.describe("logout", () => {
 
     await page.reload();
     await expect(signInLink(page)).toBeVisible();
-    await expect(searchBar(page)).toHaveCount(0);
   });
 
   test("the header updates before the backend answers", async ({ page }) => {
@@ -438,6 +442,7 @@ test.describe("logout", () => {
     });
     await seedSession(page, validSession);
     await page.goto("/");
+    await openMenu(page);
     await logoutButton(page).click();
 
     await expect(signInLink(page)).toBeVisible();
@@ -458,6 +463,7 @@ test.describe("logout", () => {
     });
     await page.goto("/");
     await expect.poll(() => refreshes).toBe(1); // the page-load check renews it first
+    await openMenu(page);
     await logoutButton(page).click();
 
     await expect(signInLink(page)).toBeVisible();
@@ -485,6 +491,7 @@ test.describe("logout", () => {
     });
     await page.goto("/");
     await expect.poll(() => calls.length).toBe(1);
+    await openMenu(page);
     await logoutButton(page).click();
     await expect(signInLink(page)).toBeVisible();
     finishRefresh();
@@ -506,6 +513,7 @@ test.describe("logout", () => {
       await mockBackend(page, answers);
       await seedSession(page, validSession);
       await page.goto("/");
+      await openMenu(page);
       await logoutButton(page).click();
 
       await expect(signInLink(page)).toBeVisible();
@@ -522,12 +530,14 @@ test.describe("logout", () => {
     });
     await seedSession(page, validSession);
     await page.goto("/");
+    await openMenu(page);
     await logoutButton(page).click();
     await expect(revocationNotice(page)).toBeVisible();
 
     await signInLink(page).click();
     await expect(page).toHaveURL("/login");
     await submitLogin(page);
+    await openMenu(page);
     await expect(logoutButton(page)).toBeVisible();
     await expect(revocationNotice(page)).toHaveCount(0);
   });
@@ -541,6 +551,7 @@ test.describe("logout", () => {
     for (let round = 1; round <= 3; round += 1) {
       await submitLogin(page);
       await expect(page).toHaveURL("/");
+      await openMenu(page);
       await logoutButton(page).click();
       await expect(signInLink(page)).toBeVisible();
       expect(await storedSession(page)).toBeNull();
@@ -566,6 +577,7 @@ test.describe("logout", () => {
     );
     await page.goto("/login");
     await submitLogin(page);
+    await openMenu(page);
     await logoutButton(page).click();
     await signInLink(page).click();
 
@@ -599,10 +611,11 @@ test.describe("restored sessions", () => {
     const { calls } = await mockBackend(page, {});
     await seedSession(page, { accessToken: jwt("access", 900), refreshToken: "fake.refresh" });
     await page.goto("/");
+    await openMenu(page);
     await expect(logoutButton(page)).toBeVisible();
     await page.reload();
+    await openMenu(page);
     await expect(logoutButton(page)).toBeVisible();
-    await expect(searchBar(page)).toBeVisible();
     expect(calls).toEqual([]);
   });
 
@@ -614,6 +627,7 @@ test.describe("restored sessions", () => {
     await expect
       .poll(async () => JSON.parse((await storedSession(page)) ?? "{}").refreshToken)
       .toBe("fake.renewed");
+    await openMenu(page);
     await expect(logoutButton(page)).toBeVisible();
   });
 
@@ -624,7 +638,6 @@ test.describe("restored sessions", () => {
     await seedSession(page, { accessToken: jwt("old", -60), refreshToken: "fake.old" });
     await page.goto("/");
     await expect(signInLink(page)).toBeVisible();
-    await expect(searchBar(page)).toHaveCount(0);
     expect(await storedSession(page)).toBeNull();
     await expect(page).toHaveURL("/");
   });
@@ -634,6 +647,7 @@ test.describe("restored sessions", () => {
     await seedSession(page, { accessToken: jwt("old", -60), refreshToken: "fake.old" });
     await page.goto("/");
     await expect.poll(() => calls.length).toBe(1);
+    await openMenu(page);
     await expect(logoutButton(page)).toBeVisible();
     expect(await storedSession(page)).not.toBeNull();
   });
@@ -643,7 +657,6 @@ test.describe("restored sessions", () => {
     await seedSession(page, "{not json");
     await page.goto("/");
     await expect(signInLink(page)).toBeVisible();
-    await expect(searchBar(page)).toHaveCount(0);
   });
 
   test("a reset link's token leaves the URL while other parameters stay", async ({ page }) => {
