@@ -2,6 +2,7 @@ import { ArrowRight, ArrowUpRight } from "lucide-react";
 import Image from "next/image";
 
 import { MarinaFonts } from "@/components/user/marina-chrome";
+import { Reveal } from "@/components/shared/reveal";
 import { cx } from "@/lib/cx";
 
 const SWITZER = "font-['Switzer',ui-sans-serif,system-ui,sans-serif]";
@@ -53,12 +54,12 @@ export function JournalSection() {
       <div className="flex flex-wrap items-end justify-between gap-6 px-5 sm:px-10 lg:px-0">
         <div>
           <p className={cx(EYEBROW, "text-onyx")}>The Astra Journal</p>
-          <h2
+          <Reveal as="h2"
             id="journal-heading"
             className="text-forest mt-4 text-[clamp(2rem,9.4vw,2.75rem)] leading-none font-normal tracking-[-0.03em] md:text-[3.5rem] lg:mt-[calc(var(--r)*20)] lg:text-[calc(var(--r)*72)]"
           >
             Notes from <span className="font-serif tracking-[-0.01em]">the water.</span>
-          </h2>
+          </Reveal>
         </div>
         <p className="text-brand-950 border-brand-950 inline-flex items-center gap-4 border-b pb-2 text-xs tracking-[0.18em] uppercase max-md:hidden lg:mb-[calc(var(--r)*2)] lg:text-[max(calc(var(--r)*12.5),11px)]">
           Visit the journal
@@ -67,7 +68,7 @@ export function JournalSection() {
       </div>
 
       <div className="mt-12 grid gap-14 px-5 max-md:mt-8 max-md:gap-0 sm:px-10 lg:mt-[calc(var(--r)*70)] lg:grid-cols-[calc(var(--rw)*752)_1fr] lg:gap-x-[calc(var(--rw)*80)] lg:px-0">
-        <article>
+        <Reveal as="article">
           <div className="relative aspect-[724/515] overflow-hidden md:aspect-[752/377] lg:aspect-auto lg:h-[calc(var(--r)*377)]">
             <Image
               src={FEATURED_STORY.image}
@@ -83,11 +84,11 @@ export function JournalSection() {
           <h3 className="text-forest mt-4 text-[1.75rem] leading-tight font-normal tracking-[-0.01em] max-md:mt-3 max-md:text-[1.125rem] lg:mt-[calc(var(--r)*20)] lg:text-[max(calc(var(--r)*32),22px)]">
             {FEATURED_STORY.title}
           </h3>
-        </article>
+        </Reveal>
 
         <ul className="divide-y divide-[#DCDCDC] max-md:mt-7 max-md:border-y max-md:border-[#DCDCDC]">
           {STORIES.map((story) => (
-            <li
+            <Reveal as="li"
               key={story.title}
               className="py-5 md:py-7 md:first:pt-0 lg:py-[calc(var(--r)*28)] lg:first:pt-0"
             >
@@ -124,7 +125,7 @@ export function JournalSection() {
                   className="text-brand-950 size-4 self-center md:hidden"
                 />
               </article>
-            </li>
+            </Reveal>
           ))}
         </ul>
       </div>

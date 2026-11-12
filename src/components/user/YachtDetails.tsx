@@ -5,10 +5,10 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { INK, MarinaFonts, MarinaFooter, SANS, SERIF } from "@/components/user/marina-chrome";
+import { Reveal } from "@/components/shared/reveal";
 import { userRoutes } from "@/constants/routes";
 import { YachtReservation } from "@/features/user/availability/components/yacht-reservation";
 import type { FleetYacht, YachtDetailsData } from "@/features/user/yachts/utils/yacht-view";
-
 /* ------------------------------------------------------------------ */
 /* Figma colours                                                       */
 /* ------------------------------------------------------------------ */
@@ -86,7 +86,7 @@ function TitleBlock({ yacht }: { yacht: YachtDetailsData }) {
       <div className="mt-[50px] grid gap-8 pb-[56px] lg:mt-[70px] lg:grid-cols-2 lg:gap-0 lg:pb-[66px]">
         {/* Figma: Switzer 400, 103px / 103px, letter-spacing -2px */}
         <h1
-          className="text-[64px] leading-[64px] font-normal tracking-[-1px] lg:text-[103px] lg:leading-[103px] lg:tracking-[-2px]"
+          className="motion-safe:animate-fade-up text-[64px] leading-[64px] font-normal tracking-[-1px] lg:text-[103px] lg:leading-[103px] lg:tracking-[-2px]"
           style={{ ...SANS, color: INK }}
         >
           {yacht.name}
@@ -100,13 +100,13 @@ function TitleBlock({ yacht }: { yacht: YachtDetailsData }) {
           <div className="mt-[23px] flex flex-wrap items-center gap-x-[28px] gap-y-[16px]">
             <UnderlineLink href="#reserve">Check availability</UnderlineLink>
             {yacht.enquiryEnabled && (
-              <a
+              <Link
                 href={userRoutes.planCharterFor(yacht.slug, yacht.id)}
                 className="border-b border-[#b5b8bc] pb-[7px] text-[12px] leading-[16px] tracking-[0.18em] uppercase"
                 style={{ color: MUTED }}
               >
                 Request a custom quote
-              </a>
+              </Link>
             )}
           </div>
         </div>
@@ -207,12 +207,12 @@ function LifeAboard({ yacht }: { yacht: YachtDetailsData }) {
       <div className="pt-[2px]">
         <Eyebrow>Life aboard {yacht.name}</Eyebrow>
       </div>
-      <h2
+      <Reveal as="h2"
         className="mt-[22px] max-w-[360px] text-[40px] leading-[44px] tracking-[-1.5px] lg:text-[56px] lg:leading-[58px]"
         style={{ ...SANS, color: INK }}
       >
         A little further from everyday.
-      </h2>
+      </Reveal>
       {yacht.about && (
         <p
           className="mt-[25px] max-w-[790px] text-[16px] leading-[27px] break-words"
@@ -239,12 +239,12 @@ function LifeAboard({ yacht }: { yacht: YachtDetailsData }) {
 
 function DetailHeading({ children }: { children: ReactNode }) {
   return (
-    <h2
+    <Reveal as="h2"
       className="text-[28px] leading-[40px] tracking-[-0.5px] lg:text-[32px]"
       style={{ ...SANS, color: INK }}
     >
       {children}
-    </h2>
+    </Reveal>
   );
 }
 
@@ -329,22 +329,26 @@ function Gallery({ yacht }: { yacht: YachtDetailsData }) {
 
   return (
     <section>
-      <h2
+      <Reveal as="h2"
         className="text-[28px] leading-[40px] tracking-[-0.5px] lg:text-[32px]"
         style={{ ...SANS, color: INK }}
       >
         Life on board.
-      </h2>
+      </Reveal>
       <div className="mt-[24px] grid grid-cols-2 gap-[12px] md:grid-cols-3 lg:gap-[17px]">
-        {yacht.gallery.map((photo) => (
-          <figure key={photo.src} className="overflow-hidden">
+        {yacht.gallery.map((photo, index) => (
+          <Reveal as="figure"
+            key={photo.src}
+            delay={(index % 3) * 100}
+            className="overflow-hidden"
+          >
             <img
               src={photo.src}
               alt={photo.alt}
               loading="lazy"
               className="aspect-[496/345] w-full object-cover transition-transform duration-700 hover:scale-105"
             />
-          </figure>
+          </Reveal>
         ))}
       </div>
     </section>
@@ -359,12 +363,12 @@ function Collection({ yachts }: { yachts: FleetYacht[] }) {
       <div className="flex flex-wrap items-end justify-between gap-6">
         <div>
           <Eyebrow>More from the collection</Eyebrow>
-          <h2
+          <Reveal as="h2"
             className="mt-[19px] text-[40px] leading-[44px] tracking-[-1.5px] lg:text-[56px] lg:leading-[58px]"
             style={{ ...SANS, color: INK }}
           >
             A different kind of escape.
-          </h2>
+          </Reveal>
         </div>
         <Link
           href={userRoutes.yachts}
@@ -381,8 +385,8 @@ function Collection({ yachts }: { yachts: FleetYacht[] }) {
       </div>
 
       <div className="mt-[51px] grid gap-12 md:grid-cols-3 md:gap-[32px]">
-        {yachts.map((item) => (
-          <article key={item.slug}>
+        {yachts.map((item, index) => (
+          <Reveal as="article" key={item.slug} delay={(index % 3) * 120}>
             <div className="relative overflow-hidden">
               {item.image ? (
                 <img
@@ -431,7 +435,7 @@ function Collection({ yachts }: { yachts: FleetYacht[] }) {
             <div className="mt-[27px]">
               <UnderlineLink href={userRoutes.yacht(item.slug)}>Discover {item.name}</UnderlineLink>
             </div>
-          </article>
+          </Reveal>
         ))}
       </div>
     </section>
@@ -443,7 +447,7 @@ function JourneyCta() {
     <section className="relative mx-auto w-full max-w-[1728px] overflow-hidden text-white lg:h-[801px]">
       <Image
         src="/images/yachts/kerala-journey-houseboat.png"
-        unoptimized
+        quality={90}
         alt=""
         aria-hidden="true"
         fill
@@ -462,7 +466,7 @@ function JourneyCta() {
           A conversation is all it takes
         </p>
         {/* Figma: Switzer 400, 72px / 84px, letter-spacing -2.21px */}
-        <h2 className="mt-[20px] text-[52px] leading-[60px] tracking-[-1.5px] lg:text-[72px] lg:leading-[84px] lg:tracking-[-2.21px]">
+        <Reveal as="h2" className="mt-[20px] text-[52px] leading-[60px] tracking-[-1.5px] lg:text-[72px] lg:leading-[84px] lg:tracking-[-2.21px]">
           <span style={SANS}>
             Your Kerala
             <br />
@@ -472,7 +476,7 @@ function JourneyCta() {
           <span className="tracking-[-1px]" style={SERIF}>
             on the water.
           </span>
-        </h2>
+        </Reveal>
         <p className="mt-[41px] text-[18px] leading-[26px] text-white/90">
           Let us create a journey around you.
         </p>
@@ -532,6 +536,7 @@ export default function YachtDetails({
           departureCity={yacht.departureCity}
           initialMonth={initialMonth}
           intro={<LifeAboard yacht={yacht} />}
+          showAddons={false}
           after={yacht.gallery.length > 0 ? <Gallery yacht={yacht} /> : undefined}
         />
       </div>

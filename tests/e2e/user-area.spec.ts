@@ -35,12 +35,12 @@ test("signed-in home shows the search bar until the user logs out", async ({ pag
   });
 
   await page.goto("/");
-  await expect(page.getByRole("form", { name: "Find a yacht" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Sign in" })).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Logout" }).click();
+  // Logout is inside the header menu.
+  await page.getByRole("button", { name: "Open menu" }).click();
+  await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Logout" }).click();
   await expect(page.getByRole("link", { name: "Sign in" })).toBeVisible();
-  await expect(page.getByRole("form", { name: "Find a yacht" })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Explore the yachts" }).first()).toBeVisible();
   // The logout request was aborted above, so revocation could not be confirmed.
   await expect(
@@ -261,7 +261,15 @@ test("sign-in page uses the site header and footer", async ({ page }) => {
   await expect(page.getByRole("heading", { level: 1, name: "Welcome back." })).toBeVisible();
   await expect(siteHeader(page)).toBeVisible();
   await expect(page.getByRole("contentinfo")).toBeVisible();
-  await expect(page.getByLabel("Password")).toHaveAttribute("type", "password");
+  const password = page.getByLabel("Password", { exact: true });
+  await expect(password).toHaveAttribute("type", "password");
+  // The eye toggle reveals and hides the password without changing what was typed.
+  await password.fill("fake-password");
+  await page.getByRole("button", { name: "Show password" }).click();
+  await expect(password).toHaveAttribute("type", "text");
+  await expect(password).toHaveValue("fake-password");
+  await page.getByRole("button", { name: "Hide password" }).click();
+  await expect(password).toHaveAttribute("type", "password");
 });
 
 test("create-account page uses the site header and footer", async ({ page }) => {

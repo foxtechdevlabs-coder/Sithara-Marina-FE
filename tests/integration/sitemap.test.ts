@@ -31,12 +31,16 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
+const homeContent = (pages: { slug: string; title: string }[]) =>
+  new Response(JSON.stringify({ featured_yachts: [], banners: [], sections: [], pages }));
+
 const load = async () => (await import("@/app/sitemap")).default;
 
 describe("sitemap", () => {
   it("lists the static pages and every published yacht by slug, across pages", async () => {
     const pages: string[] = [];
     vi.stubGlobal("fetch", async (url: string) => {
+      if (new URL(url).pathname === "/content/home") return homeContent([]);
       const page = new URL(url).searchParams.get("page") ?? "1";
       pages.push(page);
       const items =
@@ -59,16 +63,35 @@ describe("sitemap", () => {
   });
 
   it("keeps only one entry per yacht URL and encodes slugs", async () => {
-    vi.stubGlobal(
-      "fetch",
-      async () =>
-        new Response(
-          JSON.stringify({ items: [card("a b"), card("a b"), card("c")], total: 3, page: 1, limit: 100 }),
-        ),
+    vi.stubGlobal("fetch", async (url: string) =>
+      new URL(url).pathname === "/content/home"
+        ? homeContent([])
+        : new Response(
+            JSON.stringify({ items: [card("a b"), card("a b"), card("c")], total: 3, page: 1, limit: 100 }),
+          ),
     );
     const urls = (await (await load())()).map((entry) => entry.url);
     expect(urls.filter((url) => url === "https://site.test/yachts/a%20b")).toHaveLength(1);
     expect(urls).toHaveLength(5);
+  });
+
+  it("adds every published content page, by slug", async () => {
+    vi.stubGlobal("fetch", async (url: string) =>
+      new URL(url).pathname === "/content/home"
+        ? homeContent([
+            { slug: "our-story", title: "Our story" },
+            { slug: "terms & more", title: "Terms" },
+          ])
+        : new Response(JSON.stringify({ items: [], total: 0, page: 1, limit: 100 })),
+    );
+    const urls = (await (await load())()).map((entry) => entry.url);
+    expect(urls).toEqual([
+      "https://site.test",
+      "https://site.test/yachts",
+      "https://site.test/plan-your-charter",
+      "https://site.test/pages/our-story",
+      "https://site.test/pages/terms%20%26%20more",
+    ]);
   });
 
   it("still serves the static pages when the backend is unavailable, inventing nothing", async () => {

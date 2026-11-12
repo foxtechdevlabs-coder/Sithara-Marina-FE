@@ -83,16 +83,19 @@ async function findRequested(
   return { yachts, slug: null, missing: true };
 }
 
-// `?yacht=<slug>&yacht_id=<id>` preselects the yacht the customer came from.
+// `?yacht=<slug>&yacht_id=<id>` preselects the yacht the customer came from;
+// `&guests=<n>` (from the yacht page) starts the guest count there.
 export default async function PlanCharterPage({ searchParams }: PageProps<"/plan-your-charter">) {
   const params = await searchParams;
   const requested = await findRequested(await loadYachts(), one(params.yacht), one(params.yacht_id));
+  const guests = /^\d{1,3}$/.test(one(params.guests) ?? "") ? Number(one(params.guests)) : 0;
 
   return (
     <PlanCharter
       yachts={requested.yachts}
       initialYachtSlug={requested.slug}
       requestedYachtMissing={requested.missing}
+      initialGuests={guests >= 1 ? guests : undefined}
     />
   );
 }

@@ -1,9 +1,6 @@
-import { Spinner } from "@/components/ui/spinner";
+import { LoadingLogo } from "@/components/shared/loading-logo";
 
+/** Same Sithara logo loader as every other customer page while the yacht list loads. */
 export default function Loading() {
-  return (
-    <div className="text-brand-600 flex justify-center px-4 py-16">
-      <Spinner />
-    </div>
-  );
+  return <LoadingLogo size="page" />;
 }

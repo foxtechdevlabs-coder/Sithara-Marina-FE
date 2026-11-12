@@ -5,6 +5,16 @@ export const publicEnvSchema = z.object({
     error: "NEXT_PUBLIC_API_URL must be an absolute URL. See .env.example.",
   }),
   NEXT_PUBLIC_SITE_URL: z.string().url().optional(),
+  /**
+   * Google Identity Services OAuth client ID (public by design). Optional: without
+   * it, "Sign in with Google" is simply not offered.
+   */
+  NEXT_PUBLIC_GOOGLE_CLIENT_ID: z
+    .string()
+    .regex(/^[\w-]+\.apps\.googleusercontent\.com$/, {
+      error: "NEXT_PUBLIC_GOOGLE_CLIENT_ID must be a Google OAuth client ID. See .env.example.",
+    })
+    .optional(),
 });
 
 export type PublicEnv = z.infer<typeof publicEnvSchema>;
@@ -19,6 +29,7 @@ export type PublicEnv = z.infer<typeof publicEnvSchema>;
 export function parsePublicEnv(source: Record<string, string | undefined>): PublicEnv {
   const result = publicEnvSchema.safeParse({
     NEXT_PUBLIC_API_URL: source.NEXT_PUBLIC_API_URL || source.NEXT_PUBLIC_API_BASE_URL,
+    NEXT_PUBLIC_GOOGLE_CLIENT_ID: source.NEXT_PUBLIC_GOOGLE_CLIENT_ID?.trim() || undefined,
   });
   if (!result.success) {
     throw new Error(`Invalid public environment configuration:\n${z.prettifyError(result.error)}`);
@@ -42,6 +53,7 @@ export function getPublicEnv(): PublicEnv {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
     NEXT_PUBLIC_API_BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL,
     NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
+    NEXT_PUBLIC_GOOGLE_CLIENT_ID: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
   });
   return cached;
 }

@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { MarinaFonts } from "@/components/user/marina-chrome";
+import { Reveal } from "@/components/shared/reveal";
 import { userRoutes } from "@/constants/routes";
 import { cx } from "@/lib/cx";
 
@@ -51,7 +52,7 @@ export function JourneyCtaSection() {
         <p className="text-[0.6875rem] leading-none tracking-[0.18em] text-white/85 uppercase lg:text-[max(calc(var(--r)*11),10px)]">
           A conversation is all it takes.
         </p>
-        <h2
+        <Reveal as="h2"
           id="journey-cta-heading"
           className="mt-6 text-[clamp(2.375rem,10.5vw,3rem)] leading-[1.12] font-normal tracking-[-0.03em] md:text-[4rem] md:leading-[1.08] lg:mt-[calc(var(--r)*28)] lg:text-[calc(var(--r)*76)] lg:leading-[calc(var(--r)*86)]"
         >
@@ -60,7 +61,7 @@ export function JourneyCtaSection() {
           journey begins
           <br />
           <span className="font-serif tracking-[-0.01em]">on the water.</span>
-        </h2>
+        </Reveal>
         <p className="mt-8 text-[19px] leading-[30.4px] max-md:mt-6 max-md:text-[1.0625rem] font-light tracking-normal text-[#FAFAF7]/85 lg:mt-[calc(var(--r)*44)] lg:text-[max(calc(var(--r)*19),16px)] lg:leading-[1.6]">
           Let us create a journey around you.
         </p>

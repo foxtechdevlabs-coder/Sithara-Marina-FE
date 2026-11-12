@@ -2,6 +2,7 @@ import type { MetadataRoute } from "next";
 
 import { SITE_URL } from "@/config/site";
 import { userRoutes } from "@/constants/routes";
+import { getHomeContent, type ContentPageLink } from "@/services/user/content.service";
 import { listYachts, type YachtCard } from "@/services/user/yachts.service";
 
 /**
@@ -27,6 +28,15 @@ async function loadPublishedYachts(): Promise<YachtCard[]> {
     if (items.length === 0 || yachts.length >= total) break;
   }
   return yachts;
+}
+
+/** The published content pages (GET /content/home `pages`); none when it cannot be read. */
+async function loadPublishedPages(): Promise<ContentPageLink[]> {
+  try {
+    return (await getHomeContent()).pages;
+  } catch {
+    return [];
+  }
 }
 
 /**
@@ -58,6 +68,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
   ];
 
+  const pagesRequest = loadPublishedPages();
   let yachts: YachtCard[] = [];
   try {
     yachts = await loadPublishedYachts();
@@ -65,6 +76,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // Backend unavailable: serve the static entries rather than failing the sitemap.
     yachts = [];
   }
+  const pages = await pagesRequest;
 
   const seen = new Set(staticEntries.map((entry) => entry.url));
   const yachtEntries: MetadataRoute.Sitemap = [];
@@ -76,5 +88,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     yachtEntries.push({ url, lastModified: now, changeFrequency: "weekly", priority: 0.8 });
   }
 
-  return [...staticEntries, ...yachtEntries];
+  const pageEntries: MetadataRoute.Sitemap = [];
+  for (const page of pages) {
+    const url = `${SITE_URL}${userRoutes.contentPage(page.slug)}`;
+    if (seen.has(url)) continue;
+    seen.add(url);
+    pageEntries.push({ url, lastModified: now, changeFrequency: "monthly", priority: 0.6 });
+  }
+
+  return [...staticEntries, ...yachtEntries, ...pageEntries];
 }

@@ -377,7 +377,6 @@ function Sidebar({ yacht, canEnquireFor }: { yacht: PlanCharterYacht | null; can
         ) : (
           <Image
             src="/images/yachts/astra-one-arabian-sea.png"
-            unoptimized
             width={100}
             height={100}
             alt=""
@@ -413,6 +412,8 @@ export interface PlanCharterProps {
   initialYachtSlug: string | null;
   /** The link named a yacht that could not be found or loaded. */
   requestedYachtMissing?: boolean;
+  /** Guests chosen on the yacht page; counted as adults until the customer changes it. */
+  initialGuests?: number;
 }
 
 /**
@@ -423,6 +424,7 @@ export default function PlanCharter({
   yachts,
   initialYachtSlug,
   requestedYachtMissing = false,
+  initialGuests,
 }: PlanCharterProps) {
   const signedIn = useAuthSession() !== null;
   const [yachtSlug, setYachtSlug] = useState(initialYachtSlug);
@@ -433,7 +435,7 @@ export default function PlanCharter({
   const [start, setStart] = useState("");
   const [flexibleDates, setFlexibleDates] = useState(true);
   const [duration, setDuration] = useState<string | undefined>();
-  const [adults, setAdults] = useState(2);
+  const [adults, setAdults] = useState(initialGuests ?? 2);
   const [children, setChildren] = useState(0);
   const [chosenLuxuries, setChosenLuxuries] = useState<string[]>([]);
   const [budget, setBudget] = useState<string | undefined>();

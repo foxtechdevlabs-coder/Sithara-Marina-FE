@@ -4,9 +4,9 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { MarinaFonts } from "@/components/user/marina-chrome";
+import { Reveal } from "@/components/shared/reveal";
 import { userRoutes } from "@/constants/routes";
 import { cx } from "@/lib/cx";
-
 /** Blue gradient of the "Bar & Kitchen" tile, exactly as specified by design. */
 const BAR_KITCHEN_GRADIENT = "bg-[linear-gradient(182.29deg,#4E90D4_1.92%,#FAFAFA_149.84%)]";
 
@@ -99,14 +99,14 @@ export function AstraWaySection() {
         <p className="text-onyx text-xs leading-[16.2px] font-normal tracking-[1.9px] uppercase lg:text-[max(calc(var(--r)*12),10px)]">
           The Astra Way
         </p>
-        <h2
+        <Reveal as="h2"
           id="astra-way-heading"
           className="text-onyx mt-6 text-[clamp(2.125rem,9vw,2.375rem)] leading-[1.1] font-normal tracking-[-0.02em] md:text-[3.5rem] md:tracking-normal md:leading-[1.05] lg:mt-[calc(var(--r)*24)] lg:text-[calc(var(--r)*72)]"
         >
           It’s the little things
           <br />
           that <span className="font-serif">make it yours.</span>
-        </h2>
+        </Reveal>
         <p className="text-graphite mt-6 max-w-[412px] text-[0.9375rem] leading-[1.45] md:mx-auto md:text-lg md:leading-[1.2] font-normal lg:mt-[calc(var(--r)*24)] lg:max-w-[max(calc(var(--r)*412),20rem)] lg:text-[max(calc(var(--r)*18),14px)]">
           The best kind of luxury feels natural. A warm welcome. Your favourite flavours. A day with
           nothing on the agenda but possibility.
@@ -116,8 +116,9 @@ export function AstraWaySection() {
       <ul className="mx-5 mt-14 grid max-md:relative max-md:mt-10 max-md:mr-0 max-md:snap-x max-md:snap-mandatory max-md:auto-cols-[70vw] max-md:grid-flow-col max-md:grid-rows-[16rem_16rem] max-md:gap-x-4 max-md:gap-y-[1.625rem] max-md:overflow-x-auto max-md:pr-5 max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden sm:ml-10 md:mx-10 md:grid-cols-2 lg:mx-[calc(100vw*20/1728)] lg:mt-[calc(var(--r)*90)] lg:grid-cols-4">
         {TILES.map((tile, index) =>
           tile.kind === "image" ? (
-            <li
+            <Reveal as="li"
               key={tile.src}
+              delay={(index % 4) * 100}
               className={cx(
                 "relative max-md:snap-start md:aspect-square lg:aspect-auto lg:h-[calc(var(--r)*422)]",
                 MOBILE_PLACE[index],
@@ -131,10 +132,11 @@ export function AstraWaySection() {
                 className="object-cover"
                 style={{ objectPosition: tile.position }}
               />
-            </li>
+            </Reveal>
           ) : (
-            <li
+            <Reveal as="li"
               key={tile.title}
+              delay={(index % 4) * 100}
               className={cx(
                 "flex flex-col px-8 py-10 max-md:snap-start max-md:px-4 max-md:pt-5 max-md:pb-6 md:aspect-square lg:aspect-auto lg:h-[calc(var(--r)*422)] lg:pt-[calc(var(--r)*50)] lg:pr-[calc(var(--r)*40)] lg:pb-[calc(var(--r)*50)] lg:pl-[calc(var(--r)*47)]",
                 tile.highlight ? cx(BAR_KITCHEN_GRADIENT, "text-white") : "bg-[#F9F8F8] text-onyx",
@@ -172,7 +174,7 @@ export function AstraWaySection() {
               ) : (
                 <p className={LEARN_MORE}>Learn more</p>
               )}
-            </li>
+            </Reveal>
           ),
         )}
       </ul>

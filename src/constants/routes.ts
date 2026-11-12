@@ -46,10 +46,12 @@ export const userRoutes = {
   accountBookingCancel: (reference: string) => `/account/bookings/${id(reference)}/cancel` as Route,
 
   planCharter: "/plan-your-charter",
-  /** The custom quote page with this yacht already chosen. */
-  planCharterFor: (slug: string, yachtId?: string) =>
-    `/plan-your-charter?yacht=${id(slug)}${yachtId ? `&yacht_id=${id(yachtId)}` : ""}` as Route,
+  /** The custom quote page with this yacht (and optionally a guest count) already chosen. */
+  planCharterFor: (slug: string, yachtId = "", guests = "") =>
+    `/plan-your-charter${withQuery({ yacht: slug, yacht_id: yachtId, guests })}` as Route,
   search: "/search",
+  /** A published content page (GET /content/pages/{slug}). */
+  contentPage: (slug: string) => `/pages/${id(slug)}` as Route,
 } as const satisfies Record<string, Route | ((...args: string[]) => Route)>;
 
 /** Admin dashboard routes (`src/app/admin`). */

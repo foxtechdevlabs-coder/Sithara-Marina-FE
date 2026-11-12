@@ -37,14 +37,14 @@ export function HeroSection() {
       <div className="w-full px-5 pt-28 pb-16 sm:px-10 sm:pt-32 sm:pb-[min(6rem,12svh)] lg:px-24 lg:pt-[8.75rem] lg:pb-[min(7.5rem,14svh)]">
         <h1
           id="hero-heading"
-          className="text-[clamp(2.5rem,12.5vw,4rem)] leading-[0.86] font-normal tracking-[-0.035em] sm:text-[clamp(3rem,min(9vw,15svh),115px)]"
+          className="motion-safe:animate-fade-up text-[clamp(2.5rem,12.5vw,4rem)] leading-[0.86] font-normal tracking-[-0.035em] sm:text-[clamp(3rem,min(9vw,15svh),115px)]"
         >
           Sail into the
           <br />
           soul of <span className="ml-[0.08em] font-serif tracking-[-0.01em]">Kerala.</span>
         </h1>
 
-        <div className="mt-10 flex flex-col gap-3.5 sm:mt-[min(3.25rem,6.2svh)] sm:flex-row">
+        <div className="mt-10 flex flex-col gap-3.5 motion-safe:animate-fade-up motion-safe:[animation-delay:180ms] sm:mt-[min(3.25rem,6.2svh)] sm:flex-row">
             <Link
               href={userRoutes.yachts}
               className={cx(

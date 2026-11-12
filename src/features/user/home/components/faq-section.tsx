@@ -2,17 +2,19 @@ import { ArrowRight, Plus } from "lucide-react";
 import Link from "next/link";
 
 import { MarinaFonts } from "@/components/user/marina-chrome";
+import { Reveal } from "@/components/shared/reveal";
 import { userRoutes } from "@/constants/routes";
 import { cx } from "@/lib/cx";
-import { FAQ_DATA } from "@/lib/seo-schema";
-
+import type { Faq } from "@/services/user/content.service";
 const SWITZER = "font-['Switzer',ui-sans-serif,system-ui,sans-serif]";
 
 /**
- * "A few things, before you set sail." FAQ section with accessible disclosure markup
- * and factual, authoritative answers for AI/RAG crawlers and users.
+ * "A few things, before you set sail." FAQ section with accessible disclosure markup.
+ * The questions and answers are the published FAQs (GET /content/faqs), in the
+ * backend's order; answers are plain text. Without any, only the introduction and
+ * "Ask us anything" are shown.
  */
-export function FaqSection() {
+export function FaqSection({ faqs }: { faqs: Faq[] }) {
   return (
     <section
       aria-labelledby="faq-heading"
@@ -27,14 +29,14 @@ export function FaqSection() {
         <p className="text-onyx text-[0.6875rem] leading-none tracking-[0.18em] uppercase lg:text-[max(calc(var(--r)*11),10px)]">
           Good to know
         </p>
-        <h2
+        <Reveal as="h2"
           id="faq-heading"
           className="text-forest mt-5 text-[2.75rem] leading-[1.15] font-normal tracking-[-0.03em] md:text-[3.5rem] lg:mt-[calc(var(--r)*24)] lg:text-[calc(var(--r)*72)] lg:leading-[calc(var(--r)*84)]"
         >
           A few things,
           <br />
           before you <span className="font-serif tracking-[-0.01em]">set sail.</span>
-        </h2>
+        </Reveal>
         <p className="text-graphite mt-6 text-[1.0625rem] max-md:mt-5 max-md:text-[0.9375rem] leading-snug lg:mt-[calc(var(--r)*28)] lg:text-[max(calc(var(--r)*18),15px)]">
           New to private yachting? You’re in good hands.
         </p>
@@ -47,10 +49,12 @@ export function FaqSection() {
         </Link>
       </div>
 
+      {faqs.length > 0 && (
       <div className="mx-5 mt-14 border-t border-[#E7EAE4] max-md:mt-10 sm:mx-10 lg:mx-0 lg:mt-0">
-        {FAQ_DATA.map((item, index) => (
-          <details
-            key={item.question}
+        {faqs.map((item, index) => (
+          <Reveal as="details"
+            key={item.id}
+            delay={Math.min(index, 5) * 60}
             className="group border-b border-[#E7EAE4] py-6 max-md:py-5 lg:py-[calc(var(--r)*24)]"
           >
             <summary className="flex cursor-pointer list-none items-center justify-between gap-4 focus-visible:outline-2 focus-visible:outline-brand-950 lg:gap-[calc(var(--r)*22)] [&::-webkit-details-marker]:hidden">
@@ -70,11 +74,12 @@ export function FaqSection() {
               />
             </summary>
             <div className="pt-4 pr-6 pl-11 text-graphite text-[0.9375rem] leading-[1.6] lg:pl-[calc(var(--r)*50)] lg:text-[max(calc(var(--r)*16),14px)]">
-              <p>{item.answer}</p>
+              <p className="whitespace-pre-line">{item.answer}</p>
             </div>
-          </details>
+          </Reveal>
         ))}
       </div>
+      )}
     </section>
   );
 }

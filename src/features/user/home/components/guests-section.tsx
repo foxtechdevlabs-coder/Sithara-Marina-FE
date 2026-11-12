@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useRef, useState, type TouchEvent, type TransitionEvent } from "react";
 
 import { MarinaFonts } from "@/components/user/marina-chrome";
+import { Reveal } from "@/components/shared/reveal";
 import { cx } from "@/lib/cx";
 
 const SWITZER = "font-['Switzer',ui-sans-serif,system-ui,sans-serif]";
@@ -158,14 +159,14 @@ export function GuestsSection() {
           <p className="text-xs leading-[16.2px] font-normal tracking-[1.9px] text-white uppercase lg:text-[max(calc(var(--r)*12),10px)]">
             Guests
           </p>
-          <h2
+          <Reveal as="h2"
             id="guests-heading"
             className="text-[#F5F1E8] mt-6 text-[clamp(2.125rem,11vw,2.75rem)] leading-[1.1] font-normal tracking-[-1.2px] md:text-[3.5rem] lg:mt-[calc(var(--r)*26)] lg:text-[calc(var(--r)*72)] lg:leading-[calc(var(--r)*84)] lg:tracking-[calc(var(--r)*-1.73)]"
           >
             Experiences
             <br />
             worth <span className="font-serif">remembering.</span>
-          </h2>
+          </Reveal>
           <div className="mt-9 md:hidden">{controls}</div>
         </div>
 

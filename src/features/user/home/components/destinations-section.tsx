@@ -6,6 +6,7 @@ import { userRoutes } from "@/constants/routes";
 import { cx } from "@/lib/cx";
 
 import { ROUND_BUTTON_GRADIENT } from "./round-button";
+import { Reveal } from "@/components/shared/reveal";
 
 // Content from the design reference. Add destinations here; one indicator
 // is shown per entry.
@@ -67,14 +68,14 @@ export function DestinationsSection() {
         <p className="text-onyx text-[0.6875rem] tracking-[0.2em] uppercase lg:text-[max(calc(var(--r)*11),10px)]">
           Places that stay with you
         </p>
-        <h2
+        <Reveal as="h2"
           id="destinations-heading"
           className="text-onyx mt-4 text-[2.75rem] leading-[1.03] font-normal tracking-[-0.03em] lg:mt-[calc(var(--r)*20)] lg:text-[calc(var(--r)*72.9)]"
         >
           Follow a
           <br />
           different <span className="font-serif tracking-[-0.01em]">horizon.</span>
-        </h2>
+        </Reveal>
         <p className="text-graphite mt-6 max-w-[28rem] text-[1.0625rem] max-md:text-[0.9375rem] max-md:leading-[1.45] leading-[1.3] lg:mt-[calc(var(--r)*19)] lg:max-w-[calc(var(--r)*445)] lg:text-[max(calc(var(--r)*17.5),15px)]">
           Our home waters and a little beyond. Discover a coast, an island, or a quiet corner of the
           world that feels like it was waiting for you.
@@ -96,7 +97,7 @@ export function DestinationsSection() {
             alt={destination.imageAlt}
             fill
             sizes="(min-width: 1024px) 48vw, 100vw"
-            unoptimized
+            quality={90}
             // Figma crop: the boat sits centred, the houseboat on the right is out of frame.
             className="object-cover object-[61%_50%]"
           />

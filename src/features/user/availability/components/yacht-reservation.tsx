@@ -19,12 +19,12 @@ import {
   SummaryRows,
   textLinkClass,
 } from "@/features/user/checkout/components/checkout-ui";
+import { GuestCountField } from "@/features/user/checkout/components/guest-count-field";
 import { quotePriceRows } from "@/features/user/checkout/components/price-summary";
 import { useQuote } from "@/features/user/checkout/components/quote-summary";
 import { checkoutErrorMessage } from "@/features/user/checkout/utils/checkout-error-message";
 import { startCheckout } from "@/features/user/checkout/utils/checkout-store";
 import {
-  addMinutesToLocalTime,
   formatClockTime,
   formatDay,
   formatDuration,
@@ -34,7 +34,7 @@ import {
   leadingBlankDays,
   shiftMonth,
 } from "@/features/user/yachts/utils/yacht-view";
-import { useApiQuery } from "@/hooks/use-api-query";
+import { useCachedApiQuery } from "@/hooks/use-cached-api-query";
 import { cx } from "@/lib/cx";
 import { isApiError } from "@/services/http/api-error";
 import { getBackendErrorDetails } from "@/services/http/backend-error";
@@ -51,9 +51,15 @@ import {
 const CARD = "#041427"; // booking card
 const WEEKDAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
 
+/*
+ * GET /yachts/{slug}/calendar day statuses. `partly_available` is a day with some
+ * times still free and others taken (booked, held or blocked), so it can be picked
+ * like an available day; there is no separate "partly available" choice. Which
+ * times are taken is shown once the day is chosen, from GET /yachts/{slug}/slots.
+ */
 const DAY_LABELS: Record<DayStatus, string> = {
   available: "Available",
-  partly_available: "Partly available",
+  partly_available: "Available, some times taken",
   unavailable: "Unavailable",
   past: "Past",
 };
@@ -62,6 +68,15 @@ const selectable = (status: DayStatus) => status === "available" || status === "
 
 /** A null price means the slot cannot be booked, whatever its state says. */
 const isOpen = (slot: YachtSlot) => slot.state === "available" && slot.price !== null;
+
+/** Why a time cannot be chosen, from the slot's own state. */
+function closedReason(slot: YachtSlot): string {
+  if (slot.state === "booked") return "Booked";
+  if (slot.state === "held") return "On hold";
+  if (slot.state === "blocked") return "Unavailable";
+  if (slot.state === "past") return "Past";
+  return "Not bookable"; // available, but no price applies
+}
 
 const timeInputClass =
   "mt-[8px] h-[52px] w-full max-w-[240px] cursor-pointer border bg-white px-[12px] text-[15px] outline-none focus:border-[#0d1b2a]";
@@ -131,9 +146,6 @@ function MonthGrid({
                       "flex size-[40px] items-center justify-center rounded-full text-[15px] transition-colors",
                       selected && "bg-[#0d1b2a] text-white",
                       !selected && open && "hover:bg-[#eef3f9]",
-                      !selected &&
-                        day.status === "partly_available" &&
-                        "border border-dashed border-[#7a7f85]",
                       day.status === "unavailable" &&
                         "cursor-not-allowed text-[#9aa0a6] line-through",
                       day.status === "past" && "cursor-not-allowed text-[#c4c7cb]",
@@ -208,14 +220,20 @@ export interface YachtReservationProps {
   intro?: ReactNode;
   /** Left-column content below the calendar. */
   after?: ReactNode;
+  /**
+   * The "Add to your charter" add-ons (GET /yachts/{slug}/addons). Off on the yacht
+   * details page, where they are neither loaded nor sent: the booking goes to
+   * checkout with no add-ons. On by default (the availability page).
+   */
+  showAddons?: boolean;
 }
 
 /**
  * Calendar, charters, add-ons and the navy booking card for one yacht.
  * Everything shown comes from the API: this never decides availability or works
  * out a price itself, and it books nothing. It hands the selection (identifiers
- * and quantities) to checkout. A booking is one date and one charter, so the
- * card's disembarkation comes from the chosen charter, not from a second date.
+ * and quantities) to checkout. A booking is one date and one charter: the card
+ * shows the embarkation only (the return time is confirmed by the quote).
  */
 export function YachtReservation({
   yachtId,
@@ -230,36 +248,46 @@ export function YachtReservation({
   initialMonth,
   intro,
   after,
+  showAddons = true,
 }: YachtReservationProps) {
   const router = useRouter();
   const [month, setMonth] = useState(initialMonth);
   const [slotTypeId, setSlotTypeId] = useState("");
   const [date, setDate] = useState<string | null>(null);
-  const [guests, setGuests] = useState(0);
+  /** At least 1; above the capacity it is shown with a message and never sent. */
+  const [guests, setGuests] = useState(1);
   /** HH:mm, as the customer entered it. The backend decides whether it can be booked. */
   const [startTime, setStartTime] = useState("");
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const bookable = bookingMode === "instant";
+  const overCapacity = guests > capacity;
+  /** The count the API may see: never above the yacht's capacity. */
+  const validGuests = guests >= 1 && !overCapacity ? guests : 0;
 
   const slotTypeParam = slotTypeId ? { slot_type_id: slotTypeId } : {};
   const nextMonth = shiftMonth(month, 1);
 
-  const calendar = useApiQuery(
+  // Reopening a yacht shows its last calendar, slots and add-ons at once, while
+  // fresh answers are fetched behind them (the backend still checks every booking).
+  const calendar = useCachedApiQuery(
     (signal) => getYachtCalendar(slug, { month, ...slotTypeParam }, signal),
-    `${slug}|${month}|${slotTypeId}`,
+    `calendar|${slug}|${month}|${slotTypeId}`,
   );
-  const followingCalendar = useApiQuery(
+  const followingCalendar = useCachedApiQuery(
     (signal) => getYachtCalendar(slug, { month: nextMonth, ...slotTypeParam }, signal),
-    `${slug}|${nextMonth}|${slotTypeId}`,
+    `calendar|${slug}|${nextMonth}|${slotTypeId}`,
   );
-  const slots = useApiQuery(
+  const slots = useCachedApiQuery(
     (signal) =>
       date
-        ? getYachtSlots(slug, { date, ...(guests ? { guests } : {}) }, signal)
+        ? getYachtSlots(slug, { date, ...(validGuests ? { guests: validGuests } : {}) }, signal)
         : Promise.resolve(null),
-    `${slug}|${date}|${guests}`,
+    `slots|${slug}|${date}|${validGuests}`,
   );
-  const addons = useApiQuery((signal) => getYachtAddons(slug, signal), slug);
+  const addons = useCachedApiQuery(
+    (signal) => (showAddons ? getYachtAddons(slug, signal) : Promise.resolve(null)),
+    showAddons ? `addons|${slug}` : `addons-hidden|${slug}`,
+  );
 
   const showDate = (next: string | null) => setDate(next);
   const showMonth = (next: string) => {
@@ -267,22 +295,28 @@ export function YachtReservation({
     const shown = [next, shiftMonth(next, 1)];
     if (date && !shown.includes(date.slice(0, 7))) showDate(null);
   };
-  const addonItems = addons.data?.items ?? [];
+  const addonItems = (showAddons && addons.data?.items) || [];
   const calendarError = calendar.error ?? followingCalendar.error;
   const slotTypeInvalid = getBackendErrorDetails(calendarError).code === "INVALID_SLOT_TYPE";
   const timezone = calendar.data?.timezone;
 
   const slotData = slots.data?.date === date ? slots.data : null;
-  // The backend's slots for this date, grouped by slot type. Only bookable ones are offered.
-  const openSlots = slotData?.slots.filter(isOpen) ?? [];
-  const packages = [
-    ...new Map(
-      openSlots.map((slot) => [
-        slot.slot_type_id,
-        { id: slot.slot_type_id, name: slot.slot_type_name },
-      ]),
-    ).values(),
-  ];
+  // The backend's slots for this date, grouped by slot type. Only bookable ones can be
+  // chosen; the rest are still listed, disabled, so the taken times are visible.
+  const allSlots = slotData?.slots ?? [];
+  const openSlots = allSlots.filter(isOpen);
+  // In the API's order; a package is named as its first bookable slot names it.
+  const packageNames = new Map<string, string>();
+  for (const slot of allSlots) {
+    if (!packageNames.has(slot.slot_type_id)) packageNames.set(slot.slot_type_id, slot.slot_type_name);
+  }
+  const packages = [...packageNames].map(([id, name]) => ({
+    id,
+    name: openSlots.find((slot) => slot.slot_type_id === id)?.slot_type_name ?? name,
+  }));
+  const openPackages = packages.filter((option) =>
+    openSlots.some((slot) => slot.slot_type_id === option.id),
+  );
   const durationLabel = ({ id, name }: { id: string; name: string }) => {
     const minutes = slotTypes.find((type) => type.id === id)?.duration_minutes;
     return minutes === undefined ? name : formatDuration(minutes);
@@ -298,16 +332,13 @@ export function YachtReservation({
   const earliest = packageTimes[0];
   const latest = packageTimes.at(-1);
   const packageTerms = packageSlots[0];
-  // The package's length comes from the API: the yacht's slot types, else its first slot.
-  const packageMinutes =
-    slotTypes.find((type) => type.id === slotTypeId)?.duration_minutes ??
-    (packageTerms &&
-      (Date.parse(packageTerms.ends_at) - Date.parse(packageTerms.starts_at)) / 60_000);
-  // Display only, so it follows the package and time at once. It is never sent to the API.
-  const disembark =
-    date && startTime && packageMinutes
-      ? addMinutesToLocalTime(date, startTime, packageMinutes)
-      : null;
+  /** Every listed time of the chosen package, free and taken, in time order. */
+  const packageTimeline = allSlots
+    .filter((slot) => slot.slot_type_id === slotTypeId)
+    .sort((a, b) => a.start_time.localeCompare(b.start_time));
+  const takenTimes = packageTimeline.filter((slot) => !isOpen(slot));
+  /** A typed time the API already lists as taken for this package: never sent. */
+  const typedTaken = startTime ? takenTimes.find((slot) => slot.start_time === startTime) : undefined;
 
   // A new answer for this date drops a package it no longer offers. The chosen time is not
   // compared with the list: every change of date, package or time is checked by the quote.
@@ -319,12 +350,12 @@ export function YachtReservation({
     .filter((addon) => (quantities[addon.id] ?? 0) > 0)
     .map((addon) => ({ addon_id: addon.id, quantity: quantities[addon.id] ?? 0 }));
   const selection =
-    bookable && slotTypeId && startTime && date && guests > 0
+    bookable && slotTypeId && startTime && !typedTaken && date && validGuests > 0
       ? {
           slot_type_id: slotTypeId,
           date,
           start_time: startTime,
-          guests,
+          guests: validGuests,
           addons: selectedAddons,
         }
       : null;
@@ -343,15 +374,17 @@ export function YachtReservation({
     router.push(userRoutes.checkout);
   };
 
-  const instruction = !date
-    ? "Pick your embarkation day on the calendar to see your total."
-    : !slotTypeId
-      ? "Choose a charter package to see your total."
-      : !startTime
-        ? "Choose your start time to see your total."
-        : guests === 0
-          ? "Add your guests to see your total."
-          : null;
+  const instruction = overCapacity
+    ? `${name} takes up to ${capacity} guests. Please lower the number of guests to continue.`
+    : !date
+      ? "Pick your embarkation day on the calendar to see your total."
+      : !slotTypeId
+        ? "Choose a charter package to see your total."
+        : !startTime
+          ? "Choose your start time to see your total."
+          : typedTaken
+            ? "That start time is taken. Please choose an available time."
+            : null;
 
   const reservation = (
     <section
@@ -441,11 +474,10 @@ export function YachtReservation({
               Your date
             </span>
             <span className="flex items-center gap-[8px]">
-              <span
-                aria-hidden="true"
-                className="size-[14px] rounded-full border border-dashed border-[#7a7f85]"
-              />
-              Partly available
+              <span aria-hidden="true" className="text-[#0d1b2a]">
+                14
+              </span>
+              Available
             </span>
             <span className="flex items-center gap-[8px]">
               <span aria-hidden="true" className="text-[#9aa0a6] line-through">
@@ -488,33 +520,49 @@ export function YachtReservation({
                 </Notice>
               ) : !slotData?.slots.length ? (
                 <Notice>No charters are listed for this date.</Notice>
-              ) : packages.length === 0 ? (
-                <Notice>No charters are available on this date.</Notice>
+              ) : openPackages.length === 0 ? (
+                <Notice>Every charter on this date is taken. Please choose another day.</Notice>
               ) : (
                 <>
                   <div role="group" aria-label="Charter package" className="mt-[16px]">
                     <p className="text-[12px] leading-[16px]" style={{ color: BODY }}>
                       Charter package
                     </p>
+                    {slotData.date_status === "partly_available" && (
+                      <p className="mt-[6px] text-[13px] leading-[18px]" style={{ color: MUTED }}>
+                        Some times on this date are already taken. Choose a package to see them.
+                      </p>
+                    )}
                     <div className="mt-[10px] grid gap-[10px] sm:grid-cols-3">
                       {packages.map((option) => {
                         const selected = option.id === slotTypeId;
+                        const full = slotsOf(option.id).length === 0;
                         return (
                           <button
                             key={option.id}
                             type="button"
                             aria-pressed={selected}
-                            disabled={!bookable}
-                            onClick={() => setSlotTypeId(option.id)}
+                            disabled={!bookable || full}
+                            onClick={() => {
+                              setSlotTypeId(option.id);
+                              setStartTime("");
+                            }}
                             className={cx(
                               "min-w-0 border px-[16px] py-[14px] text-left transition-colors disabled:cursor-not-allowed",
                               selected
                                 ? "border-[#0d1b2a] bg-[#0d1b2a] text-white"
                                 : "bg-white enabled:hover:border-[#0d1b2a]",
+                              full && "bg-[#f6f7f8]",
                             )}
-                            style={selected ? undefined : { borderColor: BORDER, color: INK }}
+                            style={
+                              selected
+                                ? undefined
+                                : { borderColor: BORDER, color: full ? "#9aa0a6" : INK }
+                            }
                           >
-                            <span className="block text-[18px] leading-[24px]">
+                            <span
+                              className={cx("block text-[18px] leading-[24px]", full && "line-through")}
+                            >
                               {durationLabel(option)}
                             </span>
                             <span
@@ -523,7 +571,9 @@ export function YachtReservation({
                                 selected ? "text-white/75" : "text-[#7a7f85]",
                               )}
                             >
-                              From {fromPrice(option.id)} · excl. GST
+                              {full
+                                ? "Fully booked on this date"
+                                : `From ${fromPrice(option.id)} · excl. GST`}
                             </span>
                           </button>
                         );
@@ -533,12 +583,71 @@ export function YachtReservation({
 
                   {slotTypeId && bookable && (
                     <div className="mt-[20px]">
+                      <div role="group" aria-labelledby="charter-times-label">
+                        <p
+                          id="charter-times-label"
+                          className="text-[12px] leading-[16px]"
+                          style={{ color: BODY }}
+                        >
+                          Start times for this package
+                        </p>
+                        <ul className="mt-[10px] grid grid-cols-3 gap-[8px] sm:grid-cols-4 lg:grid-cols-6">
+                          {packageTimeline.map((slot, index) => {
+                            const open = isOpen(slot);
+                            const chosen = open && slot.start_time === startTime;
+                            return (
+                              <li key={`${slot.starts_at}-${index}`}>
+                                <button
+                                  type="button"
+                                  disabled={!open}
+                                  aria-pressed={open ? chosen : undefined}
+                                  aria-label={`${formatClockTime(slot.start_time)} to ${formatClockTime(slot.end_time)}: ${open ? "available" : closedReason(slot)}`}
+                                  onClick={() => setStartTime(slot.start_time)}
+                                  className={cx(
+                                    "flex h-[52px] w-full flex-col items-center justify-center border text-[14px] leading-[18px] transition-colors duration-300",
+                                    chosen
+                                      ? "border-[#0d1b2a] bg-[#0d1b2a] text-white"
+                                      : open
+                                        ? "border-[#c9ccd0] bg-white text-[#0d1b2a] hover:border-[#0d1b2a]"
+                                        : "cursor-not-allowed border-[#e5e7eb] bg-[#f6f7f8] text-[#9aa0a6]",
+                                  )}
+                                >
+                                  <span className={cx(!open && "line-through")}>
+                                    {formatClockTime(slot.start_time)}
+                                  </span>
+                                  {!open && (
+                                    <span
+                                      aria-hidden="true"
+                                      className="text-[10px] tracking-[0.08em] uppercase"
+                                    >
+                                      {closedReason(slot)}
+                                    </span>
+                                  )}
+                                </button>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                        {takenTimes.length > 0 && (
+                          <p className="mt-[10px] text-[13px] leading-[18px]" style={{ color: MUTED }}>
+                            Unavailable:{" "}
+                            {takenTimes
+                              .map(
+                                (slot) =>
+                                  `${formatClockTime(slot.start_time)}–${formatClockTime(slot.end_time)} (${closedReason(slot).toLowerCase()})`,
+                              )
+                              .join(", ")}
+                            .
+                          </p>
+                        )}
+                      </div>
+
                       <label
                         htmlFor="charter-start"
-                        className="block text-[12px]"
+                        className="mt-[20px] block text-[12px]"
                         style={{ color: BODY }}
                       >
-                        Start time
+                        Or enter another start time
                       </label>
                       <input
                         id="charter-start"
@@ -546,7 +655,7 @@ export function YachtReservation({
                         value={startTime}
                         min={earliest}
                         max={latest}
-                        aria-invalid={Boolean(quoteError)}
+                        aria-invalid={Boolean(quoteError) || Boolean(typedTaken)}
                         aria-describedby="charter-start-hint"
                         onChange={(event) => setStartTime(event.currentTarget.value)}
                         className={timeInputClass}
@@ -555,11 +664,13 @@ export function YachtReservation({
                       <p
                         id="charter-start-hint"
                         className="mt-[8px] text-[13px] leading-[18px]"
-                        style={{ color: quoteError ? "#b42318" : MUTED }}
+                        style={{ color: quoteError || typedTaken ? "#b42318" : MUTED }}
                       >
-                        {quoteError
-                          ? quoteErrorText
-                          : earliest &&
+                        {typedTaken
+                          ? `${formatClockTime(typedTaken.start_time)} is ${closedReason(typedTaken).toLowerCase()} for this package. Please choose an available time.`
+                          : quoteError
+                            ? quoteErrorText
+                            : earliest &&
                             latest &&
                             `Earliest start ${formatClockTime(earliest)}, latest ${formatClockTime(latest)}.`}
                       </p>
@@ -588,7 +699,7 @@ export function YachtReservation({
         </div>
       </div>
 
-      {(addons.loading || addons.error || addonItems.length > 0) && (
+      {showAddons && (addons.loading || Boolean(addons.error) || addonItems.length > 0) && (
         <div className="mt-[56px]">
           <SectionTitle>Add to your charter.</SectionTitle>
           {addons.loading ? (
@@ -670,16 +781,11 @@ export function YachtReservation({
           <p className="mt-[22px] text-[16px] leading-[22px]">Price on request</p>
         )}
 
-        <div className="mt-[20px] grid grid-cols-2 divide-x divide-white/25 border border-white/25">
+        <div className="mt-[20px] border border-white/25">
           <DateBox
             label="Embark"
             value={date ? formatShortDay(date) : "Add date"}
             detail={startTime ? formatClockTime(startTime) : undefined}
-          />
-          <DateBox
-            label="Disembark"
-            value={disembark ? formatShortDay(disembark.date) : "Add date"}
-            detail={disembark ? formatClockTime(disembark.time) : undefined}
           />
         </div>
 
@@ -693,15 +799,25 @@ export function YachtReservation({
               {suites !== null && ` · ${suites} ${suites === 1 ? "suite" : "suites"}`}
             </p>
           </div>
-          <QuantityStepper
-            label="guests"
+          <GuestCountField
             value={guests}
-            min={0}
+            min={1}
             max={capacity}
             onChange={setGuests}
             dark
+            invalid={overCapacity}
+            describedBy={overCapacity ? "reserve-guests-error" : undefined}
           />
         </div>
+        {overCapacity && (
+          <p
+            id="reserve-guests-error"
+            role="alert"
+            className="mt-[12px] text-[14px] leading-[20px] text-[#ffb4a8]"
+          >
+            {name} takes up to {capacity} guests.
+          </p>
+        )}
         <div className="mt-[20px] h-px bg-white/15" />
 
         {!bookable ? (
@@ -755,7 +871,11 @@ export function YachtReservation({
           build a proposal around you.
         </p>
         <Link
-          href={userRoutes.planCharterFor(slug, yachtId)}
+          href={userRoutes.planCharterFor(
+            slug,
+            yachtId,
+            validGuests ? String(validGuests) : undefined,
+          )}
           className="mt-[20px] flex h-[50px] items-center justify-between border border-white/40 px-[16px] text-[12px] tracking-[0.18em] uppercase transition-colors hover:bg-white/10"
         >
           Request a custom quote

@@ -15,6 +15,18 @@ const PUBLIC = { auth: false, timeoutMs: 60_000 } as const;
 
 const yachtPath = (slug: string) => `/yachts/${encodeURIComponent(slug)}`;
 
+/**
+ * Opt-in server reuse (Next.js data cache; ignored in the browser) for catalogue
+ * content only: names, photos, descriptions, starting prices. Never for anything
+ * that says whether a date or time can be booked (calendar, slots, quotes).
+ */
+export interface CatalogueCache {
+  /** Seconds an answer may be reused. Photo links stay valid for an hour. */
+  revalidate: number;
+}
+const cacheInit = (cache?: CatalogueCache) =>
+  cache ? { init: { next: { revalidate: cache.revalidate } } } : {};
+
 /** Error codes documented for these endpoints. */
 export type YachtErrorCode =
   | "INVALID_FILTER"
@@ -83,12 +95,14 @@ export interface ListYachtsParams {
 export function listYachts(
   params: ListYachtsParams = {},
   signal?: AbortSignal,
+  cache?: CatalogueCache,
 ): Promise<YachtList> {
   return apiClient.get("/yachts", {
     ...PUBLIC,
     query: { ...params },
     signal,
     schema: yachtListSchema,
+    ...cacheInit(cache),
   });
 }
 
@@ -107,9 +121,18 @@ const yachtFiltersSchema = z.object({
 });
 export type YachtFilterOptions = z.infer<typeof yachtFiltersSchema>;
 
-/** GET /yachts/filters. */
+/**
+ * GET /yachts/filters. Only the catalogue's facets (types, cities, ranges), never
+ * availability, so the server may reuse an answer for 5 minutes (Next.js data
+ * cache; ignored in the browser). Lists, slots, quotes and bookings stay uncached.
+ */
 export function getYachtFilters(signal?: AbortSignal): Promise<YachtFilterOptions> {
-  return apiClient.get("/yachts/filters", { ...PUBLIC, signal, schema: yachtFiltersSchema });
+  return apiClient.get("/yachts/filters", {
+    ...PUBLIC,
+    signal,
+    schema: yachtFiltersSchema,
+    init: { next: { revalidate: 300 } },
+  });
 }
 
 // ── Details ─────────────────────────────────────────────────────────────────
@@ -160,8 +183,17 @@ export type YachtDetail = z.infer<typeof yachtDetailSchema>;
  * GET /yachts/{slug}. 404 `YACHT_NOT_FOUND` for unknown, inactive and hidden
  * yachts. A 200 says nothing about availability: use the calendar and slots.
  */
-export function getYacht(slug: string, signal?: AbortSignal): Promise<YachtDetail> {
-  return apiClient.get(yachtPath(slug), { ...PUBLIC, signal, schema: yachtDetailSchema });
+export function getYacht(
+  slug: string,
+  signal?: AbortSignal,
+  cache?: CatalogueCache,
+): Promise<YachtDetail> {
+  return apiClient.get(yachtPath(slug), {
+    ...PUBLIC,
+    signal,
+    schema: yachtDetailSchema,
+    ...cacheInit(cache),
+  });
 }
 
 // ── Calendar ────────────────────────────────────────────────────────────────

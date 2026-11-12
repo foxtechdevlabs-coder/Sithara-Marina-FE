@@ -10,8 +10,15 @@ import { getYacht, listYachts, type YachtCard } from "@/services/user/yachts.ser
 /** Only picks the first month shown; each API answer carries its own timezone. */
 const FIRST_MONTH_TIMEZONE = "Asia/Kolkata";
 
+/**
+ * Catalogue content (not availability: the calendar and slots load fresh in the
+ * browser) may be reused for a minute, so reopening a yacht does not wait on the
+ * backend again.
+ */
+const CATALOGUE_CACHE = { revalidate: 60 };
+
 /** Shared by the metadata and the page, so one visit fetches the yacht once. */
-const loadYacht = cache((slug: string) => getYacht(slug));
+const loadYacht = cache((slug: string) => getYacht(slug, undefined, CATALOGUE_CACHE));
 
 export async function generateMetadata({
   params,
@@ -27,7 +34,7 @@ export async function generateMetadata({
 /** The other yachts are a nice extra: losing them must not lose the page. */
 async function loadRelated(): Promise<YachtCard[]> {
   try {
-    return (await listYachts({ limit: 4 })).items;
+    return (await listYachts({ limit: 4 }, undefined, CATALOGUE_CACHE)).items;
   } catch {
     return [];
   }

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode, type SubmitEvent } from "react";
 
 import { INK, MarinaFonts, MarinaFooter, SANS, SERIF } from "@/components/user/marina-chrome";
+import { SearchCombobox } from "@/components/user/SearchCombobox";
 import {
   AMENITIES,
   DURATIONS,
@@ -13,6 +14,8 @@ import {
   GUEST_COUNTS,
   SORTS,
   filtersToQuery,
+  guestDigits,
+  parseGuestCount,
   priceBands,
   toListParams,
   type SortKey,
@@ -180,8 +183,8 @@ function AmenitiesPicker({
 
 /**
  * "Find your perfect fit." search filter page, built from the Figma design
- * (1728px frame). Starts from the selections in the URL (e.g. from the home
- * search bar); "Show N yachts" opens Our yachts with the filters applied.
+ * (1728px frame). Starts from the selections in the URL (e.g. "More filters" on
+ * Our yachts); "Show N yachts" opens Our yachts with the filters applied.
  */
 export default function SearchFilter({
   initialFilters,
@@ -246,25 +249,32 @@ export default function SearchFilter({
         >
           <div className="grid gap-x-[24px] gap-y-[32px] sm:grid-cols-2 lg:gap-y-[75px]">
             <Field id="region" label="Region">
-              <Select
+              {/* GET /yachts `destination` is an exact city, so only a listed one can be applied. */}
+              <SearchCombobox
                 id="region"
                 value={filters.region}
-                onChange={(v) => set("region", v)}
-                options={[
-                  { value: "", label: "Any region" },
-                  ...(options?.destinations ?? []).map((r) => ({ value: r, label: r })),
-                ]}
+                onCommit={(v) => set("region", v)}
+                options={(options?.destinations ?? []).map((r) => ({ value: r, label: r }))}
+                placeholder="Any region"
+                emptyText="No matching region"
+                className={box}
+                style={{ borderColor: BORDER }}
               />
             </Field>
             <Field id="guests" label="Number of guests">
-              <Select
+              {/* Any whole number: GET /yachts `guests` is "at least this many". */}
+              <SearchCombobox
                 id="guests"
-                value={filters.guests}
-                onChange={(v) => set("guests", Number(v))}
-                options={[
-                  { value: 0, label: "Any" },
-                  ...GUEST_COUNTS.map((n) => ({ value: n, label: String(n) })),
-                ]}
+                value={filters.guests ? String(filters.guests) : ""}
+                onCommit={(v) => set("guests", Number(v || 0))}
+                options={GUEST_COUNTS.map((n) => ({ value: String(n), label: String(n) }))}
+                placeholder="Any"
+                parseCustom={parseGuestCount}
+                sanitize={guestDigits}
+                inputMode="numeric"
+                emptyText="Press Enter to use this number"
+                className={box}
+                style={{ borderColor: BORDER }}
               />
             </Field>
             <Field id="duration" label="Duration">

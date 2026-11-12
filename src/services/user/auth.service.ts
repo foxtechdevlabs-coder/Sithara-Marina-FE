@@ -21,6 +21,7 @@ export const AUTH_PATHS = {
   verifyResetLink: "/auth/verify-reset-link",
   resetPassword: "/auth/reset-password",
   login: "/auth/login",
+  google: "/auth/google",
   refresh: "/auth/refresh",
   logout: "/auth/logout",
 } as const;
@@ -50,7 +51,12 @@ export type AuthErrorCode =
   | "SERVICE_UNAVAILABLE"
   | "EMAIL_DELIVERY_FAILED"
   | "INVALID_TOKEN"
-  | "INVALID_RESET_TOKEN";
+  | "INVALID_RESET_TOKEN"
+  | "INVALID_GOOGLE_TOKEN"
+  | "ACCOUNT_DEACTIVATED"
+  | "GOOGLE_SIGN_IN_NOT_ALLOWED"
+  | "GOOGLE_ACCOUNT_MISMATCH"
+  | "GOOGLE_SIGN_IN_NOT_CONFIGURED";
 
 // ── Shared response schemas ─────────────────────────────────────────────────
 
@@ -246,6 +252,41 @@ export type LoginResponse = z.infer<typeof loginResponseSchema>;
 export function loginUser(request: LoginRequest): Promise<LoginResponse> {
   const body: LoginRequest = { email: request.email, password: request.password };
   return apiClient.post(AUTH_PATHS.login, { ...PUBLIC, body, schema: loginResponseSchema });
+}
+
+// ── Google sign-in ──────────────────────────────────────────────────────────
+
+export interface GoogleSignInRequest {
+  /** The ID token (JWT) Google Identity Services returns as `credential`. */
+  id_token: string;
+}
+
+/** `GoogleSignInResponseDto`. */
+const googleSignInResponseSchema = z.object({
+  access_token: z.string(),
+  refresh_token: z.string(),
+  /** Access-token lifetime in seconds. */
+  expires_in: z.number(),
+  user: authUserSchema,
+  /** True when this sign-in created the account. */
+  is_new_user: z.boolean(),
+});
+export type GoogleSignInResponse = z.infer<typeof googleSignInResponseSchema>;
+
+/**
+ * POST /auth/google → 200, signed in. The backend verifies the Google ID token
+ * itself; the website never trusts it on its own. Errors: 401
+ * `INVALID_GOOGLE_TOKEN` · 403 `ACCOUNT_DEACTIVATED` / `GOOGLE_SIGN_IN_NOT_ALLOWED`
+ * (a staff email) · 409 `GOOGLE_ACCOUNT_MISMATCH` · 503
+ * `GOOGLE_SIGN_IN_NOT_CONFIGURED` / `SERVICE_UNAVAILABLE`.
+ */
+export function signInWithGoogle(request: GoogleSignInRequest): Promise<GoogleSignInResponse> {
+  const body: GoogleSignInRequest = { id_token: request.id_token };
+  return apiClient.post(AUTH_PATHS.google, {
+    ...PUBLIC,
+    body,
+    schema: googleSignInResponseSchema,
+  });
 }
 
 // ── Refresh ─────────────────────────────────────────────────────────────────
