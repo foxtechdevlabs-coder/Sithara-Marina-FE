@@ -1,5 +1,4 @@
 import {
-  BadgeIndianRupee,
   CalendarCheck2,
   CalendarDays,
   ChartColumn,
@@ -46,7 +45,6 @@ export const adminNav: readonly AdminNavSection[] = [
       { label: "Bookings", href: adminRoutes.bookings, icon: CalendarCheck2 },
       { label: "Enquiries", href: adminRoutes.enquiries, icon: MessagesSquare },
       { label: "Yachts", href: adminRoutes.fleet, icon: Ship },
-      { label: "Pricing & slots", href: adminRoutes.availabilitySlots, icon: BadgeIndianRupee },
       { label: "Availability", href: adminRoutes.availability, icon: CalendarDays },
       { label: "Customers", href: adminRoutes.customers, icon: Users },
     ],

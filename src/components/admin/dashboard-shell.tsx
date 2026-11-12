@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 
 import { adminNav } from "@/config/admin-navigation";
+import { NotificationBell } from "@/features/admin/notifications/components/notification-bell";
 import { adminRoutes, userRoutes } from "@/constants/routes";
 import { useBreadcrumbYacht } from "@/features/admin/fleet/hooks/use-breadcrumb-yacht";
 
@@ -37,6 +38,14 @@ function pageLabel(pathname: string, yacht: { id: string; name: string } | null)
   if (pathname === adminRoutes.refunds) return "Partners & finance / A19";
   if (pathname === adminRoutes.reports) return "Workspace / A23";
   if (pathname === adminRoutes.audit) return "Workspace / A42";
+  if (pathname === adminRoutes.notifications) return "Workspace / Notifications";
+  if (/^\/admin\/content\/[^/]+\/[^/]+\/preview$/.test(pathname)) return "Workspace / A43";
+  if (/^\/admin\/content\/[^/]+\/[^/]+$/.test(pathname)) return "Workspace / A25";
+  if (pathname.startsWith("/admin/notifications/templates/"))
+    return "Workspace / Notifications / Email template";
+  if (pathname === adminRoutes.enquiries) return "Operations / A28";
+  if (/^\/admin\/enquiries\/[^/]+\/proposal$/.test(pathname)) return "Operations / A44";
+  if (/^\/admin\/enquiries\/[^/]+$/.test(pathname)) return "Operations / A29";
   if (pathname === "/admin/reports/export") return "Workspace / A37";
   if (/^\/admin\/refunds\/payments\/[^/]+\/refund$/.test(pathname))
     return "Partners & finance / A20";
@@ -120,20 +129,23 @@ export function DashboardShell({ children }: { children: ReactNode }) {
         <Link href={adminRoutes.dashboard} className="block">
           <Logo className="w-[74px]" />
         </Link>
-        <button
-          type="button"
-          aria-expanded={menuOpen}
-          aria-controls="admin-menu"
-          onClick={() => setMenuOpen((o) => !o)}
-          className="flex items-center gap-[10px] text-[14px] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
-        >
-          {menuOpen ? (
-            <X aria-hidden="true" strokeWidth={1.5} className="size-[18px]" />
-          ) : (
-            <Menu aria-hidden="true" strokeWidth={1.5} className="size-[18px]" />
-          )}
-          {menuOpen ? "Close" : "Menu"}
-        </button>
+        <div className="flex items-center gap-[14px]">
+          <NotificationBell tone="dark" />
+          <button
+            type="button"
+            aria-expanded={menuOpen}
+            aria-controls="admin-menu"
+            onClick={() => setMenuOpen((o) => !o)}
+            className="flex items-center gap-[10px] text-[14px] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
+          >
+            {menuOpen ? (
+              <X aria-hidden="true" strokeWidth={1.5} className="size-[18px]" />
+            ) : (
+              <Menu aria-hidden="true" strokeWidth={1.5} className="size-[18px]" />
+            )}
+            {menuOpen ? "Close" : "Menu"}
+          </button>
+        </div>
       </header>
       {menuOpen && (
         <div
@@ -163,6 +175,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
                 + Add yacht
               </Link>
             )}
+            <NotificationBell />
             <Link
               href={userRoutes.home}
               target="_blank"

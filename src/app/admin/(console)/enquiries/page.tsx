@@ -1,13 +1,9 @@
-import { RoutePlaceholder } from "@/components/shared/route-placeholder";
 import type { Metadata } from "next";
+
+import { EnquiryList } from "@/features/admin/enquiries/components/enquiry-list";
 
 export const metadata: Metadata = { title: "Enquiries" };
 
 export default function EnquiriesPage() {
-  return (
-    <RoutePlaceholder
-      title="Enquiries"
-      description="Charter enquiries and proposals awaiting a reply. Feature module: features/admin/enquiries."
-    />
-  );
+  return <EnquiryList />;
 }

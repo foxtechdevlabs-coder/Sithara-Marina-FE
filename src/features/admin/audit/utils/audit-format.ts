@@ -98,7 +98,6 @@ const RECORDS: Record<
   },
   availability_block: { href: adminRoutes.availabilityBlock },
   cancellation_request: { href: adminRoutes.cancellationRequest },
-  price_rule_batch: { href: adminRoutes.priceBatch },
 };
 
 /** The record's link, without a request. */

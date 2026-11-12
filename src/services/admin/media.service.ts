@@ -70,7 +70,7 @@ function putFile(url: string, file: File, onProgress?: (fraction: number) => voi
  * POST /admin/media/uploads, then PUT to the signed `upload_url`.
  */
 async function uploadFile(
-  purpose: "yacht_photo" | "partner_document",
+  purpose: "yacht_photo" | "partner_document" | "banner_image",
   file: File,
   onProgress?: (fraction: number) => void,
 ): Promise<string> {
@@ -90,6 +90,10 @@ async function uploadFile(
 
 export const uploadYachtPhoto = (file: File, onProgress?: (fraction: number) => void) =>
   uploadFile("yacht_photo", file, onProgress);
+
+/** A website banner image (POST /admin/media/uploads, purpose banner_image); same image types as yacht photos. */
+export const uploadBannerImage = (file: File, onProgress?: (fraction: number) => void) =>
+  uploadFile("banner_image", file, onProgress);
 
 export const uploadPartnerDocument = (file: File, onProgress?: (fraction: number) => void) =>
   uploadFile("partner_document", file, onProgress);

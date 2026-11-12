@@ -91,9 +91,3 @@ export function searchCustomerRecords(filter: { status?: "active" | "inactive" }
 export async function resolveCustomer(id: string, signal: AbortSignal) {
   return customerOption(await getCustomer(id, signal));
 }
-
-/** Every active yacht as options, up to `limit` (the bulk endpoints take at most 100). */
-export async function allActiveYachts(signal?: AbortSignal, limit = 100) {
-  const list = await listYachts({ status: "active", limit }, signal);
-  return { options: list.items.map(yachtOption), total: list.total };
-}
