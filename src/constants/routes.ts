@@ -139,6 +139,9 @@ export const adminRoutes = {
   /** "Your report is being prepared": the export of one report with the current filters. */
   reportExport: (type: string, from = "", to = "", yachtId = "", partnerId = "", scope = "") =>
     `/admin/reports/export${withQuery({ type, from, to, yacht: yachtId, partner: partnerId, scope })}` as Route,
+  support: "/admin/support",
+  /** One customer support request. */
+  supportRequest: (requestId: string) => `/admin/support/${id(requestId)}` as Route,
   enquiries: "/admin/enquiries",
   /** An enquiry; `tab` opens enquiry, proposal or history. */
   enquiry: (enquiryId: string, tab = "") =>
