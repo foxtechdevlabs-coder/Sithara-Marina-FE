@@ -42,6 +42,8 @@ export const userRoutes = {
   /** The custom quote page with this yacht already chosen. */
   planCharterFor: (slug: string) => `/plan-your-charter?yacht=${id(slug)}` as Route,
   search: "/search",
+  /** Payment link staff send for an office booking: `<this>#token=…` (`?token=` also works). */
+  payLink: "/pay",
 } as const satisfies Record<string, Route | ((...args: string[]) => Route)>;
 
 /** Admin dashboard routes (`src/app/admin`). */
@@ -62,9 +64,6 @@ export const adminRoutes = {
   fleetYachtPricing: (yachtId: string) => `/admin/fleet/${id(yachtId)}/pricing` as Route,
 
   availability: "/admin/availability",
-  availabilitySlots: "/admin/availability/slots",
-  /** A bulk percent price rule across yachts. */
-  priceBatch: (batchId: string) => `/admin/availability/slots/batches/${id(batchId)}` as Route,
   /** A bulk availability block across yachts. */
   blockBatchNew: "/admin/availability/blocked/bulk",
   availabilityBlocked: "/admin/availability/blocked",
@@ -119,10 +118,21 @@ export const adminRoutes = {
   /** Refund form for a captured payment. */
   refundNew: (paymentId: string) => `/admin/refunds/payments/${id(paymentId)}/refund` as Route,
   content: "/admin/content",
+  /** The content hub on banners, pages or FAQs. */
+  contentKind: (kind: string) => `/admin/content${withQuery({ tab: kind })}` as Route,
+  /** New banner, page or FAQ. */
+  contentNew: (kind: string) => `/admin/content/${id(kind)}/new` as Route,
+  /** Edit a banner, page or FAQ. */
+  contentItem: (kind: string, itemId = "") => `/admin/content/${id(kind)}/${id(itemId)}` as Route,
+  /** "Ready for your public view": preview, then publish. */
+  contentPreview: (kind: string, itemId = "") =>
+    `/admin/content/${id(kind)}/${id(itemId)}/preview` as Route,
   settings: "/admin/settings",
   staff: "/admin/staff",
   staffRoles: "/admin/staff/roles",
   notifications: "/admin/notifications",
+  /** Edit one customer or staff email template. */
+  notificationTemplate: (key: string) => `/admin/notifications/templates/${id(key)}` as Route,
   reports: "/admin/reports",
   /** Every report with its rows and filters, optionally on one type. */
   reportsDetailed: (type = "") => `/admin/reports/detailed${withQuery({ type })}` as Route,
@@ -130,6 +140,12 @@ export const adminRoutes = {
   reportExport: (type: string, from = "", to = "", yachtId = "", partnerId = "", scope = "") =>
     `/admin/reports/export${withQuery({ type, from, to, yacht: yachtId, partner: partnerId, scope })}` as Route,
   enquiries: "/admin/enquiries",
+  /** An enquiry; `tab` opens enquiry, proposal or history. */
+  enquiry: (enquiryId: string, tab = "") =>
+    `/admin/enquiries/${id(enquiryId)}${withQuery({ tab })}` as Route,
+  /** "A proposal ready to share": the customer view of a draft, then send. */
+  enquiryProposal: (enquiryId: string, proposalId = "") =>
+    `/admin/enquiries/${id(enquiryId)}/proposal${withQuery({ id: proposalId })}` as Route,
   audit: "/admin/audit",
   /** The audit history of one record (or every record of a type). */
   auditFor: (entityType: string, entityId = "") =>

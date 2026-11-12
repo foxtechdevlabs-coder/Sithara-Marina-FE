@@ -391,46 +391,6 @@ describe("slot types and price rules", () => {
     });
   });
 
-  it("creates, edits and removes a bulk percent rule", async () => {
-    const { pricing } = await load();
-    const batch = {
-      batch_id: "b-1",
-      count: 1,
-      rules: [
-        {
-          ...rule,
-          kind: "holiday",
-          adjustment: "percent",
-          amount: null,
-          percent: 20,
-          batch_id: "b-1",
-        },
-      ],
-    };
-    stub((_url, method) =>
-      method === "DELETE"
-        ? new Response(null, { status: 204 })
-        : json(batch, method === "POST" ? 201 : 200),
-    );
-    await pricing.createBulkPriceRules({
-      yacht_ids: ["y-1", "y-2"],
-      kind: "holiday",
-      percent: 20,
-      name: "Christmas +20%",
-    });
-    await pricing.updatePriceRuleBatch("b-1", { percent: 25 });
-    await pricing.deletePriceRuleBatch("b-1");
-    expect(calls.map((c) => [c.method, c.url.replace(API, ""), c.body])).toEqual([
-      [
-        "POST",
-        "/admin/price-rules/bulk",
-        { yacht_ids: ["y-1", "y-2"], kind: "holiday", percent: 20, name: "Christmas +20%" },
-      ],
-      ["PATCH", "/admin/price-rules/batches/b-1", { percent: 25 }],
-      ["DELETE", "/admin/price-rules/batches/b-1", undefined],
-    ]);
-  });
-
   it("reads every page of a yacht's price rules", async () => {
     const { pricing } = await load();
     const rules = Array.from({ length: 150 }, (_, i) => ({ ...rule, id: `r-${i}` }));

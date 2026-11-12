@@ -23,9 +23,8 @@ function isActive(pathname: string, href: string): boolean {
 }
 
 /**
- * The one item to highlight: the closest match, so a nested item such as
- * "Pricing & slots" (/admin/availability/slots) doesn't also light up its
- * parent path's item ("Availability").
+ * The one item to highlight: the closest match, so a nested item never also
+ * lights up the item of its parent path.
  */
 function activeHref(pathname: string): string | undefined {
   return adminNav

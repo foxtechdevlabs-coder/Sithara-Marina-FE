@@ -1,7 +1,6 @@
 "use client";
 
 import { Plus } from "lucide-react";
-import Link from "next/link";
 import { useRef, useState } from "react";
 
 import { BODY, MUTED, SAND } from "@/components/admin/admin-theme";
@@ -19,7 +18,6 @@ import {
   outlineButton,
   primaryButton,
 } from "@/components/admin/form-parts";
-import { adminRoutes } from "@/constants/routes";
 import { fleetErrorMessage } from "@/features/admin/fleet/utils/fleet-error-message";
 import { cx } from "@/lib/cx";
 import type { SlotType } from "@/services/admin/fleet.service";
@@ -570,17 +568,7 @@ export function PriceRulesSection({
                               ` · ${formatDate(r.starts_on)}${r.ends_on ? ` – ${formatDate(r.ends_on)}` : " onwards"}`}
                             {!r.starts_on && r.ends_on && ` · until ${formatDate(r.ends_on)}`}
                             {r.priority !== 0 && ` · priority ${r.priority}`}
-                            {r.batch_id && (
-                              <>
-                                {" · "}
-                                <Link
-                                  href={adminRoutes.priceBatch(r.batch_id)}
-                                  className="underline underline-offset-2"
-                                >
-                                  bulk rule
-                                </Link>
-                              </>
-                            )}
+                            {r.batch_id && " · from a bulk rule"}
                           </span>
                           <span className="flex gap-[14px]">
                             <button

@@ -11,7 +11,6 @@ weather and other time that can't be booked).
 | `/admin/availability/blocked`      | List of blocks (upcoming / all, by yacht and reason)                  |
 | `/admin/availability/blocked/new`  | A07 — "Make room for maintenance."; a 409 shows A36 (conflict)        |
 | `/admin/availability/blocked/[id]` | A07 — edit or remove a block                                          |
-| `/admin/availability/slots`        | Placeholder (slot types and prices live under each yacht's pricing)   |
 
 The calendar takes `?yacht=&month=YYYY-MM&date=YYYY-MM-DD&notice=` so other screens can link to a
 yacht and day. "Block a time" passes `?yacht=&date=` to the new block form.
