@@ -13,7 +13,11 @@ export function YachtAvailability(props: YachtReservationProps) {
   return (
     <div className="bg-white pb-[120px] antialiased" style={{ ...SANS, color: INK }}>
       <section className={`${FRAME} pt-[37px]`}>
-        <nav aria-label="Breadcrumb" className="text-[12px] leading-[16px]" style={{ color: MUTED }}>
+        <nav
+          aria-label="Breadcrumb"
+          className="text-[12px] leading-[16px]"
+          style={{ color: MUTED }}
+        >
           <ol className="flex flex-wrap items-center gap-[12px]">
             <li>
               <Link href={userRoutes.yachts} className="hover:underline">

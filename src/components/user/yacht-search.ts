@@ -91,8 +91,9 @@ export function priceBands(options: Pick<YachtFilterOptions, "price" | "currency
   const step = (max - min) / PRICE_BANDS;
   const edges = [
     Math.floor(min / BAND_ROUNDING) * BAND_ROUNDING,
-    ...Array.from({ length: PRICE_BANDS - 1 }, (_, i) =>
-      Math.round((min + step * (i + 1)) / BAND_ROUNDING) * BAND_ROUNDING,
+    ...Array.from(
+      { length: PRICE_BANDS - 1 },
+      (_, i) => Math.round((min + step * (i + 1)) / BAND_ROUNDING) * BAND_ROUNDING,
     ),
     Math.ceil(max / BAND_ROUNDING) * BAND_ROUNDING,
   ].filter((edge, index, all) => index === 0 || edge > (all[index - 1] ?? 0));
@@ -121,8 +122,7 @@ function read(source: ParamSource, key: string): string {
 const pick = <T extends string>(value: string, allowed: Record<T, unknown>, fallback: T): T =>
   value in allowed ? (value as T) : fallback;
 
-const wholeNumber = (value: string): number | null =>
-  /^\d+$/.test(value) ? Number(value) : null;
+const wholeNumber = (value: string): number | null => (/^\d+$/.test(value) ? Number(value) : null);
 
 /** True when the URL carries at least one search parameter. */
 export function hasSearchParams(source: ParamSource): boolean {

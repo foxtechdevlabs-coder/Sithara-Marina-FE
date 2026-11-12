@@ -383,7 +383,7 @@ test.describe("auth navigation stays in the tab", () => {
     await page.goto("/verify-email#token=fake.link");
     await expect(page).toHaveURL("/verify-email/success");
     await page.getByRole("button", { name: "Continue" }).click();
-    await expect(page).toHaveURL("/");
+    await expect(page).toHaveURL("/account/setup");
     expect(context.pages()).toHaveLength(1);
 
     await page.goBack();

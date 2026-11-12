@@ -30,5 +30,8 @@ export function VerifyEmailSuccessPage() {
 
   if (!user) return null;
 
-  return <EmailVerifiedWelcome user={user} onContinue={() => router.replace(userRoutes.home)} />;
+  // Continue to "Make your account your own." (Figma C58), which links back to the website.
+  return (
+    <EmailVerifiedWelcome user={user} onContinue={() => router.replace(userRoutes.accountSetup)} />
+  );
 }

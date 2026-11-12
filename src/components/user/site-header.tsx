@@ -28,16 +28,15 @@ const accountMenuItemClass =
  * Site-wide header: menu toggle on the left, logo centred, booking button on
  * the right. On the home page it floats transparently over the hero video with
  * white text and logo; on every other page it is a white bar with dark text,
- * as in the Figma designs. Signed in, Logout replaces Sign in, next to the
- * user's name when the session has one (POST /auth/login returns no user).
+ * as in the Figma designs. Signed in, "My account" replaces Sign in, next to
+ * the user's name when the session has one (POST /auth/login returns no user),
+ * and Logout is in the menu.
  */
 export function SiteHeader() {
   const session = useAuthSession();
   const userName = session?.user?.fullName;
   const pathname = usePathname();
   const isOverlay = pathname === userRoutes.home;
-  const isAccountArea =
-    pathname === userRoutes.account || pathname.startsWith(`${userRoutes.account}/`);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [logoutFailed, setLogoutFailed] = useState(false);
   const menuId = useId();
@@ -153,12 +152,12 @@ export function SiteHeader() {
                   {userName}
                 </span>
               ) : null}
-              {/* Signed in: "My account" (Figma). Logout lives in the account menu and the phone menu. */}
+              {/* Signed in, the header leads to the account; Logout lives in the menu. */}
               <Link
                 href={accountNav.href}
                 onClick={closeMenu}
                 aria-label={accountNav.label}
-                aria-current={isAccountArea ? "page" : undefined}
+                aria-current={isCurrent(accountNav.href) ? "page" : undefined}
                 className={cx(accountButtonClass, focusRing)}
               >
                 <UserRound
@@ -253,13 +252,13 @@ export function SiteHeader() {
               {userName}
             </li>
           ) : null}
-          {/* Phones have no room for the header's Sign in / My account button. */}
+          {/* Signed in: My account (phones only) and Logout. Signed out: Sign in (phones only). */}
           {session ? (
             <li className="sm:hidden">
               <Link
                 href={accountNav.href}
                 onClick={closeMenu}
-                aria-current={isAccountArea ? "page" : undefined}
+                aria-current={isCurrent(accountNav.href) ? "page" : undefined}
                 className={cx(accountMenuItemClass, focusRingBase, "focus-visible:outline-white")}
               >
                 <UserRound aria-hidden="true" strokeWidth={1.25} className="size-5" />

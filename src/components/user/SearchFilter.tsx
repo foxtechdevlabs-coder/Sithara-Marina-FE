@@ -357,7 +357,9 @@ export default function SearchFilter({
                 : count === null
                   ? "Show yachts"
                   : `Show ${count} ${count === 1 ? "yacht" : "yachts"}`}
-              {count !== 0 && <ArrowRight aria-hidden="true" strokeWidth={1.5} className="size-3" />}
+              {count !== 0 && (
+                <ArrowRight aria-hidden="true" strokeWidth={1.5} className="size-3" />
+              )}
             </button>
             <button
               type="button"

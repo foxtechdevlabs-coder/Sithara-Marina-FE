@@ -19,7 +19,7 @@ const SLOW_START = { timeoutMs: 60_000 } as const;
 
 const bookingPath = (id: string) => `/bookings/${encodeURIComponent(id)}`;
 
-const bookingStatusSchema = z.enum([
+export const bookingStatusSchema = z.enum([
   "pending_payment",
   "confirmed",
   "completed",

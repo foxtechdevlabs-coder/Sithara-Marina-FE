@@ -37,7 +37,10 @@ test("signed-in home shows the search bar until the user logs out", async ({ pag
   await page.goto("/");
   await expect(page.getByRole("form", { name: "Find a yacht" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Sign in" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "My account" })).toHaveAttribute("href", "/account");
 
+  // Logout is in the menu once signed in.
+  await siteHeader(page).click();
   await page.getByRole("button", { name: "Logout" }).click();
   await expect(page.getByRole("link", { name: "Sign in" })).toBeVisible();
   await expect(page.getByRole("form", { name: "Find a yacht" })).toHaveCount(0);
@@ -276,14 +279,7 @@ test("create-account page uses the site header and footer", async ({ page }) => 
 });
 
 test("removed pages are no longer served", async ({ page }) => {
-  for (const path of [
-    "/about",
-    "/contact",
-    "/account/bookings",
-    "/terms",
-    "/privacy",
-    "/cancellation-policy",
-  ]) {
+  for (const path of ["/about", "/contact", "/terms", "/privacy", "/cancellation-policy"]) {
     const response = await page.goto(path);
     expect(response?.status(), path).toBe(404);
   }
@@ -310,19 +306,45 @@ test("layout has no horizontal overflow at the current viewport", async ({ page 
   }
 });
 
-test("account profile page renders inside the site layout with account navigation", async ({
-  page,
-}) => {
-  await page.goto("/account");
-  await expect(page).toHaveURL("/account/profile");
-  await expect(page).toHaveTitle("Your details | Sithara Marina");
-  await expect(
-    page.getByRole("heading", { level: 1, name: "Your details, kept personal." }),
-  ).toBeVisible();
-  await expect(page.getByLabel("Full name")).toHaveValue("Ananya Menon");
-  await expect(page.getByRole("contentinfo")).toBeVisible();
+test.describe("customer account", () => {
+  // Account pages need a session (checked in the browser); profile data is mock data.
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      sessionStorage.setItem(
+        "sithara-marina:auth-session",
+        JSON.stringify({
+          accessToken: `header.${btoa(JSON.stringify({ exp: 4102444800 }))}.signature`,
+          refreshToken: "id.secret",
+        }),
+      );
+    });
+  });
 
-  await page.getByLabel("Full name").fill("");
-  await page.getByRole("button", { name: "Save profile" }).click();
-  await expect(page.getByText("Enter your full name.")).toBeVisible();
+  test("/account opens the overview inside the site layout", async ({ page }) => {
+    await page.goto("/account");
+    await expect(page).toHaveURL("/account");
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Your account, thoughtfully arranged." }),
+    ).toBeVisible();
+    await expect(page.getByRole("contentinfo")).toBeVisible();
+  });
+
+  test("profile page renders with account navigation and validates the name", async ({ page }) => {
+    await page.goto("/account/profile");
+    await expect(page).toHaveTitle("Profile details | Sithara Marina");
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Your details, kept personal." }),
+    ).toBeVisible();
+    await expect(page.getByLabel("Full name")).toHaveValue("Ananya Menon");
+    await expect(page.getByRole("contentinfo")).toBeVisible();
+
+    await page.getByLabel("Full name").fill("");
+    await page.getByRole("button", { name: "Save profile" }).click();
+    await expect(page.getByText("Please enter your full name.")).toBeVisible();
+  });
+});
+
+test("account pages send signed-out visitors to sign in and back", async ({ page }) => {
+  await page.goto("/account/profile");
+  await expect(page).toHaveURL("/login?next=%2Faccount%2Fprofile");
 });

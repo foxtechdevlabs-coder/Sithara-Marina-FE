@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { checkoutErrorMessage, codeMessage } from "@/features/user/checkout/utils/checkout-error-message";
+import {
+  checkoutErrorMessage,
+  codeMessage,
+} from "@/features/user/checkout/utils/checkout-error-message";
 import { contactSchema, guestContactSchema } from "@/features/user/checkout/utils/contact-schema";
 import {
   addMinutesToLocalTime,

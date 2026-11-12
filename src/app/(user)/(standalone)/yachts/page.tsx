@@ -68,10 +68,6 @@ export default async function YachtsPage({ searchParams }: PageProps<"/yachts">)
       : undefined;
 
   return (
-    <OurYachts
-      yachts={result.items.map(toFleetYacht)}
-      pagination={pagination}
-      summary={summary}
-    />
+    <OurYachts yachts={result.items.map(toFleetYacht)} pagination={pagination} summary={summary} />
   );
 }

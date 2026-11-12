@@ -167,7 +167,11 @@ export function SessionEditor({ session, checkoutToken, onSaved, onCancel }: Ses
         />
       </div>
 
-      {error && <p role="alert" className={fieldErrorClass}>{error}</p>}
+      {error && (
+        <p role="alert" className={fieldErrorClass}>
+          {error}
+        </p>
+      )}
 
       <div className="flex flex-wrap gap-[16px]">
         <button

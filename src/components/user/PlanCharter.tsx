@@ -35,7 +35,14 @@ const destinations = [
   "The Maldives",
   "Surprise me",
 ];
-const occasions = ["Honeymoon", "Anniversary", "Birthday", "Family holiday", "Wedding", "Corporate"];
+const occasions = [
+  "Honeymoon",
+  "Anniversary",
+  "Birthday",
+  "Family holiday",
+  "Wedding",
+  "Corporate",
+];
 const durations = ["A day", "2 days", "3–5 days", "A week or more"];
 const luxuries = [
   "Private chef tasting menu",
@@ -47,7 +54,11 @@ const luxuries = [
 ];
 const budgets = ["Under ₹ 10 lakh", "₹ 10–25 lakh", "₹ 25 lakh +", "Not sure yet"];
 const contactMethods = ["Email", "Phone call", "WhatsApp"];
-const steps = ["Share your wishes here", "We send a tailored proposal", "Refine it together, then confirm"];
+const steps = [
+  "Share your wishes here",
+  "We send a tailored proposal",
+  "Refine it together, then confirm",
+];
 
 /** What the enquiry says. There is no enquiry API yet: see `enquiryMailto`. */
 export interface CharterEnquiry {
@@ -148,7 +159,9 @@ function Chips({
               onClick={() => onToggle(option)}
               className={cx(
                 "min-h-[52px] border px-[20px] py-[10px] text-[15px] leading-[20px] transition-colors",
-                active ? "border-[#0d1b2a] bg-[#0d1b2a] text-white" : "bg-white hover:border-[#0d1b2a]",
+                active
+                  ? "border-[#0d1b2a] bg-[#0d1b2a] text-white"
+                  : "bg-white hover:border-[#0d1b2a]",
               )}
               style={active ? undefined : { borderColor: BORDER, color: INK }}
             >
@@ -227,7 +240,10 @@ export interface PlanCharterYacht {
 function Hero({ yacht }: { yacht: PlanCharterYacht | null }) {
   return (
     <section className="mx-auto grid w-full max-w-[1728px] lg:grid-cols-[minmax(0,535fr)_minmax(0,465fr)]">
-      <div className="px-5 pt-[48px] pb-[64px] text-white lg:px-[118px] lg:pt-[76px] lg:pb-[84px]" style={{ backgroundColor: NAVY }}>
+      <div
+        className="px-5 pt-[48px] pb-[64px] text-white lg:px-[118px] lg:pt-[76px] lg:pb-[84px]"
+        style={{ backgroundColor: NAVY }}
+      >
         <nav aria-label="Breadcrumb" className="text-[13px] leading-[18px] text-white/75">
           <ol className="flex flex-wrap items-center gap-[10px]">
             <li>
@@ -287,11 +303,20 @@ function Hero({ yacht }: { yacht: PlanCharterYacht | null }) {
   );
 }
 
-function Sidebar({ yacht, canEnquireFor }: { yacht: PlanCharterYacht | null; canEnquireFor: boolean }) {
+function Sidebar({
+  yacht,
+  canEnquireFor,
+}: {
+  yacht: PlanCharterYacht | null;
+  canEnquireFor: boolean;
+}) {
   return (
     <aside className="grid gap-[20px] self-start">
       <div className="px-[30px] py-[32px]" style={{ backgroundColor: PANEL }}>
-        <p className="text-[12px] leading-[16px] tracking-[0.18em] uppercase" style={{ color: MUTED }}>
+        <p
+          className="text-[12px] leading-[16px] tracking-[0.18em] uppercase"
+          style={{ color: MUTED }}
+        >
           Your concierge
         </p>
         <p
@@ -318,7 +343,11 @@ function Sidebar({ yacht, canEnquireFor }: { yacht: PlanCharterYacht | null; can
         </a>
         <ol className="mt-[24px] space-y-[14px] border-t pt-[20px]" style={{ borderColor: BORDER }}>
           {steps.map((step, index) => (
-            <li key={step} className="flex gap-[12px] text-[15px] leading-[22px]" style={{ color: BODY }}>
+            <li
+              key={step}
+              className="flex gap-[12px] text-[15px] leading-[22px]"
+              style={{ color: BODY }}
+            >
               <span style={{ color: MUTED }}>{String(index + 1).padStart(2, "0")}</span>
               {step}
             </li>
@@ -430,7 +459,10 @@ export default function PlanCharter({ yachts, initialYachtSlug }: PlanCharterPro
       <section className="mx-auto grid w-full max-w-[1728px] gap-[56px] px-5 pt-[56px] pb-[96px] lg:px-[100px] lg:pt-[72px] xl:grid-cols-[minmax(0,1fr)_444px] xl:gap-[78px]">
         {prepared ? (
           <div role="status" className="max-w-[640px]">
-            <p className="text-[32px] leading-[40px] tracking-[-1px]" style={{ ...SANS, color: INK }}>
+            <p
+              className="text-[32px] leading-[40px] tracking-[-1px]"
+              style={{ ...SANS, color: INK }}
+            >
               One last step, {prepared.fullName.split(" ")[0]}.
             </p>
             <p className="mt-[16px] text-[16px] leading-[27px]" style={{ color: BODY }}>
@@ -545,8 +577,20 @@ export default function PlanCharter({ yachts, initialYachtSlug }: PlanCharterPro
               onToggle={(option) => setDuration(pickOne(duration, option))}
             />
             <div className="mt-[24px] flex flex-wrap gap-x-[40px] gap-y-[20px]">
-              <Counter label="Adults" hint="13 and over" value={adults} min={1} onChange={setAdults} />
-              <Counter label="Children" hint="Under 13" value={children} min={0} onChange={setChildren} />
+              <Counter
+                label="Adults"
+                hint="13 and over"
+                value={adults}
+                min={1}
+                onChange={setAdults}
+              />
+              <Counter
+                label="Children"
+                hint="Under 13"
+                value={children}
+                min={0}
+                onChange={setChildren}
+              />
             </div>
 
             <div className="mt-[56px]">
@@ -633,7 +677,10 @@ export default function PlanCharter({ yachts, initialYachtSlug }: PlanCharterPro
               onToggle={setContactMethod}
             />
 
-            <label className="mt-[28px] flex items-start gap-[10px] text-[14px] leading-[20px]" style={{ color: BODY }}>
+            <label
+              className="mt-[28px] flex items-start gap-[10px] text-[14px] leading-[20px]"
+              style={{ color: BODY }}
+            >
               <input
                 type="checkbox"
                 name="consent"

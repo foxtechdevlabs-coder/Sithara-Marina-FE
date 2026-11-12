@@ -30,6 +30,10 @@
   --color-hairline: #d6dbcf;
   --color-field-line: #cdd1d5;
   --color-surface: #ffffff;
+  /* Account pages: heading ink, body copy and card rules from the Figma */
+  --color-navy-ink: #0d1b2a;
+  --color-body: #3d434a;
+  --color-rule: #d9dcdf;
 
   /* Admin dashboard */
   --color-accent-50: #f0fdfa;

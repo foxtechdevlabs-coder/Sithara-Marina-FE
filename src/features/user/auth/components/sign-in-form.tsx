@@ -45,7 +45,16 @@ interface FieldErrors {
  * home page. The backend answers 401 "Invalid email or password" for wrong
  * credentials and for unverified accounts alike, so the message covers both.
  */
-export function SignInForm() {
+export function SignInForm({
+  variant = "default",
+}: {
+  /**
+   * `checkout`: signing in mid-booking ("Welcome back to your charter."): the
+   * button continues the booking, and guests can carry on without an account.
+   */
+  variant?: "default" | "checkout";
+} = {}) {
+  const isCheckout = variant === "checkout";
   const formId = useId();
   const router = useRouter();
   const session = useAuthSession();
@@ -199,11 +208,13 @@ export function SignInForm() {
         disabled={isSubmitting}
         className={cx(
           primaryButtonClass,
-          "mt-8 w-44 px-0 lg:mt-[calc(var(--r)*55)] lg:w-[calc(var(--rw)*176)] lg:min-w-40",
+          isCheckout
+            ? "mt-8 w-auto px-7 lg:mt-[calc(var(--r)*55)] lg:min-w-[calc(var(--rw)*230)]"
+            : "mt-8 w-44 px-0 lg:mt-[calc(var(--r)*55)] lg:w-[calc(var(--rw)*176)] lg:min-w-40",
         )}
         style={{ background: PRIMARY_GRADIENT }}
       >
-        {isSubmitting ? "Signing in…" : "Sign in"}
+        {isSubmitting ? "Signing in…" : isCheckout ? "Sign in & continue booking" : "Sign in"}
         <ArrowRight aria-hidden="true" strokeWidth={1.5} className="size-3.5" />
       </button>
 
@@ -212,10 +223,31 @@ export function SignInForm() {
           href={userRoutes.forgotPassword}
           className="text-[#0d1b2a] hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0d1b2a]"
         >
-          Forgot your password?
+          {isCheckout ? "Forgot password?" : "Forgot your password?"}
         </Link>
       </p>
 
+      {isCheckout ? (
+        <Link
+          href={userRoutes.checkout}
+          className={cx(
+            secondaryButtonClass,
+            "mt-12 w-fit px-8 lg:mt-[calc(var(--r)*50)] lg:min-w-[calc(var(--rw)*176)]",
+          )}
+        >
+          Continue as guest
+        </Link>
+      ) : (
+        <SignInLinks />
+      )}
+    </form>
+  );
+}
+
+/** Below the default form: create an account, or book as a guest. */
+function SignInLinks() {
+  return (
+    <>
       <Link
         href={userRoutes.register}
         className={cx(
@@ -232,6 +264,6 @@ export function SignInForm() {
       >
         Continue booking as a guest
       </Link>
-    </form>
+    </>
   );
 }

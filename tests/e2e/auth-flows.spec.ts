@@ -97,7 +97,16 @@ const storedSession = (page: Page) =>
   page.evaluate((key) => sessionStorage.getItem(key), SESSION_KEY);
 
 const signInLink = (page: Page) => page.getByRole("link", { name: "Sign in", exact: true });
-const logoutButton = (page: Page) => page.getByRole("button", { name: "Logout" });
+/** Signed in, the header shows "My account"; Logout is in the menu. */
+const accountLink = (page: Page) => page.getByRole("link", { name: "My account" });
+
+async function logOut(page: Page) {
+  await page.getByRole("button", { name: "Open menu" }).click();
+  await page
+    .getByRole("navigation", { name: "Main" })
+    .getByRole("button", { name: "Logout" })
+    .click();
+}
 const searchBar = (page: Page) => page.getByRole("form", { name: SEARCH_BAR });
 const revocationNotice = (page: Page) => page.getByText("signed out on this device");
 
@@ -195,7 +204,9 @@ test.describe("email verification", () => {
     },
   };
 
-  test("a #token link signs in, shows success, then the signed-in Home", async ({ page }) => {
+  test("a #token link signs in, shows success, account setup, then the signed-in Home", async ({
+    page,
+  }) => {
     const { calls } = await mockBackend(page, { "/auth/verify-email": { body: verified } });
 
     await page.goto("/verify-email#token=fake.link");
@@ -208,9 +219,18 @@ test.describe("email verification", () => {
     ]);
 
     await page.getByRole("button", { name: "Continue" }).click();
+    await expect(page).toHaveURL("/account/setup");
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Make your account your own." }),
+    ).toBeVisible();
+    // Prefilled from the verified session, not the mock profile.
+    await expect(page.getByLabel("Full name")).toHaveValue("Asha Menon");
+    await expect(page.getByLabel("Email · verified")).toHaveValue("guest@example.com");
+
+    await page.getByRole("link", { name: "Return to the website" }).click();
     await expect(page).toHaveURL("/");
     await expect(page.getByText("Asha Menon").filter({ visible: true })).toBeVisible();
-    await expect(logoutButton(page)).toBeVisible();
+    await expect(accountLink(page)).toBeVisible();
     await expect(searchBar(page)).toBeVisible();
   });
 
@@ -244,7 +264,7 @@ test.describe("login", () => {
     await submitLogin(page);
 
     await expect(page).toHaveURL("/");
-    await expect(logoutButton(page)).toBeVisible();
+    await expect(accountLink(page)).toBeVisible();
     await expect(signInLink(page)).toHaveCount(0);
     await expect(searchBar(page)).toBeVisible();
     expect(calls).toEqual([
@@ -376,7 +396,7 @@ test.describe("password reset", () => {
 
     await submitLogin(page, "a-new-password");
     await expect(page).toHaveURL("/");
-    await expect(logoutButton(page)).toBeVisible();
+    await expect(accountLink(page)).toBeVisible();
     expect(calls.at(-1)?.body).toEqual({ email: "guest@example.com", password: "a-new-password" });
   });
 
@@ -406,7 +426,7 @@ test.describe("logout", () => {
     const { calls } = await mockBackend(page, { "/auth/logout": { status: 204 } });
     await seedSession(page, validSession);
     await page.goto("/");
-    await logoutButton(page).click();
+    await logOut(page);
 
     await expect(signInLink(page)).toBeVisible();
     await expect(searchBar(page)).toHaveCount(0);
@@ -438,7 +458,7 @@ test.describe("logout", () => {
     });
     await seedSession(page, validSession);
     await page.goto("/");
-    await logoutButton(page).click();
+    await logOut(page);
 
     await expect(signInLink(page)).toBeVisible();
     expect(await storedSession(page)).toBeNull();
@@ -458,7 +478,7 @@ test.describe("logout", () => {
     });
     await page.goto("/");
     await expect.poll(() => refreshes).toBe(1); // the page-load check renews it first
-    await logoutButton(page).click();
+    await logOut(page);
 
     await expect(signInLink(page)).toBeVisible();
     await expect.poll(() => calls.at(-1)?.path).toBe("/auth/logout");
@@ -485,7 +505,7 @@ test.describe("logout", () => {
     });
     await page.goto("/");
     await expect.poll(() => calls.length).toBe(1);
-    await logoutButton(page).click();
+    await logOut(page);
     await expect(signInLink(page)).toBeVisible();
     finishRefresh();
 
@@ -506,7 +526,7 @@ test.describe("logout", () => {
       await mockBackend(page, answers);
       await seedSession(page, validSession);
       await page.goto("/");
-      await logoutButton(page).click();
+      await logOut(page);
 
       await expect(signInLink(page)).toBeVisible();
       await expect(revocationNotice(page)).toBeVisible();
@@ -522,13 +542,13 @@ test.describe("logout", () => {
     });
     await seedSession(page, validSession);
     await page.goto("/");
-    await logoutButton(page).click();
+    await logOut(page);
     await expect(revocationNotice(page)).toBeVisible();
 
     await signInLink(page).click();
     await expect(page).toHaveURL("/login");
     await submitLogin(page);
-    await expect(logoutButton(page)).toBeVisible();
+    await expect(accountLink(page)).toBeVisible();
     await expect(revocationNotice(page)).toHaveCount(0);
   });
 
@@ -541,7 +561,7 @@ test.describe("logout", () => {
     for (let round = 1; round <= 3; round += 1) {
       await submitLogin(page);
       await expect(page).toHaveURL("/");
-      await logoutButton(page).click();
+      await logOut(page);
       await expect(signInLink(page)).toBeVisible();
       expect(await storedSession(page)).toBeNull();
       await signInLink(page).click();
@@ -566,7 +586,7 @@ test.describe("logout", () => {
     );
     await page.goto("/login");
     await submitLogin(page);
-    await logoutButton(page).click();
+    await logOut(page);
     await signInLink(page).click();
 
     await expect(page).toHaveURL("/login");
@@ -599,9 +619,9 @@ test.describe("restored sessions", () => {
     const { calls } = await mockBackend(page, {});
     await seedSession(page, { accessToken: jwt("access", 900), refreshToken: "fake.refresh" });
     await page.goto("/");
-    await expect(logoutButton(page)).toBeVisible();
+    await expect(accountLink(page)).toBeVisible();
     await page.reload();
-    await expect(logoutButton(page)).toBeVisible();
+    await expect(accountLink(page)).toBeVisible();
     await expect(searchBar(page)).toBeVisible();
     expect(calls).toEqual([]);
   });
@@ -614,7 +634,7 @@ test.describe("restored sessions", () => {
     await expect
       .poll(async () => JSON.parse((await storedSession(page)) ?? "{}").refreshToken)
       .toBe("fake.renewed");
-    await expect(logoutButton(page)).toBeVisible();
+    await expect(accountLink(page)).toBeVisible();
   });
 
   test("an invalid refresh token signs out, without redirecting", async ({ page }) => {
@@ -634,7 +654,7 @@ test.describe("restored sessions", () => {
     await seedSession(page, { accessToken: jwt("old", -60), refreshToken: "fake.old" });
     await page.goto("/");
     await expect.poll(() => calls.length).toBe(1);
-    await expect(logoutButton(page)).toBeVisible();
+    await expect(accountLink(page)).toBeVisible();
     expect(await storedSession(page)).not.toBeNull();
   });
 

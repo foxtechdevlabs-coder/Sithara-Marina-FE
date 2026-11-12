@@ -114,8 +114,7 @@ export function toYachtDetails(yacht: YachtDetail, related: YachtCard[]): YachtD
     .sort((a, b) => a.sort_order - b.sort_order)
     .map((photo, index) => ({ src: photo.url, alt: `${yacht.name}, photo ${index + 1}` }));
   const regions = yacht.cruising_regions.join(" · ");
-  const hours =
-    yacht.opens_at && yacht.closes_at ? `${yacht.opens_at} – ${yacht.closes_at}` : null;
+  const hours = yacht.opens_at && yacht.closes_at ? `${yacht.opens_at} – ${yacht.closes_at}` : null;
 
   return {
     id: yacht.id,
