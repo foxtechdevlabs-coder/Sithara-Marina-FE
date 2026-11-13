@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useId, useState, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 
 import { userRoutes } from "@/constants/routes";
 import {
@@ -16,109 +16,148 @@ import {
   primaryButtonStyle,
   secondaryButtonClass,
 } from "@/features/user/account/components/account-ui";
+import { accountErrorMessage } from "@/features/user/account/utils/account-error";
+import { takeTokenFromUrl } from "@/features/user/auth/components/verify-email-page";
+import { updateSessionUser } from "@/features/user/auth/session";
 import { cx } from "@/lib/cx";
-import { isApiError } from "@/services/http/api-error";
-import {
-  confirmEmailChange,
-  EMAIL_CODE_LENGTH,
-  requestEmailChange,
-} from "@/services/user/profile.service";
+import { requestEmailChange, verifyEmailChange } from "@/services/user/profile.service";
 import { emailSchema } from "@/validation/email";
 
-type FieldErrors = Partial<Record<"email" | "code", string>>;
+type FieldErrors = Partial<Record<"email" | "link", string>>;
 type Status =
   | { kind: "idle" }
   | { kind: "sending" }
-  | { kind: "sent"; to: string }
-  | { kind: "verifying"; to: string }
-  | { kind: "error"; message: string; to: string | null };
+  | { kind: "verifying" }
+  | { kind: "error"; message: string };
 
-const sentTo = (status: Status) =>
-  status.kind === "sent" || status.kind === "verifying" || status.kind === "error"
-    ? status.to
-    : null;
+const REQUEST_ERRORS = {
+  EMAIL_UNCHANGED: "This is already your account email.",
+  EMAIL_EXISTS: "This email is already used by another account.",
+  EMAIL_DELIVERY_FAILED: "We couldn’t send an email to this address. Please check it.",
+  SERVICE_UNAVAILABLE: "Emails can’t be sent just now. Please try again in a few minutes.",
+};
+const VERIFY_ERRORS = {
+  INVALID_TOKEN:
+    "This link is not valid, has expired or was already used. Please use the latest link we sent.",
+  EMAIL_EXISTS: "This email was taken by another account in the meantime.",
+};
 
 /**
- * Figma C61 "A new email, securely confirmed.": a code is emailed to the new
- * address; the account keeps its current email until that code is confirmed.
+ * The `<id>.<secret>` token from a pasted confirmation link (`#token=` or
+ * `?token=`), or the pasted token itself.
+ */
+function tokenFrom(text: string): string | null {
+  const value = text.trim();
+  if (!value) return null;
+  const match = /[#?&]token=([^&#\s]+)/.exec(value);
+  if (match?.[1]) return decodeURIComponent(match[1]);
+  return /^[^\s./]+\.[^\s./]+$/.test(value) ? value : null;
+}
+
+/**
+ * Figma C61 "A new email, securely confirmed.": POST /me/email/change emails a
+ * confirmation link to the new address; POST /me/email/verify confirms it.
+ * The current email stays active until then. Opened from that link
+ * (`#token=…`), the page confirms it at once; the link can also be pasted.
  */
 export function EmailChange({
   sentTo: initialSentTo,
 }: {
-  /** Set when Profile details already sent a code to this new address. */
+  /** Set when Profile details already asked for a link to this new address. */
   sentTo?: string;
 } = {}) {
   const id = useId();
   const router = useRouter();
   const [email, setEmail] = useState(initialSentTo ?? "");
-  const [code, setCode] = useState("");
+  const [sentTo, setSentTo] = useState<string | null>(initialSentTo?.toLowerCase() ?? null);
+  const [link, setLink] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({});
-  const [status, setStatus] = useState<Status>(
-    initialSentTo ? { kind: "sent", to: initialSentTo.toLowerCase() } : { kind: "idle" },
-  );
-  const codeSentTo = sentTo(status);
+  const [status, setStatus] = useState<Status>({ kind: "idle" });
   const isBusy = status.kind === "sending" || status.kind === "verifying";
+  const inFlight = useRef(false);
 
-  const checkEmail = () => {
-    const parsed = emailSchema.safeParse(email);
-    if (parsed.success) return parsed.data;
-    setErrors({ email: parsed.error.issues[0]?.message ?? "Enter a valid email address." });
-    return null;
+  const verify = async (token: string) => {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    setErrors({});
+    setStatus({ kind: "verifying" });
+    try {
+      const user = await verifyEmailChange(token);
+      updateSessionUser({
+        id: user.id,
+        fullName: user.fullName,
+        email: user.email,
+        role: user.role,
+      });
+      router.push(userRoutes.accountProfileSaved);
+    } catch (error) {
+      inFlight.current = false;
+      setStatus({ kind: "idle" });
+      setErrors({
+        link: accountErrorMessage(
+          error,
+          "We couldn’t confirm your new email just now.",
+          VERIFY_ERRORS,
+        ),
+      });
+    }
   };
 
-  const onSendCode = async () => {
-    const address = checkEmail();
-    if (!address) return;
+  // Opened from the emailed link: confirm it straight away (the token is
+  // removed from the address bar and never stored).
+  const verifyRef = useRef(verify);
+  useEffect(() => {
+    verifyRef.current = verify;
+  });
+  useEffect(() => {
+    const token = takeTokenFromUrl();
+    if (token) void verifyRef.current(token);
+  }, []);
+
+  const onSendLink = async () => {
+    if (inFlight.current) return;
+    const parsed = emailSchema.safeParse(email);
+    if (!parsed.success) {
+      setErrors({ email: parsed.error.issues[0]?.message ?? "Enter a valid email address." });
+      return;
+    }
+    inFlight.current = true;
     setErrors({});
     setStatus({ kind: "sending" });
     try {
-      const { sent_to } = await requestEmailChange(address);
-      setCode("");
-      setStatus({ kind: "sent", to: sent_to });
+      const result = await requestEmailChange(parsed.data);
+      if (!result.verification_required) {
+        router.push(userRoutes.accountProfileSaved);
+        return;
+      }
+      setSentTo(parsed.data.toLowerCase());
+      setStatus({ kind: "idle" });
     } catch (error) {
-      const inUse = isApiError(error) && error.status === 409;
-      if (inUse) setErrors({ email: "This is already your account email." });
-      setStatus(
-        inUse
-          ? { kind: "idle" }
-          : {
-              kind: "error",
-              message: "We couldn’t send a code just now. Please try again.",
-              to: null,
-            },
-      );
+      setStatus({ kind: "idle" });
+      setErrors({
+        email: accountErrorMessage(
+          error,
+          "We couldn’t send a confirmation link just now.",
+          REQUEST_ERRORS,
+        ),
+      });
+    } finally {
+      inFlight.current = false;
     }
   };
 
-  const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
+  const onSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const address = checkEmail();
-    if (!address) return;
-    if (codeSentTo !== address.toLowerCase()) {
-      setErrors({ email: "Send a verification code to this address first." });
-      return;
-    }
-    if (!new RegExp(`^\\d{${EMAIL_CODE_LENGTH}}$`).test(code)) {
-      setErrors({ code: `Enter the ${EMAIL_CODE_LENGTH}-digit code from your new inbox.` });
-      return;
-    }
-    setErrors({});
-    setStatus({ kind: "verifying", to: codeSentTo });
-    try {
-      await confirmEmailChange(address, code);
-      router.push(userRoutes.accountProfileSaved);
-    } catch (error) {
-      if (isApiError(error) && error.status === 400) {
-        setErrors({ code: "That code is not right or has expired. Use the latest code we sent." });
-        setStatus({ kind: "sent", to: codeSentTo });
-        return;
-      }
-      setStatus({
-        kind: "error",
-        message: "We couldn’t verify your new email just now. Please try again.",
-        to: codeSentTo,
+    const token = tokenFrom(link);
+    if (!token) {
+      setErrors({
+        link: sentTo
+          ? "Open the link in the email we sent, or paste the whole link here."
+          : "First send a confirmation link to your new address.",
       });
+      return;
     }
+    void verify(token);
   };
 
   return (
@@ -129,7 +168,7 @@ export function EmailChange({
         subtitle="Verify the new address before it becomes your account email."
       />
 
-      <form onSubmit={(event) => void onSubmit(event)} noValidate className="mt-8 lg:mt-10">
+      <form onSubmit={onSubmit} noValidate className="mt-8 lg:mt-10">
         <div className="max-w-[33rem] space-y-7 lg:space-y-9">
           <div>
             <label htmlFor={`${id}-email`} className={labelClass}>
@@ -159,53 +198,55 @@ export function EmailChange({
             <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
               <button
                 type="button"
-                onClick={() => void onSendCode()}
+                onClick={() => void onSendLink()}
                 disabled={isBusy}
                 className="text-navy-ink focus-visible:outline-navy-ink min-h-11 text-[12px] underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-60"
               >
                 {status.kind === "sending"
-                  ? "Sending a code…"
-                  : codeSentTo
-                    ? "Send a new code"
-                    : "Send a verification code"}
+                  ? "Sending a link…"
+                  : sentTo
+                    ? "Send a new link"
+                    : "Send a confirmation link"}
               </button>
               <p id={`${id}-email-status`} role="status" className="text-body text-[12px]">
-                {codeSentTo ? `We sent a code to ${codeSentTo}.` : null}
+                {sentTo ? `We sent a confirmation link to ${sentTo}.` : null}
               </p>
             </div>
           </div>
 
           <div>
-            <label htmlFor={`${id}-code`} className={labelClass}>
-              Verification code
+            <label htmlFor={`${id}-link`} className={labelClass}>
+              Verification link
             </label>
             <input
-              id={`${id}-code`}
-              value={code}
+              id={`${id}-link`}
+              value={link}
               disabled={isBusy}
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              maxLength={EMAIL_CODE_LENGTH}
-              placeholder="— — — — — —"
-              aria-invalid={errors.code ? true : undefined}
-              aria-describedby={errors.code ? `${id}-code-error` : undefined}
+              autoComplete="off"
+              placeholder="Paste the link from your email"
+              aria-invalid={errors.link ? true : undefined}
+              aria-describedby={errors.link ? `${id}-link-error` : `${id}-link-hint`}
               onChange={(event) => {
-                setCode(event.target.value.replace(/\D/g, ""));
-                setErrors((current) => ({ ...current, code: undefined }));
+                setLink(event.target.value);
+                setErrors((current) => ({ ...current, link: undefined }));
               }}
-              className={cx(inputClass, "tracking-[0.3em] placeholder:tracking-[0.2em]")}
+              className={cx(inputClass)}
             />
-            {errors.code ? (
-              <p id={`${id}-code-error`} className={fieldErrorClass}>
-                {errors.code}
+            {errors.link ? (
+              <p id={`${id}-link-error`} role="alert" className={fieldErrorClass}>
+                {errors.link}
               </p>
-            ) : null}
+            ) : (
+              <p id={`${id}-link-hint`} className="text-body mt-2 text-[12px]">
+                Opening the link in the email confirms it here automatically.
+              </p>
+            )}
           </div>
         </div>
 
         <AccountNotice label="Your current email stays active" className="mt-8 max-w-[52rem]">
           Your account keeps using the verified address until the new address is confirmed. Use the
-          latest code sent to your new inbox.
+          latest link sent to your new inbox.
         </AccountNotice>
 
         {status.kind === "error" ? (

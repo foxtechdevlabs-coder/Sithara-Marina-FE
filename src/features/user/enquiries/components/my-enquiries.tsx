@@ -8,25 +8,19 @@ import {
   MetaLines,
   primaryButtonClass,
   primaryButtonStyle,
+  secondaryButtonClass,
   StatusChip,
 } from "@/features/user/account/components/account-ui";
 import { QueryFallback } from "@/features/user/account/components/query-fallback";
-import { formatLongDate, guests } from "@/features/user/account/utils/account-format";
+import { formatInstantDate } from "@/features/user/account/utils/account-format";
 import { ENQUIRY_STATUS_LABELS } from "@/features/user/customer-bookings/utils/booking-view";
 import { userRoutes } from "@/constants/routes";
 import { useApiQuery } from "@/hooks/use-api-query";
-import { listMyEnquiries, type Enquiry } from "@/services/user/enquiries.service";
+import { listMyEnquiries } from "@/services/user/enquiries.service";
 
-function enquiryLines(enquiry: Enquiry): string[] {
-  const details = [
-    enquiry.preferred_date ? `Preferred date ${formatLongDate(enquiry.preferred_date)}` : null,
-    guests(enquiry.guest_count),
-    enquiry.occasion,
-  ].filter(Boolean);
-  return [details.join(" · "), `Sent ${formatLongDate(enquiry.submitted_on)}`];
-}
+import { enquiryLine } from "../utils/enquiry-view";
 
-/** The customer's charter enquiries, newest first, with their proposal status. */
+/** The customer's charter enquiries (GET /me/enquiries), newest first, with their status. */
 export function MyEnquiries() {
   const query = useApiQuery(listMyEnquiries, "my-enquiries");
 
@@ -34,7 +28,7 @@ export function MyEnquiries() {
     return <QueryFallback query={query} loadingLabel="Loading your enquiries" />;
   }
 
-  const enquiries = [...query.data].sort((a, b) => b.submitted_on.localeCompare(a.submitted_on));
+  const enquiries = [...query.data].sort((a, b) => b.created_at.localeCompare(a.created_at));
 
   if (enquiries.length === 0) {
     return (
@@ -55,38 +49,39 @@ export function MyEnquiries() {
 
   return (
     <div className="mt-6 space-y-5 lg:mt-8">
-      {enquiries.map((enquiry) => (
-        <Card
-          key={enquiry.id}
-          as="article"
-          title={
-            <>
-              {enquiry.yacht_name ?? "Your charter"}&nbsp;·&nbsp;{enquiry.reference}
-            </>
-          }
-        >
-          <MetaLines lines={enquiryLines(enquiry)} />
-          <StatusChip
-            className="mt-3"
-            tone={enquiry.status === "proposal_ready" ? "forest" : "pearl"}
+      {enquiries.map((enquiry) => {
+        const hasProposal = enquiry.status === "proposal_sent";
+        return (
+          <Card
+            key={enquiry.id}
+            as="article"
+            title={
+              <>
+                {enquiry.yacht.name}&nbsp;·&nbsp;{enquiry.reference}
+              </>
+            }
           >
-            {ENQUIRY_STATUS_LABELS[enquiry.status]}
-          </StatusChip>
-          {enquiry.status === "proposal_ready" ? (
-            <AccountNotice label="A personal proposal awaits" className="mt-5">
-              Your proposal for {enquiry.reference} is ready to review with our concierge. Call{" "}
-              <a href="tel:+919724553452" className="underline underline-offset-2">
-                +91 97245 53452
-              </a>{" "}
-              or write to{" "}
-              <a href="mailto:sitharamarina@gmail.com" className="underline underline-offset-2">
-                sitharamarina@gmail.com
-              </a>{" "}
-              to confirm or adjust it.
-            </AccountNotice>
-          ) : null}
-        </Card>
-      ))}
+            <MetaLines
+              lines={[enquiryLine(enquiry), `Sent ${formatInstantDate(enquiry.created_at)}`]}
+            />
+            <StatusChip className="mt-3" tone={hasProposal ? "forest" : "pearl"}>
+              {ENQUIRY_STATUS_LABELS[enquiry.status]}
+            </StatusChip>
+            {hasProposal ? (
+              <AccountNotice label="A personal proposal awaits" className="mt-5">
+                Your proposal for {enquiry.reference} is ready to review.
+              </AccountNotice>
+            ) : null}
+            <Link
+              href={userRoutes.accountEnquiry(enquiry.reference)}
+              className={`${hasProposal ? primaryButtonClass : secondaryButtonClass} mt-4`}
+              style={hasProposal ? primaryButtonStyle : undefined}
+            >
+              {hasProposal ? "Review proposal" : "View enquiry"}
+            </Link>
+          </Card>
+        );
+      })}
     </div>
   );
 }

@@ -7,5 +7,5 @@ export const metadata: Metadata = { title: "Help & support" };
 export default async function AccountHelpPage({ searchParams }: PageProps<"/account/help">) {
   const { booking } = await searchParams;
 
-  return <AccountHelp bookingId={typeof booking === "string" ? booking : undefined} />;
+  return <AccountHelp bookingRef={typeof booking === "string" ? booking : undefined} />;
 }

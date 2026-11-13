@@ -21,101 +21,120 @@ import {
 } from "@/features/user/account/utils/account-format";
 import { userRoutes } from "@/constants/routes";
 import { useApiQuery } from "@/hooks/use-api-query";
-import { getCancellation, type Cancellation } from "@/services/user/cancellations.service";
+import { getMyBooking, type BookingDetail } from "@/services/user/customer-bookings.service";
 
-import { CANCELLATION_STATUS_LABELS, REFUND_STATUS_LABELS } from "../utils/cancellation-view";
+import {
+  CANCELLATION_STATUS_LABELS,
+  REFUND_STATUS_LABELS,
+  refundAmount,
+  refundState,
+} from "../utils/cancellation-view";
 
-const OUTCOME_TEXT: Record<Cancellation["status"], string> = {
-  requested: "Your request has reached our team. We will confirm the outcome shortly.",
+type RequestStatus = NonNullable<BookingDetail["cancellation_request"]>["status"];
+
+const OUTCOME_TEXT: Record<RequestStatus, string> = {
+  pending: "Your request has reached our team. We will confirm the outcome shortly.",
   approved: "The cancellation has been approved under your booking terms.",
-  declined: "This cancellation could not be approved under your booking terms.",
+  rejected: "This cancellation could not be approved under your booking terms.",
 };
 
-const HEADING_SERIF: Record<Cancellation["status"], string> = {
-  requested: "under review.",
+const HEADING_SERIF: Record<RequestStatus, string> = {
+  pending: "under review.",
   approved: "confirmed.",
-  declined: "reviewed.",
+  rejected: "reviewed.",
 };
 
 /**
- * Figma C41 "Your change of plans, confirmed.": the cancellation outcome, with
- * the refund shown separately. Before the review it reports the request.
+ * Figma C41 "Your change of plans, confirmed.": the latest cancellation
+ * request of the booking and, separately, its refund — all as the backend
+ * reports them in GET /me/bookings/{ref}.
  */
-export function CancellationOutcome({ bookingId }: { bookingId: string }) {
-  const query = useApiQuery((signal) => getCancellation(bookingId, signal), bookingId);
-  const outcome = query.data;
+export function CancellationOutcome({ bookingRef }: { bookingRef: string }) {
+  const query = useApiQuery((signal) => getMyBooking(bookingRef, signal), bookingRef);
+  const booking = query.data;
+  const request = booking?.cancellation_request ?? null;
 
-  if (!outcome) {
+  if (!booking || !request) {
     return (
       <>
         <AccountHeading heading="Your change of plans." />
-        <QueryFallback
-          query={query}
-          loadingLabel="Loading your cancellation"
-          notFoundMessage="No cancellation has been requested for this booking."
-        />
+        {booking ? (
+          <p className="text-body mt-8 max-w-[34rem] text-[15px] leading-relaxed">
+            No cancellation has been requested for this booking.
+          </p>
+        ) : (
+          <QueryFallback
+            query={query}
+            loadingLabel="Loading your cancellation"
+            notFoundMessage="We couldn’t find this booking in your account."
+          />
+        )}
       </>
     );
   }
 
-  const isApproved = outcome.status === "approved";
+  const isApproved = request.status === "approved";
+  const refund = refundState(booking);
+  const amount = refundAmount(booking);
+  const hasRefund = refund !== null && refund !== "none";
 
   return (
     <>
       <AccountHeading
         heading="Your change of plans,"
-        headingSerif={HEADING_SERIF[outcome.status]}
-        subtitle={`Booking ${outcome.booking_reference} · ${isApproved ? "Cancelled" : CANCELLATION_STATUS_LABELS[outcome.status]}`}
+        headingSerif={HEADING_SERIF[request.status]}
+        subtitle={`Booking ${booking.reference} · ${isApproved ? "Cancelled" : CANCELLATION_STATUS_LABELS[request.status]}`}
       />
 
       <div className="mt-8 space-y-3 lg:mt-10">
-        <StatusChip tone="pearl">{CANCELLATION_STATUS_LABELS[outcome.status]}</StatusChip>
-        {outcome.refund ? (
-          <StatusChip tone="pearl">{REFUND_STATUS_LABELS[outcome.refund.status]}</StatusChip>
-        ) : null}
+        <StatusChip tone="pearl">{CANCELLATION_STATUS_LABELS[request.status]}</StatusChip>
+        {refund ? <StatusChip tone="pearl">{REFUND_STATUS_LABELS[refund]}</StatusChip> : null}
       </div>
 
       <Card title="Your cancellation outcome" className="mt-6">
         <MetaLines
           lines={[
-            `${outcome.yacht_name} · ${formatLongDate(outcome.date)} · ${formatTimeRange(outcome.start_time, outcome.end_time)}`,
-            OUTCOME_TEXT[outcome.status],
+            `${booking.yacht.name} · ${formatLongDate(booking.slot.date)} · ${formatTimeRange(booking.slot.start_time, booking.slot.end_time)}`,
+            OUTCOME_TEXT[request.status],
+            ...(request.decision_reason ? [`From our team: ${request.decision_reason}`] : []),
           ]}
         />
       </Card>
 
-      {outcome.refund ? (
+      {hasRefund && amount !== null ? (
         <>
           <DetailRows
             className="mt-7"
             rows={[
-              {
-                label: "Approved refund",
-                value: formatAmount(outcome.refund.amount, outcome.currency),
-              },
+              { label: "Approved refund", value: formatAmount(amount, booking.pricing.currency) },
             ]}
           />
           <AccountNotice label="Your refund is separate" className="mt-6">
-            Refund {outcome.refund.reference} has been requested through the original payment
-            method. The verified outcome will appear in your booking record. Please do not submit
-            another request.
+            Your refund is returned through the original payment method, or by our office. The
+            verified outcome will appear in your booking record. Please do not submit another
+            request.
           </AccountNotice>
         </>
       ) : null}
 
       <div className={`${buttonRowClass} mt-6`}>
-        {outcome.refund ? (
+        {hasRefund ? (
           <Link
-            href={userRoutes.accountBookingRefund(outcome.booking_id)}
+            href={userRoutes.accountBookingRefund(booking.reference)}
             className={darkButtonClass}
           >
             View refund update
           </Link>
-        ) : (
-          <button type="button" onClick={query.reload} className={darkButtonClass}>
-            Check for an update
+        ) : request.status === "pending" ? (
+          <button
+            type="button"
+            onClick={query.reload}
+            disabled={query.loading}
+            className={darkButtonClass}
+          >
+            {query.loading ? "Checking…" : "Check for an update"}
           </button>
-        )}
+        ) : null}
         <Link
           href={isApproved ? userRoutes.accountPastBookings : userRoutes.accountBookings}
           className={secondaryButtonClass}

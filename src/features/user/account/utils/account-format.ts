@@ -54,3 +54,25 @@ export function formatHours(minutes: number): string {
   const hourText = hours ? `${hours} hour${hours === 1 ? "" : "s"}` : "";
   return [hourText, rest ? `${rest} min` : ""].filter(Boolean).join(" ") || "0 min";
 }
+
+/** "09:00", "13:00" → 240; 0 when either time is unreadable. */
+export function minutesBetween(start: string, end: string): number {
+  const toMinutes = (time: string) => {
+    const match = /^(\d{1,2}):(\d{2})/.exec(time);
+    return match ? Number(match[1]) * 60 + Number(match[2]) : NaN;
+  };
+  const diff = toMinutes(end) - toMinutes(start);
+  return Number.isFinite(diff) && diff > 0 ? diff : 0;
+}
+
+/** An ISO instant as "12 November 2026" in Kerala time. */
+export function formatInstantDate(instant: string): string {
+  const value = new Date(instant);
+  if (Number.isNaN(value.getTime())) return instant;
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "Asia/Kolkata",
+  }).format(value);
+}

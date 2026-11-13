@@ -1,22 +1,26 @@
 "use client";
 
 import { ArrowRight, ChevronDown } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useId, useState, type FormEvent, type ReactNode } from "react";
+import { useId, useRef, useState, type FormEvent, type ReactNode } from "react";
 
 import { SERIF } from "@/components/user/marina-chrome";
 import { userRoutes } from "@/constants/routes";
 import { useApiQuery } from "@/hooks/use-api-query";
 import { cx } from "@/lib/cx";
-import { listMyBookings, type CustomerBooking } from "@/services/user/customer-bookings.service";
+import { listMyBookings, type BookingSummary } from "@/services/user/customer-bookings.service";
 import {
-  sendSupportMessage,
+  createSupportRequest,
+  listMySupportRequests,
+  SUPPORT_CATEGORIES,
   SUPPORT_MESSAGE_MAX,
-  SUPPORT_TOPICS,
-  type SupportTopic,
+  SUPPORT_SUBJECT_MAX,
+  type SupportCategory,
 } from "@/services/user/support.service";
 
-import { todayInKerala } from "../utils/account-format";
+import { accountErrorMessage } from "../utils/account-error";
+import { formatInstantDate } from "../utils/account-format";
 
 import {
   AccountHeading,
@@ -50,12 +54,31 @@ const FAQS: readonly { question: string; answer: string }[] = [
   },
 ];
 
+/** The backend's support categories, as offered in "How can we help?". */
+export const SUPPORT_CATEGORY_LABELS: Record<SupportCategory, string> = {
+  booking: "My booking or arrival",
+  payment: "Payment or billing",
+  refund: "A refund",
+  general: "A general question",
+  other: "Something else",
+};
+
+/** Upcoming then past bookings, for "Related journey". */
+async function loadJourneys(signal: AbortSignal): Promise<BookingSummary[]> {
+  const [upcoming, past] = await Promise.all([
+    listMyBookings("upcoming", signal),
+    listMyBookings("past", signal),
+  ]);
+  return [...upcoming.items, ...past.items];
+}
+
 /**
  * Figma C56 "A little help, personally given.": the concierge's details, a
- * message form tied to a journey, and answers to common questions.
+ * request form tied to a journey (POST /me/support-requests), the requests
+ * sent so far, and answers to common questions.
  */
-export function AccountHelp({ bookingId }: { bookingId?: string }) {
-  const query = useApiQuery(listMyBookings, "help-bookings");
+export function AccountHelp({ bookingRef }: { bookingRef?: string }) {
+  const query = useApiQuery(loadJourneys, "help-journeys");
 
   return (
     <>
@@ -66,7 +89,7 @@ export function AccountHelp({ bookingId }: { bookingId?: string }) {
       />
 
       <Card title="Speak to our concierge" className="mt-8 lg:mt-10">
-        <div className="mt-3 space-y-1 text-[11px] leading-[1.5] text-body sm:text-[12px]">
+        <div className="text-body mt-3 space-y-1 text-[11px] leading-[1.5] sm:text-[12px]">
           <p>
             <a href={CONCIERGE_PHONE.href} className="hover:underline">
               {CONCIERGE_PHONE.label}
@@ -87,10 +110,12 @@ export function AccountHelp({ bookingId }: { bookingId?: string }) {
       </Card>
 
       {query.data ? (
-        <HelpForm bookings={query.data} initialBookingId={bookingId} />
+        <HelpForm journeys={query.data} initialBookingRef={bookingRef} />
       ) : (
         <QueryFallback query={query} loadingLabel="Loading your journeys" />
       )}
+
+      <YourRequests />
 
       <section aria-labelledby="help-details" className="mt-12 lg:mt-14">
         <h2
@@ -117,8 +142,45 @@ export function AccountHelp({ bookingId }: { bookingId?: string }) {
   );
 }
 
+/** Requests already sent (GET /me/support-requests), newest first, each with its reference. */
+function YourRequests() {
+  const query = useApiQuery(listMySupportRequests, "support-requests");
+  const requests = query.data
+    ? [...query.data].sort((a, b) => b.created_at.localeCompare(a.created_at))
+    : [];
+  if (query.data && requests.length === 0) return null;
+
+  return (
+    <section aria-labelledby="help-requests" className="mt-12 lg:mt-14">
+      <CardTitle>
+        <span id="help-requests">Your requests</span>
+      </CardTitle>
+      {query.data ? (
+        <ul className="divide-rule border-rule mt-5 divide-y border-y">
+          {requests.map((request) => (
+            <li key={request.id}>
+              <Link
+                href={userRoutes.accountHelpSent(request.reference)}
+                className="hover:bg-pearl/60 focus-visible:outline-navy-ink flex flex-col gap-1 px-1 py-4 text-[13px] focus-visible:outline-2 focus-visible:outline-offset-2 sm:flex-row sm:items-center sm:gap-6"
+              >
+                <span className="text-navy-ink sm:w-36">{request.reference}</span>
+                <span className="text-navy-ink min-w-0 flex-1 truncate">{request.subject}</span>
+                <span className="text-body text-[12px]">
+                  {formatInstantDate(request.created_at)}
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <QueryFallback query={query} loadingLabel="Loading your requests" />
+      )}
+    </section>
+  );
+}
+
 type FieldErrors = Partial<Record<"topic" | "message", string>>;
-type Status = { kind: "idle" } | { kind: "sending" } | { kind: "failed" };
+type Status = { kind: "idle" } | { kind: "sending" } | { kind: "failed"; message: string };
 
 function SelectField({
   id,
@@ -150,7 +212,7 @@ function SelectField({
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? `${id}-error` : undefined}
           onChange={(event) => select.onChange(event.target.value)}
-          className={cx(inputClass, "appearance-none truncate pr-11 invalid:text-navy-ink/60")}
+          className={cx(inputClass, "invalid:text-navy-ink/60 appearance-none truncate pr-11")}
         >
           {children}
         </select>
@@ -170,38 +232,42 @@ function SelectField({
 }
 
 /** The journey preselected: the one asked about, else the next upcoming charter. */
-function defaultJourney(bookings: readonly CustomerBooking[], requested?: string): string {
-  if (requested && bookings.some((booking) => booking.id === requested)) return requested;
-  const today = todayInKerala();
-  const next = [...bookings]
-    .filter((booking) => booking.date >= today && booking.status === "confirmed")
-    .sort((a, b) => a.date.localeCompare(b.date))[0];
-  return next?.id ?? "";
+function defaultJourney(journeys: readonly BookingSummary[], requested?: string): string {
+  if (requested && journeys.some((booking) => booking.reference === requested)) return requested;
+  return journeys.find((booking) => booking.status === "confirmed")?.reference ?? "";
 }
 
+/** The request's subject (required by the backend), from what was chosen. */
+const subjectFor = (category: SupportCategory, bookingRef: string) =>
+  `${SUPPORT_CATEGORY_LABELS[category]}${bookingRef ? ` · ${bookingRef}` : ""}`.slice(
+    0,
+    SUPPORT_SUBJECT_MAX,
+  );
+
 function HelpForm({
-  bookings,
-  initialBookingId,
+  journeys,
+  initialBookingRef,
 }: {
-  bookings: readonly CustomerBooking[];
-  initialBookingId?: string;
+  journeys: readonly BookingSummary[];
+  initialBookingRef?: string;
 }) {
   const id = useId();
   const router = useRouter();
-  const [journey, setJourney] = useState(() => defaultJourney(bookings, initialBookingId));
-  const [topic, setTopic] = useState<SupportTopic | "">("");
+  const [journey, setJourney] = useState(() => defaultJourney(journeys, initialBookingRef));
+  const [topic, setTopic] = useState<SupportCategory | "">("");
   const [message, setMessage] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({});
   const [status, setStatus] = useState<Status>({ kind: "idle" });
+  const isSubmitting = useRef(false);
   const isSending = status.kind === "sending";
-  const journeys = [...bookings].sort((a, b) => b.date.localeCompare(a.date));
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (isSubmitting.current) return; // one request, however often it is submitted
     const found: FieldErrors = {};
     if (!topic) found.topic = "Please choose what we can help with.";
     if (!message.trim()) found.message = "Please tell us what you would like help with.";
-    else if (message.length > SUPPORT_MESSAGE_MAX)
+    else if (message.trim().length > SUPPORT_MESSAGE_MAX)
       found.message = `Please keep your message under ${SUPPORT_MESSAGE_MAX} characters.`;
     setErrors(found);
     if (Object.keys(found).length > 0 || !topic) {
@@ -209,16 +275,30 @@ function HelpForm({
       return;
     }
 
+    isSubmitting.current = true;
     setStatus({ kind: "sending" });
     try {
-      const sent = await sendSupportMessage({
-        booking_id: journey || null,
-        topic,
+      // A repeat within 5 minutes answers 200 with the earlier request: show that one.
+      const sent = await createSupportRequest({
+        subject: subjectFor(topic, journey),
         message: message.trim(),
+        category: topic,
+        ...(journey ? { booking_reference: journey } : {}),
       });
       router.push(userRoutes.accountHelpSent(sent.reference));
-    } catch {
-      setStatus({ kind: "failed" });
+    } catch (error) {
+      isSubmitting.current = false;
+      setStatus({
+        kind: "failed",
+        message: accountErrorMessage(
+          error,
+          `We couldn’t send your message just now. Please try again, or call us on ${CONCIERGE_PHONE.label}.`,
+          {
+            INVALID_BOOKING_REFERENCE:
+              "We couldn’t match that journey to your account. Please choose another or none.",
+          },
+        ),
+      });
     }
   };
 
@@ -238,7 +318,7 @@ function HelpForm({
           onChange={setJourney}
         >
           {journeys.map((booking) => (
-            <option key={booking.id} value={booking.id}>
+            <option key={booking.id} value={booking.reference}>
               {booking.reference} · {booking.yacht.name}
             </option>
           ))}
@@ -253,15 +333,17 @@ function HelpForm({
           disabled={isSending}
           error={errors.topic}
           onChange={(value) => {
-            setTopic(value as SupportTopic);
+            setTopic(value as SupportCategory);
             setErrors((current) => ({ ...current, topic: undefined }));
           }}
         >
           <option value="" disabled>
             Booking / arrival / billing / other
           </option>
-          {SUPPORT_TOPICS.map((option) => (
-            <option key={option}>{option}</option>
+          {SUPPORT_CATEGORIES.map((category) => (
+            <option key={category} value={category}>
+              {SUPPORT_CATEGORY_LABELS[category]}
+            </option>
           ))}
         </SelectField>
 
@@ -294,8 +376,7 @@ function HelpForm({
 
       {status.kind === "failed" ? (
         <p role="alert" className={fieldErrorClass}>
-          We couldn’t send your message just now. Please try again, or call us on{" "}
-          {CONCIERGE_PHONE.label}.
+          {status.message}
         </p>
       ) : null}
 

@@ -56,6 +56,10 @@ export const userRoutes = {
     `/account/bookings/${id(bookingId)}/cancel/confirmed` as Route,
   accountBookingRefund: (bookingId: string) => `/account/bookings/${id(bookingId)}/refund` as Route,
   accountEnquiries: "/account/enquiries",
+  /** An enquiry and the proposals sent for it (`reference` e.g. "ENQ-2026-0001"). */
+  accountEnquiry: (reference: string) => `/account/enquiries/${id(reference)}` as Route,
+  /** One proposal (`proposalId` is its UUID), to accept or decline. */
+  accountProposal: (proposalId: string) => `/account/proposals/${id(proposalId)}` as Route,
   accountProfile: "/account/profile",
   accountProfileSaved: "/account/profile/saved",
   accountProfileEmail: "/account/profile/email",

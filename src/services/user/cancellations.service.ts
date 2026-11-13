@@ -1,27 +1,16 @@
 import { z } from "zod";
 
-import { MOCK_REFUND_SHARE } from "./mocks/customer-account.mock";
-import {
-  MOCK_REFUND_MS,
-  MOCK_REVIEW_MS,
-  readMockAccount,
-  updateMockAccount,
-  type MockAccount,
-  type MockCancellation,
-} from "./mocks/customer-account.store";
-import { mockNotFound, mockResponse } from "./mocks/mock-response";
+import { apiClient } from "@/services/http/api-client";
+
+import { bookingStatusSchema } from "./booking.service";
 
 /*
- * Customer cancellation requests and their refunds. Eligibility and refund
- * amounts are decided by the backend from the booking's cancellation policy;
- * the UI only presents them.
- *
- * MOCK DATA: no customer cancellation endpoint is published yet. To show every
- * state of the flow, a mock request is approved `MOCK_REVIEW_MS` after it is
- * sent (the booking becomes cancelled, a refund starts) and the refund
- * completes `MOCK_REFUND_MS` later.
+ * Customer cancellation requests. Staff decide each request and the refund;
+ * the UI only shows what the backend returns. A request's progress (and the
+ * refund's) is read again from the booking: GET /me/bookings/{ref}.
  */
 
+/** Reasons offered in the form; sent as the free-text `reason`. */
 export const CANCELLATION_REASONS = [
   "My travel plans have changed",
   "Weather or sea conditions",
@@ -29,135 +18,97 @@ export const CANCELLATION_REASONS = [
   "Something else",
 ] as const;
 
-export interface CancellationRequest {
-  reason: string;
-  note: string | null;
-}
+/** The backend's limit for `reason`. */
+export const CANCELLATION_REASON_MAX = 1000;
 
-const cancellationSchema = z.object({
-  booking_id: z.string(),
+const bookingPath = (reference: string) => `/me/bookings/${encodeURIComponent(reference)}`;
+
+// ── Preview ─────────────────────────────────────────────────────────────────
+
+const cancellationPreviewSchema = z.object({
   booking_reference: z.string(),
-  /** "CAN-SM-1048". */
-  reference: z.string(),
-  status: z.enum(["requested", "approved", "declined"]),
-  reason: z.string(),
-  note: z.string().nullable(),
-  yacht_name: z.string(),
-  date: z.string(),
-  start_time: z.string(),
-  end_time: z.string(),
+  /** Whether a request would be accepted now. */
+  can_request: z.boolean(),
+  blocked_reason: z.enum(["not_confirmed", "charter_started", "request_pending"]).nullable(),
+  paid_amount: z.number(),
+  refunded_amount: z.number(),
+  refund_pending_amount: z.number(),
+  /** The most that could still be given back. */
+  refundable_amount: z.number(),
+  refund_channel: z.enum(["gateway", "offline", "mixed"]).nullable(),
   currency: z.string(),
-  refund: z
-    .object({
-      /** "REF-1048". */
-      reference: z.string(),
-      /** Paise. */
-      amount: z.number(),
-      /** "Original payment method". */
-      method: z.string(),
-      status: z.enum(["processing", "completed", "failed"]),
-    })
-    .nullable(),
+  /** Negative once the charter has begun. */
+  minutes_before_departure: z.number(),
+  /** The cancellation policy text from settings. */
+  cancellation_summary: z.string().nullable(),
+  /** What the policy would refund; null until the cancellation rules are decided. */
+  policy_refund: z.number().nullable(),
 });
-export type Cancellation = z.infer<typeof cancellationSchema>;
+export type CancellationPreview = z.infer<typeof cancellationPreviewSchema>;
 
-/** "SM-2026-1048" → "1048". */
-const referenceNumber = (reference: string) => reference.split("-").at(-1) ?? reference;
-
-/** Moves mock requests on by the time that has passed (see the note above). */
-function advanceMockCancellations(): MockAccount {
-  const now = Date.now();
-  return updateMockAccount((account) => {
-    for (const cancellation of account.cancellations) {
-      const booking = account.bookings.find((item) => item.id === cancellation.booking_id);
-      if (!booking) continue;
-      if (
-        cancellation.status === "requested" &&
-        now - cancellation.requested_at >= MOCK_REVIEW_MS
-      ) {
-        cancellation.status = "approved";
-        cancellation.refund = {
-          reference: `REF-${referenceNumber(booking.reference)}`,
-          amount: Math.round(booking.total_amount * MOCK_REFUND_SHARE),
-          method: "Original payment method",
-          status: "processing",
-        };
-        booking.status = "cancelled";
-      }
-      if (
-        cancellation.refund?.status === "processing" &&
-        now - cancellation.requested_at >= MOCK_REVIEW_MS + MOCK_REFUND_MS
-      ) {
-        cancellation.refund.status = "completed";
-      }
-    }
+/** GET /me/bookings/{ref}/cancellation-preview. 404 `BOOKING_NOT_FOUND`. */
+export function getCancellationPreview(
+  reference: string,
+  signal?: AbortSignal,
+): Promise<CancellationPreview> {
+  return apiClient.get(`${bookingPath(reference)}/cancellation-preview`, {
+    signal,
+    schema: cancellationPreviewSchema,
   });
 }
 
-function toCancellation(account: MockAccount, cancellation: MockCancellation): Cancellation {
-  const booking = account.bookings.find((item) => item.id === cancellation.booking_id);
-  return {
-    booking_id: cancellation.booking_id,
-    booking_reference: booking?.reference ?? cancellation.booking_id,
-    reference: cancellation.reference,
-    status: cancellation.status,
-    reason: cancellation.reason,
-    note: cancellation.note,
-    yacht_name: booking?.yacht.name ?? "",
-    date: booking?.date ?? "",
-    start_time: booking?.start_time ?? "",
-    end_time: booking?.end_time ?? "",
-    currency: booking?.currency ?? "INR",
-    refund: cancellation.refund,
-  };
-}
+// ── Requests ────────────────────────────────────────────────────────────────
+
+const cancellationRequestSchema = z.object({
+  id: z.string(),
+  booking_reference: z.string(),
+  booking: z.object({
+    reference: z.string(),
+    status: bookingStatusSchema,
+    yacht_name: z.string(),
+    date: z.string().nullable(),
+    start_time: z.string().nullable(),
+    end_time: z.string().nullable(),
+    starts_at: z.string(),
+  }),
+  status: z.enum(["pending", "approved", "rejected"]),
+  reason: z.string().nullable(),
+  requested_at: z.string(),
+  decided_at: z.string().nullable(),
+  /** What staff wrote when deciding. */
+  decision_reason: z.string().nullable(),
+  refund_decision: z.enum(["full", "partial", "none"]).nullable(),
+  /** Paise; the refund decided. */
+  refund_amount: z.number().nullable(),
+  currency: z.string(),
+});
+export type CancellationRequest = z.infer<typeof cancellationRequestSchema>;
 
 /**
- * Sends a cancellation request. 404 `BOOKING_NOT_FOUND` for a booking that is
- * missing, not this customer's or no longer cancellable.
+ * POST /me/bookings/{ref}/cancellation-requests → 201.
+ * 400 blank or too-long reason · 404 `BOOKING_NOT_FOUND` ·
+ * 409 `CANCELLATION_NOT_ALLOWED` (not confirmed, or the charter has started) /
+ * `CANCELLATION_REQUEST_EXISTS` (one is already waiting).
  */
 export function requestCancellation(
-  bookingId: string,
-  request: CancellationRequest,
-): Promise<Cancellation> {
-  const account = readMockAccount();
-  const booking = account.bookings.find((item) => item.id === bookingId);
-  if (!booking || !booking.can_cancel || !request.reason) return mockNotFound("BOOKING_NOT_FOUND");
-
-  const cancellation: MockCancellation = {
-    booking_id: bookingId,
-    reference: `CAN-SM-${referenceNumber(booking.reference)}`,
-    reason: request.reason,
-    note: request.note,
-    requested_at: Date.now(),
-    status: "requested",
-    refund: null,
-  };
-  const updated = updateMockAccount((draft) => {
-    draft.cancellations = [
-      ...draft.cancellations.filter((item) => item.booking_id !== bookingId),
-      cancellation,
-    ];
-    const stored = draft.bookings.find((item) => item.id === bookingId);
-    if (stored) stored.can_cancel = false;
+  reference: string,
+  reason: string | null,
+): Promise<CancellationRequest> {
+  return apiClient.post(`${bookingPath(reference)}/cancellation-requests`, {
+    body: reason ? { reason } : {},
+    schema: cancellationRequestSchema,
   });
-  return mockResponse(cancellationSchema, toCancellation(updated, cancellation));
 }
 
-/** 404 `CANCELLATION_NOT_FOUND` when no cancellation was requested for the booking. */
-export function getCancellation(bookingId: string, signal?: AbortSignal): Promise<Cancellation> {
-  const account = advanceMockCancellations();
-  const cancellation = account.cancellations.find((item) => item.booking_id === bookingId);
-  if (!cancellation) return mockNotFound("CANCELLATION_NOT_FOUND", signal);
-  return mockResponse(cancellationSchema, toCancellation(account, cancellation), signal);
-}
-
-/** Every cancellation of the customer's bookings (for the bookings lists). */
-export function listMyCancellations(signal?: AbortSignal): Promise<Cancellation[]> {
-  const account = advanceMockCancellations();
-  return mockResponse(
-    z.array(cancellationSchema),
-    account.cancellations.map((item) => toCancellation(account, item)),
+/** GET /me/cancellation-requests (first page of up to 100), optionally by status. */
+export async function listMyCancellationRequests(
+  status?: CancellationRequest["status"],
+  signal?: AbortSignal,
+): Promise<CancellationRequest[]> {
+  const page = await apiClient.get("/me/cancellation-requests", {
+    query: { status, limit: 100 },
     signal,
-  );
+    schema: z.object({ items: z.array(cancellationRequestSchema) }),
+  });
+  return page.items;
 }

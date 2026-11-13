@@ -27,26 +27,18 @@ import {
   formatLongDate,
   formatTimeRange,
   guests,
-  todayInKerala,
+  minutesBetween,
 } from "@/features/user/account/utils/account-format";
 import { CANCELLATION_STATUS_LABELS } from "@/features/user/cancellations/utils/cancellation-view";
 import { userRoutes } from "@/constants/routes";
 import { useApiQuery } from "@/hooks/use-api-query";
-import { listMyCancellations, type Cancellation } from "@/services/user/cancellations.service";
-import { getMyBooking, type CustomerBooking } from "@/services/user/customer-bookings.service";
+import {
+  getMyBooking,
+  type BookingDetail as Booking,
+} from "@/services/user/customer-bookings.service";
 
-import { CUSTOMER_STATUS_LABELS, isUpcoming } from "../utils/booking-view";
-
-async function loadBooking(bookingId: string, signal: AbortSignal) {
-  const [booking, cancellations] = await Promise.all([
-    getMyBooking(bookingId, signal),
-    listMyCancellations(signal),
-  ]);
-  return {
-    booking,
-    cancellation: cancellations.find((item) => item.booking_id === bookingId) ?? null,
-  };
-}
+import { useYachtInfo, type YachtInfo } from "../hooks/use-yacht-info";
+import { CUSTOMER_STATUS_LABELS, isUpcomingBooking, shortStatus } from "../utils/booking-view";
 
 /** "Astra One" with its second word in the serif face, as in the Figma. */
 function YachtName({ name, className }: { name: string; className?: string }) {
@@ -67,12 +59,21 @@ function YachtName({ name, className }: { name: string; className?: string }) {
 const nameClass =
   "text-navy-ink text-[1.75rem] leading-tight font-normal tracking-[-0.01em] lg:text-[2rem]";
 
+/** Booked extras, e.g. "Seasonal menu × 8"; null when none were added. */
+const onBoard = (booking: Booking) =>
+  booking.pricing.addons.length
+    ? booking.pricing.addons
+        .map((addon) => (addon.quantity > 1 ? `${addon.name} × ${addon.quantity}` : addon.name))
+        .join(" · ")
+    : null;
+
 /**
- * A booking in the account: Figma C19 "Every detail, for your journey." while
- * it is ahead, C35 "A journey worth remembering." once it has passed.
+ * A booking in the account (GET /me/bookings/{ref}): Figma C19 "Every detail,
+ * for your journey." while it is ahead, C35 "A journey worth remembering." after.
  */
-export function BookingDetail({ bookingId }: { bookingId: string }) {
-  const query = useApiQuery((signal) => loadBooking(bookingId, signal), bookingId);
+export function BookingDetail({ bookingRef }: { bookingRef: string }) {
+  const query = useApiQuery((signal) => getMyBooking(bookingRef, signal), bookingRef);
+  const yacht = useYachtInfo(query.data?.yacht.slug);
 
   if (!query.data) {
     return (
@@ -87,59 +88,69 @@ export function BookingDetail({ bookingId }: { bookingId: string }) {
     );
   }
 
-  const { booking, cancellation } = query.data;
-  return isUpcoming(booking, todayInKerala()) ? (
-    <UpcomingBooking booking={booking} cancellation={cancellation} />
+  return isUpcomingBooking(query.data) ? (
+    <UpcomingBooking booking={query.data} yacht={yacht} />
   ) : (
-    <PastBooking booking={booking} cancellation={cancellation} />
+    <PastBooking booking={query.data} yacht={yacht} />
   );
 }
 
 interface BodyProps {
-  booking: CustomerBooking;
-  cancellation: Cancellation | null;
+  booking: Booking;
+  yacht: YachtInfo | undefined;
+}
+
+function YachtPhoto({ booking, yacht, wide }: BodyProps & { wide?: boolean }) {
+  if (!yacht?.imageUrl) return null;
+  return (
+    <div
+      className={`bg-pearl relative w-full overflow-hidden ${wide ? "aspect-[4/3] sm:aspect-[2.5/1]" : "aspect-[16/10] sm:aspect-[1.8/1]"}`}
+    >
+      <Image
+        src={yacht.imageUrl}
+        alt={`${booking.yacht.name} at sea`}
+        fill
+        preload
+        unoptimized
+        sizes="(min-width: 1280px) 40vw, (min-width: 1024px) 60vw, 100vw"
+        className="object-cover"
+      />
+    </div>
+  );
 }
 
 /** Figma C19: details and preparation on the left, the navy charter card on the right. */
-function UpcomingBooking({ booking, cancellation }: BodyProps) {
-  const statusLabel = CUSTOMER_STATUS_LABELS[booking.status].split(" · ")[0];
-  const isPaid = booking.status === "confirmed";
-  const timeRange = formatTimeRange(booking.start_time, booking.end_time);
-  const amount = (value: number) => formatAmount(value, booking.currency);
-  const isUnderReview = cancellation?.status === "requested";
+function UpcomingBooking({ booking, yacht }: BodyProps) {
+  const { slot, pricing } = booking;
+  const timeRange = formatTimeRange(slot.start_time, slot.end_time);
+  const minutes = minutesBetween(slot.start_time, slot.end_time);
+  const amount = (value: number) => formatAmount(value, pricing.currency);
+  const request = booking.cancellation_request;
+  const isUnderReview = request?.status === "pending";
+  const extras = onBoard(booking);
+  const hasInvoice = booking.invoice !== null;
 
   return (
     <>
       <AccountHeading
         heading="Every detail,"
         headingSerif="for your journey."
-        subtitle={`Booking ${booking.reference} · ${isUnderReview ? CANCELLATION_STATUS_LABELS.requested : statusLabel}`}
+        subtitle={`Booking ${booking.reference} · ${isUnderReview ? CANCELLATION_STATUS_LABELS.pending : shortStatus(booking.status)}`}
       />
 
       <div className="mt-8 grid gap-10 lg:mt-10 xl:grid-cols-[minmax(0,1fr)_minmax(0,21.5rem)] xl:gap-8">
         <article className="min-w-0">
-          {booking.yacht.image_url ? (
-            <div className="bg-pearl relative aspect-[16/10] w-full overflow-hidden sm:aspect-[1.8/1]">
-              <Image
-                src={booking.yacht.image_url}
-                alt={`${booking.yacht.name} at sea`}
-                fill
-                preload
-                sizes="(min-width: 1280px) 40vw, (min-width: 1024px) 60vw, 100vw"
-                className="object-cover"
-              />
-            </div>
-          ) : null}
+          <YachtPhoto booking={booking} yacht={yacht} />
 
           <YachtName name={booking.yacht.name} className={`${nameClass} mt-7 lg:mt-9`} />
           <DetailRows
             className="mt-6"
             rows={[
-              { label: "Departure", value: formatLongDate(booking.date) },
-              { label: "Charter time", value: `${timeRange} · ${booking.time_zone}` },
+              { label: "Departure", value: formatLongDate(slot.date) },
+              { label: "Charter time", value: `${timeRange} · ${slot.time_zone}` },
               { label: "Your company", value: guests(booking.guest_count) },
-              { label: "Lead guest", value: booking.lead_guest },
-              ...(booking.on_board ? [{ label: "On board", value: booking.on_board }] : []),
+              { label: "Lead guest", value: booking.contact.full_name },
+              ...(extras ? [{ label: "On board", value: extras }] : []),
             ]}
           />
 
@@ -154,7 +165,7 @@ function UpcomingBooking({ booking, cancellation }: BodyProps) {
           <StepList
             className="mt-7"
             steps={[
-              isPaid
+              booking.payment_status === "succeeded"
                 ? { label: "Booking confirmed", detail: "Payment verified · Confirmation sent" }
                 : { label: "Booking received", detail: "Awaiting payment" },
               {
@@ -163,7 +174,7 @@ function UpcomingBooking({ booking, cancellation }: BodyProps) {
               },
               {
                 label: "Your time on the water",
-                detail: `${formatDayMonth(booking.date)} · ${timeRange}`,
+                detail: `${formatDayMonth(slot.date)} · ${timeRange}`,
               },
             ]}
           />
@@ -173,56 +184,73 @@ function UpcomingBooking({ booking, cancellation }: BodyProps) {
           <CharterSummaryCard
             tone="dark"
             yachtName={booking.yacht.name}
-            subtitle={`${booking.departure} · ${booking.service}`}
-            imageUrl={booking.yacht.image_url}
+            subtitle={[yacht?.departureCity, slot.slot_type_name].filter(Boolean).join(" · ")}
+            imageUrl={yacht?.imageUrl}
             facts={[
-              { label: "Departure", value: formatLongDate(booking.date) },
-              { label: "Time", value: `${timeRange} · ${formatHours(booking.duration_minutes)}` },
+              { label: "Departure", value: formatLongDate(slot.date) },
+              {
+                label: "Time",
+                value: minutes ? `${timeRange} · ${formatHours(minutes)}` : timeRange,
+              },
               {
                 label: "Your company",
-                value: `${guests(booking.guest_count)} · up to ${booking.capacity}`,
+                value: yacht
+                  ? `${guests(booking.guest_count)} · up to ${yacht.capacity}`
+                  : guests(booking.guest_count),
               },
             ]}
-            prices={booking.price_lines.map((line) => ({
-              label: line.label,
-              value: amount(line.amount),
-            }))}
-            total={amount(booking.total_amount)}
+            prices={[
+              ...(pricing.charter_amount === null
+                ? []
+                : [{ label: "Private charter", value: amount(pricing.charter_amount) }]),
+              ...pricing.addons.map((addon) => ({
+                label: addon.quantity > 1 ? `${addon.name} · ${addon.quantity}` : addon.name,
+                value: amount(addon.amount),
+              })),
+              {
+                label:
+                  pricing.tax_rate === null
+                    ? pricing.tax_label
+                    : `${pricing.tax_label} (${pricing.tax_rate}%)`,
+                value: amount(pricing.tax_amount),
+              },
+            ]}
+            total={amount(pricing.total_amount)}
           />
 
           {isUnderReview ? (
             <AccountNotice label="Cancellation under review" className="mt-5">
-              Your request {cancellation.reference} is with our team. Your booking stays as it is
-              until the outcome is confirmed.
+              Your cancellation request is with our team. Your booking stays as it is until the
+              outcome is confirmed.
             </AccountNotice>
           ) : null}
 
           <div className="mt-5 flex flex-col items-start gap-4">
-            {booking.invoice_number ? (
+            {hasInvoice ? (
               <Link
-                href={userRoutes.accountBookingInvoice(booking.id)}
+                href={userRoutes.accountBookingInvoice(booking.reference)}
                 className={primaryButtonClass}
                 style={primaryButtonStyle}
               >
                 View invoice
               </Link>
             ) : null}
-            {cancellation ? (
+            {request ? (
               <Link
-                href={userRoutes.accountBookingCancelConfirmed(booking.id)}
+                href={userRoutes.accountBookingCancelConfirmed(booking.reference)}
                 className={secondaryButtonClass}
               >
                 View cancellation status
               </Link>
-            ) : booking.can_cancel ? (
+            ) : booking.can_request_cancellation ? (
               <Link
-                href={userRoutes.accountBookingCancel(booking.id)}
+                href={userRoutes.accountBookingCancel(booking.reference)}
                 className={secondaryButtonClass}
               >
                 Request cancellation
               </Link>
             ) : null}
-            <Link href={userRoutes.accountHelpFor(booking.id)} className={textButtonClass}>
+            <Link href={userRoutes.accountHelpFor(booking.reference)} className={textButtonClass}>
               Speak to our concierge
             </Link>
           </div>
@@ -233,61 +261,57 @@ function UpcomingBooking({ booking, cancellation }: BodyProps) {
 }
 
 /** Figma C35: the photo, the essentials and the invoice of a past charter. */
-function PastBooking({ booking, cancellation }: BodyProps) {
-  const statusLabel = CUSTOMER_STATUS_LABELS[booking.status].split(" · ")[0];
+function PastBooking({ booking, yacht }: BodyProps) {
+  const { slot } = booking;
+  const hasRefund = booking.refunds.length > 0 || booking.cancellation?.refund_amount;
 
   return (
     <>
       <AccountHeading
         heading="A journey worth"
         headingSerif="remembering."
-        subtitle={`Booking ${booking.reference} · ${statusLabel}`}
+        subtitle={`Booking ${booking.reference} · ${shortStatus(booking.status)}`}
       />
 
       <article className="mt-8 lg:mt-10">
-        {booking.yacht.image_url ? (
-          <div className="bg-pearl relative aspect-[4/3] w-full overflow-hidden sm:aspect-[2.5/1]">
-            <Image
-              src={booking.yacht.image_url}
-              alt={`${booking.yacht.name} at anchor`}
-              fill
-              preload
-              sizes="(min-width: 1024px) 65vw, 100vw"
-              className="object-cover"
-            />
-          </div>
-        ) : null}
+        <YachtPhoto booking={booking} yacht={yacht} wide />
 
         <YachtName name={booking.yacht.name} className={`${nameClass} mt-7 lg:mt-9`} />
         <DetailRows
           className="mt-6"
           rows={[
-            { label: "Departure", value: formatLongDate(booking.date) },
+            { label: "Departure", value: formatLongDate(slot.date) },
             {
               label: "Charter",
-              value: `${formatTimeRange(booking.start_time, booking.end_time)} · ${booking.departure} · ${guests(booking.guest_count)}`,
+              value: [
+                formatTimeRange(slot.start_time, slot.end_time),
+                yacht?.departureCity,
+                guests(booking.guest_count),
+              ]
+                .filter(Boolean)
+                .join(" · "),
             },
-            { label: "Lead guest", value: booking.lead_guest },
+            { label: "Lead guest", value: booking.contact.full_name },
           ]}
         />
         <StatusChip className="mt-6">{CUSTOMER_STATUS_LABELS[booking.status]}</StatusChip>
 
         <div className={`${buttonRowClass} mt-6`}>
-          {booking.invoice_number ? (
+          {booking.invoice ? (
             <Link
-              href={userRoutes.accountBookingInvoice(booking.id)}
+              href={userRoutes.accountBookingInvoice(booking.reference)}
               className={primaryButtonClass}
               style={primaryButtonStyle}
             >
               View this invoice
             </Link>
           ) : null}
-          {cancellation ? (
+          {booking.cancellation_request || hasRefund ? (
             <Link
               href={
-                cancellation.refund
-                  ? userRoutes.accountBookingRefund(booking.id)
-                  : userRoutes.accountBookingCancelConfirmed(booking.id)
+                hasRefund
+                  ? userRoutes.accountBookingRefund(booking.reference)
+                  : userRoutes.accountBookingCancelConfirmed(booking.reference)
               }
               className={secondaryButtonClass}
             >

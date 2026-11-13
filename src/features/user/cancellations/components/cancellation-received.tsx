@@ -15,26 +15,39 @@ import {
   StepList,
 } from "@/features/user/account/components/account-ui";
 import { QueryFallback } from "@/features/user/account/components/query-fallback";
+import { formatInstantDate } from "@/features/user/account/utils/account-format";
 import { userRoutes } from "@/constants/routes";
 import { useApiQuery } from "@/hooks/use-api-query";
-import { getCancellation } from "@/services/user/cancellations.service";
+import { getMyBooking } from "@/services/user/customer-bookings.service";
 
 import { CANCELLATION_STATUS_LABELS } from "../utils/cancellation-view";
 
-/** Figma C22 "Your request is with us.": what happens after a cancellation request. */
-export function CancellationReceived({ bookingId }: { bookingId: string }) {
-  const query = useApiQuery((signal) => getCancellation(bookingId, signal), bookingId);
-  const cancellation = query.data;
+const HEADING = { heading: "Your request", headingSerif: "is with us." };
 
-  if (!cancellation) {
+/**
+ * Figma C22 "Your request is with us.": shown after POST …/cancellation-requests,
+ * read back from the booking's latest request (GET /me/bookings/{ref}).
+ */
+export function CancellationReceived({ bookingRef }: { bookingRef: string }) {
+  const query = useApiQuery((signal) => getMyBooking(bookingRef, signal), bookingRef);
+  const booking = query.data;
+  const request = booking?.cancellation_request ?? null;
+
+  if (!booking || !request) {
     return (
       <>
-        <AccountHeading heading="Your request" headingSerif="is with us." />
-        <QueryFallback
-          query={query}
-          loadingLabel="Loading your request"
-          notFoundMessage="No cancellation has been requested for this booking."
-        />
+        <AccountHeading {...HEADING} />
+        {booking ? (
+          <p className="text-body mt-8 max-w-[34rem] text-[15px] leading-relaxed">
+            No cancellation has been requested for this booking.
+          </p>
+        ) : (
+          <QueryFallback
+            query={query}
+            loadingLabel="Loading your request"
+            notFoundMessage="We couldn’t find this booking in your account."
+          />
+        )}
       </>
     );
   }
@@ -42,13 +55,12 @@ export function CancellationReceived({ bookingId }: { bookingId: string }) {
   return (
     <>
       <AccountHeading
-        heading="Your request"
-        headingSerif="is with us."
-        subtitle={`Cancellation request ${cancellation.reference} has been received.`}
+        {...HEADING}
+        subtitle={`Your cancellation request for booking ${booking.reference} has been received.`}
       />
 
       <StatusChip tone="pearl" className="mt-7 lg:mt-8">
-        {CANCELLATION_STATUS_LABELS[cancellation.status]}
+        {CANCELLATION_STATUS_LABELS[request.status]}
       </StatusChip>
 
       <Card title="What happens next" className="mt-6">
@@ -62,7 +74,10 @@ export function CancellationReceived({ bookingId }: { bookingId: string }) {
       <StepList
         className="mt-8"
         steps={[
-          { label: "Request received", detail: `Reference ${cancellation.reference}` },
+          {
+            label: "Request received",
+            detail: `Booking ${booking.reference} · Sent ${formatInstantDate(request.requested_at)}`,
+          },
           { label: "Review in progress", detail: "Policy and payment details being checked" },
           {
             label: "Outcome and refund status",
@@ -73,14 +88,14 @@ export function CancellationReceived({ bookingId }: { bookingId: string }) {
 
       <div className={`${buttonRowClass} mt-8`}>
         <Link
-          href={userRoutes.accountBookingCancelConfirmed(bookingId)}
+          href={userRoutes.accountBookingCancelConfirmed(booking.reference)}
           className={primaryButtonClass}
           style={primaryButtonStyle}
         >
           View cancellation status
           <ArrowRight aria-hidden="true" strokeWidth={1.5} className="size-3.5" />
         </Link>
-        <Link href={userRoutes.accountHelpFor(bookingId)} className={secondaryButtonClass}>
+        <Link href={userRoutes.accountHelpFor(booking.reference)} className={secondaryButtonClass}>
           Contact concierge
         </Link>
       </div>

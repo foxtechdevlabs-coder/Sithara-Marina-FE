@@ -9,5 +9,5 @@ export default async function AccountBookingPage({
 }: PageProps<"/account/bookings/[bookingId]">) {
   const { bookingId } = await params;
 
-  return <BookingDetail bookingId={bookingId} />;
+  return <BookingDetail bookingRef={bookingId} />;
 }

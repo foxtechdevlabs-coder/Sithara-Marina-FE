@@ -6,7 +6,6 @@ import Link from "next/link";
 import { userRoutes } from "@/constants/routes";
 import {
   CUSTOMER_STATUS_LABELS,
-  groupBookings,
   openEnquiries,
 } from "@/features/user/customer-bookings/utils/booking-view";
 import { useApiQuery } from "@/hooks/use-api-query";
@@ -14,13 +13,7 @@ import { listMyBookings } from "@/services/user/customer-bookings.service";
 import { listMyEnquiries } from "@/services/user/enquiries.service";
 import { getMyProfile } from "@/services/user/profile.service";
 
-import {
-  formatDayMonth,
-  formatLongDate,
-  formatTimeRange,
-  guests,
-  todayInKerala,
-} from "../utils/account-format";
+import { formatDayMonth, formatLongDate, formatTimeRange, guests } from "../utils/account-format";
 
 import {
   AccountHeading,
@@ -35,8 +28,14 @@ import {
 } from "./account-ui";
 import { QueryFallback } from "./query-fallback";
 
-function loadOverview(signal: AbortSignal) {
-  return Promise.all([getMyProfile(signal), listMyBookings(signal), listMyEnquiries(signal)]);
+async function loadOverview(signal: AbortSignal) {
+  const [profile, upcoming, past, enquiries] = await Promise.all([
+    getMyProfile(signal),
+    listMyBookings("upcoming", signal),
+    listMyBookings("past", signal),
+    listMyEnquiries(signal),
+  ]);
+  return { profile, upcoming, past, enquiries };
 }
 
 function StatCard({ title, detail, count }: { title: string; detail: string; count: number }) {
@@ -49,10 +48,10 @@ function StatCard({ title, detail, count }: { title: string; detail: string; cou
   );
 }
 
-/** Figma "Your account, thoughtfully arranged.": counts, next charter, details, proposal. */
+/** Figma C51 "Your account, thoughtfully arranged.": counts, next charter, details, proposal. */
 export function AccountOverview() {
   const query = useApiQuery(loadOverview, "account-overview");
-  const firstName = query.data?.[0].full_name.split(" ")[0];
+  const firstName = query.data?.profile.fullName.trim().split(/\s+/)[0];
 
   return (
     <>
@@ -71,12 +70,11 @@ export function AccountOverview() {
 }
 
 function OverviewBody({ data }: { data: Awaited<ReturnType<typeof loadOverview>> }) {
-  const [profile, bookings, enquiries] = data;
-  const { upcoming, past } = groupBookings(bookings, todayInKerala());
-  const next = upcoming[0];
-  const last = past[0];
+  const { profile, upcoming, past, enquiries } = data;
+  const next = upcoming.items[0];
+  const last = past.items[0];
   const open = openEnquiries(enquiries);
-  const proposal = open.find((enquiry) => enquiry.status === "proposal_ready");
+  const proposal = open.find((enquiry) => enquiry.status === "proposal_sent");
 
   return (
     <div className="mt-8 space-y-5 lg:mt-10">
@@ -86,12 +84,12 @@ function OverviewBody({ data }: { data: Awaited<ReturnType<typeof loadOverview>>
           detail={
             next ? `${next.yacht.name} · ${formatDayMonth(next.date)}` : "Nothing planned yet"
           }
-          count={upcoming.length}
+          count={upcoming.total}
         />
         <StatCard
           title="Past journey"
           detail={last ? `${last.yacht.name} · ${formatDayMonth(last.date)}` : "Your first awaits"}
-          count={past.length}
+          count={past.total}
         />
         <StatCard
           title="Open enquiry"
@@ -112,7 +110,7 @@ function OverviewBody({ data }: { data: Awaited<ReturnType<typeof loadOverview>>
             <MetaLines
               lines={[
                 `${next.yacht.name} · ${formatLongDate(next.date)}`,
-                `${formatTimeRange(next.start_time, next.end_time)} · ${next.departure} · ${guests(next.guest_count)}`,
+                `${formatTimeRange(next.start_time, next.end_time)} · ${guests(next.guest_count)}`,
                 next.reference,
               ]}
             />
@@ -124,7 +122,7 @@ function OverviewBody({ data }: { data: Awaited<ReturnType<typeof loadOverview>>
         <div className={`${buttonRowClass} mt-2`}>
           {next ? (
             <Link
-              href={userRoutes.accountBooking(next.id)}
+              href={userRoutes.accountBooking(next.reference)}
               className={primaryButtonClass}
               style={primaryButtonStyle}
             >
@@ -149,7 +147,7 @@ function OverviewBody({ data }: { data: Awaited<ReturnType<typeof loadOverview>>
 
       <Card title="Your personal details">
         <MetaLines
-          lines={[profile.full_name, profile.email, profile.phone ?? "No phone number yet"]}
+          lines={[profile.fullName, profile.email, profile.phone ?? "No phone number yet"]}
         />
         <Link href={userRoutes.accountProfile} className={`${secondaryButtonClass} mt-4`}>
           Edit profile
@@ -159,10 +157,12 @@ function OverviewBody({ data }: { data: Awaited<ReturnType<typeof loadOverview>>
       {proposal ? (
         <>
           <AccountNotice label="A proposal ready for you">
-            Your {proposal.yacht_name ? `${proposal.yacht_name} ` : ""}proposal,{" "}
-            {proposal.reference}, is ready to review.
+            Your {proposal.yacht.name} proposal, {proposal.reference}, is ready to review.
           </AccountNotice>
-          <Link href={userRoutes.accountEnquiries} className={secondaryButtonClass}>
+          <Link
+            href={userRoutes.accountEnquiry(proposal.reference)}
+            className={secondaryButtonClass}
+          >
             Review enquiry &amp; proposal
           </Link>
         </>

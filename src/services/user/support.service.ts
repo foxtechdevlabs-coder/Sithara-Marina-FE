@@ -1,71 +1,74 @@
 import { z } from "zod";
 
-import { readMockAccount, updateMockAccount } from "./mocks/customer-account.store";
-import { mockNotFound, mockResponse } from "./mocks/mock-response";
+import { apiClient } from "@/services/http/api-client";
 
 /*
- * Messages to the concierge from Help & support, optionally about a booking.
- *
- * MOCK DATA: no support endpoint is published yet.
+ * Requests to the concierge from Help & support, optionally about one of the
+ * customer's bookings. Addressed by `reference` ("SUP-2026-0001").
  */
 
-export const SUPPORT_TOPICS = ["Booking", "Arrival", "Billing", "Other"] as const;
-export type SupportTopic = (typeof SUPPORT_TOPICS)[number];
+export const SUPPORT_CATEGORIES = ["general", "booking", "payment", "refund", "other"] as const;
+export type SupportCategory = (typeof SUPPORT_CATEGORIES)[number];
 
-/** Longest message the form accepts. */
-export const SUPPORT_MESSAGE_MAX = 2000;
+export const SUPPORT_SUBJECT_MAX = 200;
+export const SUPPORT_MESSAGE_MAX = 5000;
 
-const supportMessageSchema = z.object({
-  /** "HLP-1048". */
+const supportRequestSchema = z.object({
+  id: z.string(),
   reference: z.string(),
-  booking_id: z.string().nullable(),
-  booking_reference: z.string().nullable(),
-  topic: z.string(),
+  subject: z.string(),
   message: z.string(),
-  sent_on: z.string(),
+  category: z.enum(SUPPORT_CATEGORIES).nullable(),
+  booking_reference: z.string().nullable(),
+  status: z.literal("submitted"),
+  created_at: z.string(),
 });
-export type SupportMessage = z.infer<typeof supportMessageSchema>;
+export type SupportRequest = z.infer<typeof supportRequestSchema>;
 
-export interface SendSupportMessageRequest {
-  booking_id: string | null;
-  topic: SupportTopic;
+export interface CreateSupportRequest {
+  subject: string;
   message: string;
+  category?: SupportCategory;
+  /** One of the customer's own bookings. */
+  booking_reference?: string;
 }
 
-function toSupportMessage(reference: string): SupportMessage | null {
-  const account = readMockAccount();
-  const stored = account.support_messages.find((item) => item.reference === reference);
-  if (!stored) return null;
-  const booking = account.bookings.find((item) => item.id === stored.booking_id);
-  return { ...stored, booking_reference: booking?.reference ?? null };
-}
+const createdSupportRequestSchema = supportRequestSchema.extend({
+  /** False: the same subject and message were sent in the last 5 minutes; this is that request. */
+  created: z.boolean(),
+});
 
-export function sendSupportMessage(request: SendSupportMessageRequest): Promise<SupportMessage> {
-  const account = readMockAccount();
-  const booking = account.bookings.find((item) => item.id === request.booking_id);
-  // "HLP-1048" for booking SM-2026-1048; a number of its own otherwise.
-  const base = `HLP-${booking ? booking.reference.split("-").at(-1) : "2000"}`;
-  const taken = account.support_messages.filter((item) => item.reference.startsWith(base)).length;
-  const reference = taken ? `${base}-${taken + 1}` : base;
-
-  updateMockAccount((draft) => {
-    draft.support_messages.push({
-      reference,
-      booking_id: booking?.id ?? null,
-      topic: request.topic,
-      message: request.message,
-      sent_on: new Date().toISOString().slice(0, 10),
-    });
+/**
+ * POST /me/support-requests → 201 (or 200 for a repeat within 5 minutes,
+ * `created: false`). 400 missing / too long, or `INVALID_BOOKING_REFERENCE` ·
+ * 429 more than 10 a minute.
+ */
+export function createSupportRequest(
+  request: CreateSupportRequest,
+): Promise<z.infer<typeof createdSupportRequestSchema>> {
+  return apiClient.post("/me/support-requests", {
+    body: request,
+    schema: createdSupportRequestSchema,
   });
-  return mockResponse(supportMessageSchema, toSupportMessage(reference));
 }
 
-/** 404 `SUPPORT_MESSAGE_NOT_FOUND` for an unknown reference. */
-export function getSupportMessage(
+/** GET /me/support-requests (first page of up to 100). */
+export async function listMySupportRequests(signal?: AbortSignal): Promise<SupportRequest[]> {
+  const page = await apiClient.get("/me/support-requests", {
+    query: { limit: 100 },
+    signal,
+    schema: z.object({ items: z.array(supportRequestSchema) }),
+  });
+  return page.items;
+}
+
+/** GET /me/support-requests/{reference}. 404 for a request that is not this customer's. */
+export function getMySupportRequest(
   reference: string,
   signal?: AbortSignal,
-): Promise<SupportMessage> {
-  const message = toSupportMessage(reference);
-  if (!message) return mockNotFound("SUPPORT_MESSAGE_NOT_FOUND", signal);
-  return mockResponse(supportMessageSchema, message, signal);
+): Promise<SupportRequest> {
+  return apiClient.get(`/me/support-requests/${encodeURIComponent(reference)}`, {
+    signal,
+    schema: supportRequestSchema,
+  });
 }

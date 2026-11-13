@@ -3,7 +3,7 @@
 import { ArrowRight, ChevronDown } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useId, useState, type FormEvent } from "react";
+import { useId, useRef, useState, type FormEvent } from "react";
 
 import {
   AccountHeading,
@@ -18,35 +18,31 @@ import {
   secondaryButtonClass,
 } from "@/features/user/account/components/account-ui";
 import { QueryFallback } from "@/features/user/account/components/query-fallback";
+import { accountErrorMessage } from "@/features/user/account/utils/account-error";
 import {
   formatAmount,
   formatLongDate,
   formatTimeRange,
   guests,
-  todayInKerala,
 } from "@/features/user/account/utils/account-format";
-import { isUpcoming } from "@/features/user/customer-bookings/utils/booking-view";
 import { userRoutes } from "@/constants/routes";
 import { useApiQuery } from "@/hooks/use-api-query";
+import { isApiError } from "@/services/http/api-error";
 import {
+  CANCELLATION_REASON_MAX,
   CANCELLATION_REASONS,
-  listMyCancellations,
+  getCancellationPreview,
   requestCancellation,
-  type Cancellation,
+  type CancellationPreview,
 } from "@/services/user/cancellations.service";
-import { getMyBooking, type CustomerBooking } from "@/services/user/customer-bookings.service";
+import { getMyBooking, type BookingDetail } from "@/services/user/customer-bookings.service";
 
-const NOTE_MAX = 1000;
-
-async function loadBooking(bookingId: string, signal: AbortSignal) {
-  const [booking, cancellations] = await Promise.all([
-    getMyBooking(bookingId, signal),
-    listMyCancellations(signal),
+async function loadCancellation(bookingRef: string, signal: AbortSignal) {
+  const [booking, preview] = await Promise.all([
+    getMyBooking(bookingRef, signal),
+    getCancellationPreview(bookingRef, signal),
   ]);
-  return {
-    booking,
-    cancellation: cancellations.find((item) => item.booking_id === bookingId) ?? null,
-  };
+  return { booking, preview };
 }
 
 const requestHeading = (reference: string) => ({
@@ -55,17 +51,22 @@ const requestHeading = (reference: string) => ({
   subtitle: `Request a cancellation for ${reference}. We will guide you through the next step.`,
 });
 
+/** The chosen reason and the optional note, as the one `reason` the backend takes. */
+const composeReason = (reason: string, note: string) =>
+  note.trim() ? `${reason}. ${note.trim()}` : reason;
+
 /**
  * Figma C21 "A change of plans." (the booking, its policy and the reason),
- * then C31 "Before you send your request." to confirm it.
+ * then C31 "Before you send your request." to confirm it. Whether a request
+ * is possible is the backend's answer (GET …/cancellation-preview).
  */
-export function CancelBooking({ bookingId }: { bookingId: string }) {
-  const query = useApiQuery((signal) => loadBooking(bookingId, signal), bookingId);
+export function CancelBooking({ bookingRef }: { bookingRef: string }) {
+  const query = useApiQuery((signal) => loadCancellation(bookingRef, signal), bookingRef);
 
   if (!query.data) {
     return (
       <>
-        <AccountHeading {...requestHeading(bookingId)} />
+        <AccountHeading {...requestHeading(bookingRef)} />
         <QueryFallback
           query={query}
           loadingLabel="Loading your booking"
@@ -84,78 +85,85 @@ type Step =
   | { kind: "submitting" }
   | { kind: "error"; message: string };
 
+const BLOCKED_TEXT: Record<NonNullable<CancellationPreview["blocked_reason"]>, string> = {
+  not_confirmed: "Only a confirmed booking can be cancelled online.",
+  charter_started: "Your charter has already begun, so it can no longer be cancelled online.",
+  request_pending: "A cancellation request for this booking is already with our team.",
+};
+
 function CancelBookingBody({
   booking,
-  cancellation,
+  preview,
 }: {
-  booking: CustomerBooking;
-  cancellation: Cancellation | null;
+  booking: BookingDetail;
+  preview: CancellationPreview;
 }) {
   const router = useRouter();
   const formId = useId();
   const [reason, setReason] = useState<string>(CANCELLATION_REASONS[0]);
   const [note, setNote] = useState("");
   const [step, setStep] = useState<Step>({ kind: "edit" });
-  const isCancellable = booking.can_cancel && isUpcoming(booking, todayInKerala());
+  const isSubmitting = useRef(false);
+  const composed = composeReason(reason, note);
   const noteError =
-    note.length > NOTE_MAX ? `Please keep the note under ${NOTE_MAX} characters.` : null;
+    composed.length > CANCELLATION_REASON_MAX
+      ? `Please shorten your note by ${composed.length - CANCELLATION_REASON_MAX} characters.`
+      : null;
 
   const summary = (
     <Card as="div" className="mt-8 lg:mt-10">
       <h2 className="text-navy-ink text-[1.375rem] leading-snug lg:text-[1.5rem]">
-        {booking.yacht.name}&nbsp;·&nbsp;{formatLongDate(booking.date)}
+        {booking.yacht.name}&nbsp;·&nbsp;{formatLongDate(booking.slot.date)}
       </h2>
       <MetaLines
         lines={[
-          `${formatTimeRange(booking.start_time, booking.end_time)} · ${guests(booking.guest_count)} · Paid ${formatAmount(booking.total_amount, booking.currency)}`,
+          `${formatTimeRange(booking.slot.start_time, booking.slot.end_time)} · ${guests(booking.guest_count)} · Paid ${formatAmount(preview.paid_amount, preview.currency)}`,
         ]}
       />
     </Card>
   );
 
-  // A request was already sent: point to its status instead of a second form.
-  if (cancellation) {
+  if (!preview.can_request) {
+    const isPending = preview.blocked_reason === "request_pending";
     return (
       <>
         <AccountHeading {...requestHeading(booking.reference)} />
         {summary}
-        <AccountNotice label="Your request has been sent" className="mt-6">
-          Cancellation request {cancellation.reference} is already with our team. Please do not
-          submit another request.
+        <AccountNotice
+          label={
+            isPending ? "Your request has been sent" : "This booking can’t be cancelled online"
+          }
+          className="mt-6"
+        >
+          {preview.blocked_reason ? BLOCKED_TEXT[preview.blocked_reason] : null}{" "}
+          {isPending ? (
+            "Please do not submit another request."
+          ) : (
+            <>
+              Please speak to our concierge on{" "}
+              <a href="tel:+919724553452" className="underline underline-offset-2">
+                +91 97245 53452
+              </a>{" "}
+              and we will help with any change to your plans.
+            </>
+          )}
         </AccountNotice>
         <div className={`${buttonRowClass} mt-6`}>
+          {isPending ? (
+            <Link
+              href={userRoutes.accountBookingCancelConfirmed(booking.reference)}
+              className={darkButtonClass}
+            >
+              View cancellation status
+            </Link>
+          ) : null}
           <Link
-            href={userRoutes.accountBookingCancelConfirmed(booking.id)}
-            className={darkButtonClass}
+            href={userRoutes.accountBooking(booking.reference)}
+            className={secondaryButtonClass}
           >
-            View cancellation status
-          </Link>
-          <Link href={userRoutes.accountBooking(booking.id)} className={secondaryButtonClass}>
             Back to booking
           </Link>
         </div>
-      </>
-    );
-  }
-
-  if (!isCancellable) {
-    return (
-      <>
-        <AccountHeading {...requestHeading(booking.reference)} />
-        {summary}
-        <AccountNotice label="This booking can’t be cancelled online" className="mt-6">
-          Please speak to our concierge on{" "}
-          <a href="tel:+919724553452" className="underline underline-offset-2">
-            +91 97245 53452
-          </a>{" "}
-          and we will help with any change to your plans.
-        </AccountNotice>
-        <Link
-          href={userRoutes.accountBooking(booking.id)}
-          className={`${secondaryButtonClass} mt-6`}
-        >
-          Back to booking
-        </Link>
       </>
     );
   }
@@ -168,15 +176,29 @@ function CancelBookingBody({
   };
 
   const onSubmit = async () => {
+    if (isSubmitting.current) return; // one request, however often it is clicked
+    isSubmitting.current = true;
     setStep({ kind: "submitting" });
     try {
-      await requestCancellation(booking.id, { reason, note: note.trim() || null });
-      router.push(userRoutes.accountBookingCancelReceived(booking.id));
-    } catch {
+      await requestCancellation(booking.reference, composed);
+      router.push(userRoutes.accountBookingCancelReceived(booking.reference));
+    } catch (error) {
+      isSubmitting.current = false;
+      if (isApiError(error) && error.code === "CANCELLATION_REQUEST_EXISTS") {
+        router.push(userRoutes.accountBookingCancelConfirmed(booking.reference));
+        return;
+      }
       setStep({
         kind: "error",
-        message:
+        message: accountErrorMessage(
+          error,
           "We couldn’t send your request just now. Your booking is unchanged — please try again.",
+          {
+            CANCELLATION_NOT_ALLOWED:
+              "This booking can no longer be cancelled online. Please speak to our concierge.",
+            BOOKING_NOT_FOUND: "We couldn’t find this booking in your account.",
+          },
+        ),
       });
     }
   };
@@ -193,7 +215,7 @@ function CancelBookingBody({
         <Card title="Cancellation request" className="mt-8 lg:mt-10">
           <MetaLines
             lines={[
-              `${booking.yacht.name} · ${formatLongDate(booking.date)}`,
+              `${booking.yacht.name} · ${formatLongDate(booking.slot.date)}`,
               `Reason: ${reason}.`,
               ...(note.trim() ? [`Your note: ${note.trim()}`] : []),
             ]}
@@ -217,7 +239,10 @@ function CancelBookingBody({
           >
             {step.kind === "submitting" ? "Sending your request…" : "Submit cancellation request"}
           </button>
-          <Link href={userRoutes.accountBooking(booking.id)} className={secondaryButtonClass}>
+          <Link
+            href={userRoutes.accountBooking(booking.reference)}
+            className={secondaryButtonClass}
+          >
             Keep my booking
           </Link>
         </div>
@@ -232,8 +257,9 @@ function CancelBookingBody({
       {summary}
 
       <AccountNotice label="Your applicable cancellation policy" className="mt-6">
-        The terms accepted with this booking apply. Any refund is assessed against that policy and
-        the time of the request. No refund amount is promised before it is verified.
+        {preview.cancellation_summary ??
+          "The terms accepted with this booking apply. Any refund is assessed against that policy and the time of the request."}{" "}
+        No refund amount is promised before it is verified.
       </AccountNotice>
 
       <form onSubmit={onReview} noValidate className="mt-8 max-w-[34rem] space-y-8">
@@ -285,7 +311,10 @@ function CancelBookingBody({
             Review cancellation request
             <ArrowRight aria-hidden="true" strokeWidth={1.5} className="size-3.5" />
           </button>
-          <Link href={userRoutes.accountBooking(booking.id)} className={secondaryButtonClass}>
+          <Link
+            href={userRoutes.accountBooking(booking.reference)}
+            className={secondaryButtonClass}
+          >
             Keep my booking
           </Link>
         </div>

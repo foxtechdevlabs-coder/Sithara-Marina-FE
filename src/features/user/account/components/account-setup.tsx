@@ -6,15 +6,20 @@ import { useRouter } from "next/navigation";
 import { useId, useState, type FormEvent } from "react";
 
 import { userRoutes } from "@/constants/routes";
-import { useAuthSession } from "@/features/user/auth/session";
+import { updateSessionUser, useAuthSession } from "@/features/user/auth/session";
+import { PHONE_FORMAT_HINT, toE164 } from "@/features/user/profile/utils/phone";
 import { useApiQuery } from "@/hooks/use-api-query";
 import { cx } from "@/lib/cx";
 import {
   getMyProfile,
   getNotificationPreferences,
+  getProfileExtras,
   updateMyProfile,
   updateNotificationPreferences,
+  updateProfileExtras,
 } from "@/services/user/profile.service";
+
+import { accountErrorMessage } from "../utils/account-error";
 
 import {
   AccountHeading,
@@ -30,8 +35,13 @@ import {
 } from "./account-ui";
 import { QueryFallback } from "./query-fallback";
 
+/** The account (GET /auth/me), plus the TEMPORARY mock country and offers preference. */
 function loadSetup(signal: AbortSignal) {
-  return Promise.all([getMyProfile(signal), getNotificationPreferences(signal)]);
+  return Promise.all([
+    getMyProfile(signal),
+    getProfileExtras(signal),
+    getNotificationPreferences(signal),
+  ]);
 }
 
 interface Values {
@@ -63,11 +73,11 @@ export function AccountSetup() {
         <SetupForm
           initial={{
             // The verified session's own name and email come first.
-            fullName: user?.fullName ?? query.data[0].full_name,
+            fullName: user?.fullName ?? query.data[0].fullName,
             email: user?.email ?? query.data[0].email,
             phone: query.data[0].phone ?? "",
-            country: query.data[0].country ?? "",
-            storiesAndOffers: query.data[1].stories_and_offers,
+            country: query.data[1].country ?? "",
+            storiesAndOffers: query.data[2].stories_and_offers,
           }}
         />
       ) : (
@@ -83,6 +93,7 @@ function SetupForm({ initial }: { initial: Values }) {
   const [values, setValues] = useState(initial);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [status, setStatus] = useState<"idle" | "saving" | "failed">("idle");
+  const [failure, setFailure] = useState("");
 
   const set = (name: "fullName" | "phone" | "country") => (value: string) => {
     setValues((current) => ({ ...current, [name]: value }));
@@ -93,23 +104,32 @@ function SetupForm({ initial }: { initial: Values }) {
     event.preventDefault();
     const found: FieldErrors = {};
     if (!values.fullName.trim()) found.fullName = "Please enter your full name.";
-    if (values.phone && !/^\+?[\d\sX()-]{7,20}$/i.test(values.phone.trim()))
-      found.phone = "Please enter a phone number with its country code, e.g. +91 98765 43210.";
+    if (values.phone.trim() && !toE164(values.phone)) found.phone = PHONE_FORMAT_HINT;
     setErrors(found);
-    if (Object.keys(found).length > 0) return;
+    if (Object.keys(found).length > 0 || status === "saving") return;
 
     setStatus("saving");
     try {
+      const saved = await updateMyProfile({
+        name: values.fullName.trim(),
+        phone: values.phone.trim() ? toE164(values.phone) : null,
+      });
+      updateSessionUser({
+        id: saved.id,
+        fullName: saved.fullName,
+        email: saved.email,
+        role: saved.role,
+      });
+      // TEMPORARY (mock): no endpoint stores the country or the offers preference.
       await Promise.all([
-        updateMyProfile({
-          full_name: values.fullName.trim(),
-          phone: values.phone.trim() || null,
-          country: values.country.trim() || null,
-        }),
+        updateProfileExtras({ country: values.country.trim() || null }),
         updateNotificationPreferences({ stories_and_offers: values.storiesAndOffers }),
       ]);
       router.push(userRoutes.account);
-    } catch {
+    } catch (error) {
+      setFailure(
+        accountErrorMessage(error, "We couldn’t save your details just now. Please try again."),
+      );
       setStatus("failed");
     }
   };
@@ -189,7 +209,7 @@ function SetupForm({ initial }: { initial: Values }) {
 
       {status === "failed" ? (
         <p role="alert" className={fieldErrorClass}>
-          We couldn’t save your details just now. Please try again.
+          {failure}
         </p>
       ) : null}
 

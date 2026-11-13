@@ -22,10 +22,11 @@ export function AccountSidebar() {
         <UserRound aria-hidden="true" strokeWidth={1.25} className="text-navy-ink size-6" />
         {/* Reserves its height while loading, so the navigation does not jump. */}
         <p className="text-navy-ink mt-3 min-h-7 truncate text-[1.375rem] leading-tight">
-          {profile?.full_name}
+          {profile?.fullName}
         </p>
         <p className="text-body mt-2 min-h-4 truncate text-[11px]">{profile?.email}</p>
-        {profile?.email_verified ? (
+        {/* Signing in needs a verified email (POST /auth/login refuses others). */}
+        {profile ? (
           <p className="bg-forest mt-2.5 flex h-[30px] w-full max-w-[13rem] items-center px-2.5 text-[11px] text-white">
             Email verified
           </p>

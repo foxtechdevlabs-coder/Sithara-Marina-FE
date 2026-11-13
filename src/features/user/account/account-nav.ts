@@ -32,5 +32,8 @@ export const accountNav: readonly AccountNavItem[] = [
 /** Overview matches only `/account`; every other section also matches its sub-pages. */
 export function isAccountNavActive(href: string, pathname: string): boolean {
   if (href === userRoutes.account) return pathname === href;
+  // A proposal belongs to an enquiry.
+  if (href === userRoutes.accountEnquiries && pathname.startsWith("/account/proposals/"))
+    return true;
   return pathname === href || pathname.startsWith(`${href}/`);
 }

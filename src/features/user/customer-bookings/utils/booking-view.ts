@@ -1,5 +1,5 @@
 import type { BookingStatus } from "@/services/user/booking.service";
-import type { CustomerBooking } from "@/services/user/customer-bookings.service";
+import type { BookingDetail } from "@/services/user/customer-bookings.service";
 import type { Enquiry } from "@/services/user/enquiries.service";
 
 /**
@@ -15,37 +15,32 @@ export const CUSTOMER_STATUS_LABELS: Record<BookingStatus, string> = {
   no_show: "Not attended",
 };
 
-const ACTIVE: ReadonlySet<BookingStatus> = new Set(["pending_payment", "confirmed"]);
+/** "Confirmed · Paid" → "Confirmed". */
+export const shortStatus = (status: BookingStatus) =>
+  CUSTOMER_STATUS_LABELS[status].split(" · ")[0];
 
-/** Still ahead: active and dated today or later (`today` is "YYYY-MM-DD"). */
-export const isUpcoming = (booking: CustomerBooking, today: string) =>
-  ACTIVE.has(booking.status) && booking.date >= today;
+export const isCancelled = (status: BookingStatus) =>
+  status === "cancelled" || status === "refunded";
 
-export interface BookingGroups {
-  /** Soonest first. */
-  upcoming: CustomerBooking[];
-  /** Most recent first. */
-  past: CustomerBooking[];
-}
+/** Still ahead: active, and the charter has not ended yet. */
+export const isUpcomingBooking = (booking: BookingDetail, now = Date.now()) =>
+  (booking.status === "confirmed" || booking.status === "pending_payment") &&
+  Date.parse(booking.slot.ends_at) > now;
 
-export function groupBookings(bookings: readonly CustomerBooking[], today: string): BookingGroups {
-  const upcoming = bookings
-    .filter((booking) => isUpcoming(booking, today))
-    .sort((a, b) => a.date.localeCompare(b.date) || a.start_time.localeCompare(b.start_time));
-  const past = bookings
-    .filter((booking) => !isUpcoming(booking, today))
-    .sort((a, b) => b.date.localeCompare(a.date) || b.start_time.localeCompare(a.start_time));
-  return { upcoming, past };
-}
-
-/** Enquiries still in progress (not yet booked or closed). */
+/** Enquiries still in progress (not yet decided or closed). */
 export const openEnquiries = (enquiries: readonly Enquiry[]) =>
-  enquiries.filter((enquiry) => enquiry.status !== "booked" && enquiry.status !== "closed");
+  enquiries.filter(
+    (enquiry) =>
+      enquiry.status === "new" ||
+      enquiry.status === "in_progress" ||
+      enquiry.status === "proposal_sent",
+  );
 
 export const ENQUIRY_STATUS_LABELS: Record<Enquiry["status"], string> = {
-  received: "Received",
-  in_review: "Being prepared",
-  proposal_ready: "Proposal ready",
-  booked: "Booked",
+  new: "Received",
+  in_progress: "Being prepared",
+  proposal_sent: "Proposal ready",
+  accepted: "Proposal accepted",
+  rejected: "Proposal declined",
   closed: "Closed",
 };

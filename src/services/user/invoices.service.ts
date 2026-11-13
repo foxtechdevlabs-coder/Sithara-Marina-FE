@@ -1,41 +1,45 @@
 import { z } from "zod";
 
-import { readMockAccount } from "./mocks/customer-account.store";
-import { mockNotFound, mockResponse } from "./mocks/mock-response";
+import { apiClient } from "@/services/http/api-client";
 
 /*
- * A booking's invoice. Amounts are paise.
- *
- * MOCK DATA: no invoice endpoint is published yet. A downloadable PDF also
- * needs one; until then the page offers the browser's print / save as PDF.
+ * A booking's tax invoice. Amounts are paise. The endpoint takes the booking's
+ * id (UUID, from GET /me/bookings/{ref}), not its reference.
  */
 
 const invoiceSchema = z.object({
-  invoice_number: z.string(),
+  id: z.string(),
   booking_id: z.string(),
-  booking_reference: z.string(),
-  /** The charter day, "YYYY-MM-DD". */
-  charter_date: z.string(),
-  issued_on: z.string(),
-  issuer: z.object({ name: z.string(), address: z.string() }),
-  issued_to: z.object({ full_name: z.string(), email: z.string() }),
-  currency: z.string(),
-  lines: z.array(
-    z.object({
-      description: z.string(),
-      /** Display text: "1", "8 guests", "As charged". */
-      quantity: z.string(),
-      amount: z.number(),
-    }),
-  ),
-  total_amount: z.number(),
-  payment_status: z.enum(["paid", "partially_paid", "unpaid", "refunded"]),
+  invoice_number: z.string().nullable(),
+  financial_year: z.string(),
+  /** generated: `download_url` works · pending_generation: call again · pending_configuration: not set up yet. */
+  status: z.enum(["pending_configuration", "pending_generation", "generated"]),
+  provider: z.object({
+    legal_name: z.string().nullable(),
+    gstin: z.string().nullable(),
+    address: z.string().nullable(),
+  }),
+  customer: z.object({ name: z.string(), email: z.string(), phone: z.string().nullable() }),
+  charter_price_paise: z.number(),
+  addons_price_paise: z.number(),
+  gst_rate_applied: z.number(),
+  gst_amount_paise: z.number(),
+  total_amount_paise: z.number(),
+  payment_method: z.enum(["gateway", "cash", "bank_transfer"]).nullable(),
+  payment_reference: z.string().nullable(),
+  /** A signed link to the PDF, valid for one hour. */
+  download_url: z.string().nullable(),
+  created_at: z.string(),
 });
 export type Invoice = z.infer<typeof invoiceSchema>;
 
-/** 404 `INVOICE_NOT_FOUND` when the booking has no invoice (or is not this customer's). */
+/**
+ * GET /bookings/{id}/invoice. 404 `BOOKING_NOT_FOUND` (unknown or another
+ * customer's) · 409 `INVOICE_NOT_AVAILABLE` (the booking is not confirmed).
+ */
 export function getBookingInvoice(bookingId: string, signal?: AbortSignal): Promise<Invoice> {
-  const invoice = readMockAccount().invoices.find((item) => item.booking_id === bookingId);
-  if (!invoice) return mockNotFound("INVOICE_NOT_FOUND", signal);
-  return mockResponse(invoiceSchema, invoice, signal);
+  return apiClient.get(`/bookings/${encodeURIComponent(bookingId)}/invoice`, {
+    signal,
+    schema: invoiceSchema,
+  });
 }

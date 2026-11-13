@@ -24,16 +24,10 @@ export function AccountMenu() {
 
       <Card className="mt-8 max-w-[44rem] lg:mt-10" as="div">
         <div className="px-2.5">
-          <p className="text-navy-ink min-h-7 text-[1.375rem] leading-tight">
-            {profile?.full_name}
-          </p>
+          <p className="text-navy-ink min-h-7 text-[1.375rem] leading-tight">{profile?.fullName}</p>
           <p className="text-body mt-2 min-h-4 text-[11px]">
-            {profile ? (
-              <>
-                {profile.email}
-                {profile.email_verified ? <>&nbsp;·&nbsp;Email verified</> : null}
-              </>
-            ) : null}
+            {/* Signing in needs a verified email (POST /auth/login refuses others). */}
+            {profile ? <>{profile.email}&nbsp;·&nbsp;Email verified</> : null}
           </p>
         </div>
         <AccountNavList className="mt-4" />

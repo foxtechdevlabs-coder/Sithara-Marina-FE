@@ -12,8 +12,8 @@ export interface CharterSummaryCardProps {
   /** Navy on the booking page (Figma C19); pearl beside checkout sign-in. */
   tone: "dark" | "pearl";
   yachtName: string;
-  /** "Kochi · Private, fully crewed". */
-  subtitle: string;
+  /** "Kochi · 4 hours"; left out when empty. */
+  subtitle?: string;
   imageUrl?: string | null;
   /** When and who: departure, time, company. */
   facts: readonly CharterSummaryRow[];
@@ -72,6 +72,8 @@ export function CharterSummaryCard({
             alt={`${yachtName} at sea`}
             fill
             sizes={imageSizes}
+            // Backend photo hosts are not in next.config's image allow-list.
+            unoptimized
             className="object-cover"
           />
         </div>
@@ -79,7 +81,7 @@ export function CharterSummaryCard({
       <h2 className="mt-5 text-[1.75rem] leading-tight font-normal tracking-[-0.01em]">
         {yachtName}
       </h2>
-      <p className={cx("mt-2 text-[12px]", muted)}>{subtitle}</p>
+      {subtitle ? <p className={cx("mt-2 text-[12px]", muted)}>{subtitle}</p> : null}
 
       <div className="mt-5 space-y-5">
         {rows(facts)}

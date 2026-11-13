@@ -9,5 +9,5 @@ export default async function CancellationReceivedPage({
 }: PageProps<"/account/bookings/[bookingId]/cancel/received">) {
   const { bookingId } = await params;
 
-  return <CancellationReceived bookingId={bookingId} />;
+  return <CancellationReceived bookingRef={bookingId} />;
 }

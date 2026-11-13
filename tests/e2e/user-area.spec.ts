@@ -307,8 +307,29 @@ test("layout has no horizontal overflow at the current viewport", async ({ page 
 });
 
 test.describe("customer account", () => {
-  // Account pages need a session (checked in the browser); profile data is mock data.
+  // Account pages need a session (checked in the browser). The account API is
+  // answered here with OpenAPI-shaped data, so no backend is needed.
   test.beforeEach(async ({ page }) => {
+    const empty = { items: [], total: 0, page: 1, limit: 100 };
+    const answers: Record<string, unknown> = {
+      "/auth/me": {
+        id: "u-1",
+        fullName: "Ajin Raj",
+        email: "ajin@example.com",
+        phone: "+919876543210",
+        role: "customer",
+      },
+      "/me/bookings": empty,
+      "/me/enquiries": empty,
+    };
+    await page.route(
+      (url) => url.hostname !== "localhost" && url.pathname in answers,
+      (route) =>
+        route.fulfill({
+          contentType: "application/json",
+          body: JSON.stringify(answers[new URL(route.request().url()).pathname]),
+        }),
+    );
     await page.addInitScript(() => {
       sessionStorage.setItem(
         "sithara-marina:auth-session",
@@ -335,7 +356,7 @@ test.describe("customer account", () => {
     await expect(
       page.getByRole("heading", { level: 1, name: "Your details, kept personal." }),
     ).toBeVisible();
-    await expect(page.getByLabel("Full name")).toHaveValue("Ananya Menon");
+    await expect(page.getByLabel("Full name")).toHaveValue("Ajin Raj");
     await expect(page.getByRole("contentinfo")).toBeVisible();
 
     await page.getByLabel("Full name").fill("");

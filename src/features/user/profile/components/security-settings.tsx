@@ -22,6 +22,9 @@ import {
 import { userRoutes } from "@/constants/routes";
 import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "@/services/user/auth.service";
 import { changeMyPassword } from "@/services/user/profile.service";
+import { accountErrorMessage } from "@/features/user/account/utils/account-error";
+import { replaceAccessToken } from "@/features/user/auth/session";
+import { isApiError } from "@/services/http/api-error";
 
 type Field = "current" | "next" | "confirm";
 type FieldErrors = Partial<Record<Field, string>>;
@@ -50,6 +53,7 @@ export function SecuritySettings() {
   const [values, setValues] = useState(EMPTY);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [status, setStatus] = useState<Status>("idle");
+  const [failure, setFailure] = useState("");
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -57,13 +61,32 @@ export function SecuritySettings() {
     setErrors(found);
     if (Object.keys(found).length > 0) return;
 
+    if (status === "saving") return; // one change, however often it is submitted
     setStatus("saving");
     try {
-      await changeMyPassword({ current_password: values.current, new_password: values.next });
+      const { access_token } = await changeMyPassword({
+        current_password: values.current,
+        new_password: values.next,
+      });
+      // The change ends other sessions; this one continues with the new token.
+      replaceAccessToken(access_token);
       setValues(EMPTY);
       setStatus("saved");
       router.push(userRoutes.accountSecurityUpdated);
-    } catch {
+    } catch (error) {
+      if (isApiError(error) && error.code === "INVALID_CURRENT_PASSWORD") {
+        setErrors({ current: "Your current password is not correct." });
+        setStatus("idle");
+        return;
+      }
+      if (isApiError(error) && error.code === "PASSWORD_UNCHANGED") {
+        setErrors({ next: "Please choose a password different from your current one." });
+        setStatus("idle");
+        return;
+      }
+      setFailure(
+        accountErrorMessage(error, "We couldn’t update your password just now. Please try again."),
+      );
       setStatus("failed");
     }
   };
@@ -126,7 +149,7 @@ export function SecuritySettings() {
             </p>
             {status === "failed" ? (
               <p role="alert" className={fieldErrorClass}>
-                We couldn’t update your password. Please check your current password and try again.
+                {failure}
               </p>
             ) : null}
             <div className={`${buttonRowClass} mt-3`}>

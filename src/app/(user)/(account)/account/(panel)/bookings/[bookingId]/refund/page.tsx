@@ -9,5 +9,5 @@ export default async function RefundPage({
 }: PageProps<"/account/bookings/[bookingId]/refund">) {
   const { bookingId } = await params;
 
-  return <RefundStatus bookingId={bookingId} />;
+  return <RefundStatus bookingRef={bookingId} />;
 }

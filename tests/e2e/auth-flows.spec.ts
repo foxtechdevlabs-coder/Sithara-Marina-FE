@@ -207,7 +207,11 @@ test.describe("email verification", () => {
   test("a #token link signs in, shows success, account setup, then the signed-in Home", async ({
     page,
   }) => {
-    const { calls } = await mockBackend(page, { "/auth/verify-email": { body: verified } });
+    const { calls } = await mockBackend(page, {
+      "/auth/verify-email": { body: verified },
+      // Account setup loads the account (UserDto).
+      "/auth/me": { body: { ...verified.user, phone: null } },
+    });
 
     await page.goto("/verify-email#token=fake.link");
     await expect(page).toHaveURL("/verify-email/success");

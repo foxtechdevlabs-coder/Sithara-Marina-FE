@@ -1,3 +1,5 @@
+"use client";
+
 import { ArrowRight } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -16,8 +18,9 @@ import {
   guests,
 } from "@/features/user/account/utils/account-format";
 import { userRoutes } from "@/constants/routes";
-import type { CustomerBooking } from "@/services/user/customer-bookings.service";
+import type { BookingSummary } from "@/services/user/customer-bookings.service";
 
+import { useYachtInfo } from "../hooks/use-yacht-info";
 import { CUSTOMER_STATUS_LABELS } from "../utils/booking-view";
 
 /** A booking in the "My bookings" list: title, details, photo, status and its link. */
@@ -27,13 +30,15 @@ export function BookingCard({
   isFirst = false,
   status,
 }: {
-  booking: CustomerBooking;
+  booking: BookingSummary;
   actionLabel: string;
   /** The first card's photo is likely above the fold. */
   isFirst?: boolean;
   /** Replaces the booking status, e.g. "Cancellation under review" (pearl). */
   status?: string;
 }) {
+  const yacht = useYachtInfo(booking.yacht.slug);
+
   return (
     <Card as="article">
       <CardTitle>
@@ -41,18 +46,26 @@ export function BookingCard({
       </CardTitle>
       <MetaLines
         lines={[
-          `${formatTimeRange(booking.start_time, booking.end_time)} · ${booking.departure} · ${guests(booking.guest_count)}`,
+          [
+            formatTimeRange(booking.start_time, booking.end_time),
+            yacht?.departureCity,
+            guests(booking.guest_count),
+          ]
+            .filter(Boolean)
+            .join(" · "),
           booking.reference,
         ]}
       />
-      {booking.yacht.image_url ? (
+      {yacht?.imageUrl ? (
         <div className="bg-pearl relative mt-4 aspect-[4/3] w-full overflow-hidden sm:aspect-[2.75/1]">
           <Image
-            src={booking.yacht.image_url}
+            src={yacht.imageUrl}
             alt={`${booking.yacht.name} at sea`}
             fill
             sizes="(min-width: 1024px) 60vw, 100vw"
             preload={isFirst}
+            // Backend photo hosts are not in next.config's image allow-list.
+            unoptimized
             className="object-cover"
           />
         </div>
@@ -61,7 +74,7 @@ export function BookingCard({
         {status ?? CUSTOMER_STATUS_LABELS[booking.status]}
       </StatusChip>
       <Link
-        href={userRoutes.accountBooking(booking.id)}
+        href={userRoutes.accountBooking(booking.reference)}
         className={`${primaryButtonClass} mt-2`}
         style={primaryButtonStyle}
       >
