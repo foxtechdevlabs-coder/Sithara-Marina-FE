@@ -12,7 +12,8 @@ export function enquiryLine(enquiry: Enquiry): string {
     enquiry.preferred_date ? formatLongDate(enquiry.preferred_date) : null,
     enquiry.preferred_start_time,
     enquiry.guests ? guests(enquiry.guests) : null,
-    enquiry.slot_type.name,
+    enquiry.slot_type?.name,
+    enquiry.destinations?.length ? enquiry.destinations.join(", ") : null,
   ]
     .filter(Boolean)
     .join(" · ");

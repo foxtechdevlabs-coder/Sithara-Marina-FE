@@ -133,6 +133,7 @@ function ProfileForm({
   const [values, setValues] = useState<Values>(() => toValues(profile));
   const [errors, setErrors] = useState<FieldErrors>({});
   const [photoName, setPhotoName] = useState<string | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const isSubmitting = useRef(false);
   const currentEmail = profile.user.email;
@@ -146,14 +147,20 @@ function ProfileForm({
   const onPhoto = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     setErrors((current) => ({ ...current, photo: undefined }));
-    if (!file) return setPhotoName(null);
+    if (!file) {
+      setPhotoName(null);
+      setPhotoPreview(null);
+      return;
+    }
     if (!PHOTO_TYPES.includes(file.type) || file.size > PHOTO_MAX_BYTES) {
       event.target.value = "";
       setPhotoName(null);
+      setPhotoPreview(null);
       setErrors((current) => ({ ...current, photo: "Please choose a JPG or PNG under 5 MB." }));
       return;
     }
     setPhotoName(file.name);
+    setPhotoPreview(URL.createObjectURL(file));
   };
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -244,6 +251,7 @@ function ProfileForm({
     setValues(toValues(profile));
     setErrors({});
     setPhotoName(null);
+    setPhotoPreview(null);
     setStatus({ kind: "idle" });
   };
 
@@ -288,11 +296,20 @@ function ProfileForm({
   return (
     <form onSubmit={(event) => void onSubmit(event)} noValidate className="mt-8 max-w-[56rem]">
       <div className="flex items-start gap-5">
-        <UserRound
-          aria-hidden="true"
-          strokeWidth={1.25}
-          className="text-navy-ink mt-5 size-7 shrink-0"
-        />
+        {photoPreview ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={photoPreview}
+            alt="Profile photo preview"
+            className="border-rule mt-2 size-12 shrink-0 rounded-full border object-cover"
+          />
+        ) : (
+          <UserRound
+            aria-hidden="true"
+            strokeWidth={1.25}
+            className="text-navy-ink mt-5 size-7 shrink-0"
+          />
+        )}
         <div className="w-full max-w-[12.5rem]">
           <p className={labelClass} id={`${id}-photo-label`}>
             Profile photo · optional

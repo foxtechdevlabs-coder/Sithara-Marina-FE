@@ -97,7 +97,7 @@ function ProposalBody({
 }) {
   const id = useId();
   const router = useRouter();
-  const yacht = useYachtInfo(proposal.yacht.slug);
+  const yacht = useYachtInfo(proposal.yacht?.slug);
   const [comment, setComment] = useState("");
   const [decision, setDecision] = useState<Decision>({ kind: "idle" });
   const isSending = useRef(false);
@@ -166,7 +166,7 @@ function ProposalBody({
         <article className="min-w-0">
           <DetailRows
             rows={[
-              { label: "Yacht", value: proposal.yacht.name },
+              { label: "Yacht", value: proposal.yacht?.name ?? "Charter" },
               { label: "Date", value: formatLongDate(proposal.date) },
               {
                 label: "Charter time",
@@ -210,7 +210,7 @@ function ProposalBody({
         <div className="min-w-0">
           <CharterSummaryCard
             tone="dark"
-            yachtName={proposal.yacht.name}
+            yachtName={proposal.yacht?.name ?? "Charter"}
             subtitle={[yacht?.departureCity, proposal.slot_type_name].filter(Boolean).join(" · ")}
             imageUrl={yacht?.imageUrl}
             facts={[

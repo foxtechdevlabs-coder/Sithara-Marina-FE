@@ -8,7 +8,11 @@ import { apiClient } from "@/services/http/api-client";
  * `id` (UUID). Amounts are paise.
  */
 
-const yachtRefSchema = z.object({ id: z.string(), name: z.string(), slug: z.string() });
+const yachtRefSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  slug: z.string().optional().default(""),
+});
 
 export const ENQUIRY_STATUSES = [
   "new",
@@ -23,12 +27,16 @@ const enquirySchema = z.object({
   id: z.string(),
   reference: z.string(),
   status: z.enum(ENQUIRY_STATUSES),
-  yacht: yachtRefSchema,
-  slot_type: z.object({ id: z.string(), name: z.string() }),
-  preferred_date: z.string().nullable(),
-  preferred_start_time: z.string().nullable(),
-  guests: z.number().nullable(),
-  message: z.string().nullable(),
+  yacht: yachtRefSchema.nullish(),
+  slot_type: z.object({ id: z.string(), name: z.string() }).nullish(),
+  preferred_date: z.string().nullable().optional(),
+  preferred_start_time: z.string().nullish(),
+  guests: z.number().nullable().optional(),
+  destinations: z.array(z.string()).optional().default([]),
+  occasion: z.string().nullish(),
+  budget: z.string().nullish(),
+  preferences: z.string().nullish(),
+  message: z.string().nullish(),
   created_at: z.string(),
 });
 export type Enquiry = z.infer<typeof enquirySchema>;
@@ -36,51 +44,54 @@ export type Enquiry = z.infer<typeof enquirySchema>;
 const proposalSchema = z.object({
   id: z.string(),
   enquiry_id: z.string(),
-  enquiry_reference: z.string(),
-  version: z.number(),
+  enquiry_reference: z.string().optional().default(""),
+  version: z.number().default(1),
   status: z.enum(["draft", "sent", "accepted", "rejected", "superseded", "expired"]),
-  yacht: yachtRefSchema,
-  slot_type_id: z.string().nullable(),
-  slot_type_name: z.string(),
+  yacht: yachtRefSchema.nullish(),
+  slot_type_id: z.string().nullable().optional(),
+  slot_type_name: z.string().nullable().optional().default(""),
   date: z.string(),
-  start_time: z.string(),
-  end_time: z.string(),
-  guests: z.number(),
-  inclusions: z.array(z.string()),
-  message: z.string().nullable(),
-  terms: z.string().nullable(),
+  start_time: z.string().optional().default(""),
+  end_time: z.string().optional().default(""),
+  guests: z.number().default(1),
+  inclusions: z.array(z.string()).nullish().transform((v) => v ?? []),
+  message: z.string().nullable().optional(),
+  terms: z.string().nullable().optional(),
   /** As last saved or sent; re-checked when accepted and at checkout. */
   pricing: z.object({
-    currency: z.string(),
-    charter_amount: z.number(),
-    addons: z.array(
-      z.object({
-        addon_id: z.string(),
-        name: z.string(),
-        quantity: z.number(),
-        unit_price: z.number(),
-        amount: z.number(),
-      }),
-    ),
-    addons_amount: z.number(),
-    subtotal: z.number(),
-    tax_rate: z.number().nullable(),
-    tax_amount: z.number().nullable(),
-    total_amount: z.number().nullable(),
+    currency: z.string().default("INR"),
+    charter_amount: z.number().default(0),
+    addons: z
+      .array(
+        z.object({
+          addon_id: z.string(),
+          name: z.string(),
+          quantity: z.number(),
+          unit_price: z.number(),
+          amount: z.number(),
+        }),
+      )
+      .nullish()
+      .transform((v) => v ?? []),
+    addons_amount: z.number().default(0),
+    subtotal: z.number().default(0),
+    tax_rate: z.number().nullish().default(null),
+    tax_amount: z.number().nullish().default(null),
+    total_amount: z.number().nullish().default(null),
   }),
-  expires_at: z.string().nullable(),
-  sent_at: z.string().nullable(),
-  decided_at: z.string().nullable(),
-  decision_comment: z.string().nullable(),
+  expires_at: z.string().nullable().optional(),
+  sent_at: z.string().nullable().optional(),
+  decided_at: z.string().nullable().optional(),
+  decision_comment: z.string().nullable().optional(),
   /** The checkout started when it was accepted. */
-  checkout_session_id: z.string().nullable(),
+  checkout_session_id: z.string().nullable().optional(),
   created_at: z.string(),
 });
 export type Proposal = z.infer<typeof proposalSchema>;
 
 const enquiryDetailSchema = enquirySchema.extend({
   /** Sent proposals, newest version first; drafts never show. */
-  proposals: z.array(proposalSchema),
+  proposals: z.array(proposalSchema).nullish().transform((v) => v ?? []),
 });
 export type EnquiryDetail = z.infer<typeof enquiryDetailSchema>;
 

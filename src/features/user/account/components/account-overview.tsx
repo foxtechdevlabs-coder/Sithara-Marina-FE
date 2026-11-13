@@ -33,7 +33,10 @@ async function loadOverview(signal: AbortSignal) {
     getMyProfile(signal),
     listMyBookings("upcoming", signal),
     listMyBookings("past", signal),
-    listMyEnquiries(signal),
+    listMyEnquiries(signal).catch((err) => {
+      console.warn("Could not load enquiries for account overview:", err);
+      return [];
+    }),
   ]);
   return { profile, upcoming, past, enquiries };
 }
@@ -157,7 +160,7 @@ function OverviewBody({ data }: { data: Awaited<ReturnType<typeof loadOverview>>
       {proposal ? (
         <>
           <AccountNotice label="A proposal ready for you">
-            Your {proposal.yacht.name} proposal, {proposal.reference}, is ready to review.
+            Your {proposal.yacht?.name ?? "charter"} proposal, {proposal.reference}, is ready to review.
           </AccountNotice>
           <Link
             href={userRoutes.accountEnquiry(proposal.reference)}

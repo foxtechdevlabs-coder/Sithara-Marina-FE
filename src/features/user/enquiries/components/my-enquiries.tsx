@@ -57,7 +57,7 @@ export function MyEnquiries() {
             as="article"
             title={
               <>
-                {enquiry.yacht.name}&nbsp;·&nbsp;{enquiry.reference}
+                {enquiry.yacht?.name ?? "Charter"}&nbsp;·&nbsp;{enquiry.reference}
               </>
             }
           >

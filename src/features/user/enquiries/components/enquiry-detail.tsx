@@ -57,8 +57,12 @@ export function EnquiryDetail({ reference }: { reference: string }) {
       <DetailRows
         className="mt-8 lg:mt-10"
         rows={[
-          { label: "Yacht", value: enquiry.yacht.name },
-          { label: "Charter", value: enquiry.slot_type.name },
+          { label: "Yacht", value: enquiry.yacht?.name ?? "Charter" },
+          ...(enquiry.slot_type?.name ? [{ label: "Charter", value: enquiry.slot_type.name }] : []),
+          ...(enquiry.destinations?.length
+            ? [{ label: "Destinations", value: enquiry.destinations.join(", ") }]
+            : []),
+          ...(enquiry.occasion ? [{ label: "Occasion", value: enquiry.occasion }] : []),
           {
             label: "Preferred date",
             value: enquiry.preferred_date
@@ -68,6 +72,8 @@ export function EnquiryDetail({ reference }: { reference: string }) {
               : "Flexible",
           },
           ...(enquiry.guests ? [{ label: "Your company", value: guests(enquiry.guests) }] : []),
+          ...(enquiry.budget ? [{ label: "Indicative budget", value: enquiry.budget }] : []),
+          ...(enquiry.preferences ? [{ label: "Preferences", value: enquiry.preferences }] : []),
           ...(enquiry.message ? [{ label: "Your message", value: enquiry.message }] : []),
           { label: "Sent", value: formatInstantDate(enquiry.created_at) },
         ]}
@@ -91,7 +97,7 @@ export function EnquiryDetail({ reference }: { reference: string }) {
                 <li key={proposal.id}>
                   <Card as="article">
                     <CardTitle>
-                      {proposal.yacht.name}&nbsp;·&nbsp;Proposal {proposal.version}
+                      {proposal.yacht?.name ?? "Charter"}&nbsp;·&nbsp;Proposal {proposal.version}
                     </CardTitle>
                     <MetaLines
                       lines={[
