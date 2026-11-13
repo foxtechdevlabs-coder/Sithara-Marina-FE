@@ -3,7 +3,7 @@
 import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import { Spinner } from "@/components/ui/spinner";
 import { INK, SANS, SERIF } from "@/components/user/marina-chrome";
@@ -76,6 +76,22 @@ function closedReason(slot: YachtSlot): string {
   if (slot.state === "blocked") return "Unavailable";
   if (slot.state === "past") return "Past";
   return "Not bookable"; // available, but no price applies
+}
+
+/**
+ * Guest counts are sent once the customer stops changing them for this long, so
+ * pressing + three times asks for one new price, not three.
+ */
+const GUEST_SETTLE_MS = 350;
+
+/** `value`, once it has stopped changing for `delay` ms. */
+function useSettledValue<T>(value: T, delay: number): T {
+  const [settled, setSettled] = useState(value);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSettled(value), delay);
+    return () => window.clearTimeout(timer);
+  }, [value, delay]);
+  return settled;
 }
 
 const timeInputClass =
@@ -263,6 +279,12 @@ export function YachtReservation({
   const overCapacity = guests > capacity;
   /** The count the API may see: never above the yacht's capacity. */
   const validGuests = guests >= 1 && !overCapacity ? guests : 0;
+  /**
+   * The count the backend is asked about (slots and price). The field and the
+   * counter follow every press at once; the requests follow the settled count.
+   */
+  const settledGuests = useSettledValue(validGuests, GUEST_SETTLE_MS);
+  const guestsSettling = settledGuests !== validGuests;
 
   const slotTypeParam = slotTypeId ? { slot_type_id: slotTypeId } : {};
   const nextMonth = shiftMonth(month, 1);
@@ -280,9 +302,12 @@ export function YachtReservation({
   const slots = useCachedApiQuery(
     (signal) =>
       date
-        ? getYachtSlots(slug, { date, ...(validGuests ? { guests: validGuests } : {}) }, signal)
+        ? getYachtSlots(slug, { date, ...(settledGuests ? { guests: settledGuests } : {}) }, signal)
         : Promise.resolve(null),
-    `slots|${slug}|${date}|${validGuests}`,
+    `slots|${slug}|${date}|${settledGuests}`,
+    // A new guest count only changes the prices: the same date's packages and times
+    // stay on screen while they are fetched (another date's are never shown).
+    { keepPrevious: true },
   );
   const addons = useCachedApiQuery(
     (signal) => (showAddons ? getYachtAddons(slug, signal) : Promise.resolve(null)),
@@ -301,6 +326,8 @@ export function YachtReservation({
   const timezone = calendar.data?.timezone;
 
   const slotData = slots.data?.date === date ? slots.data : null;
+  /** Nothing for this date to show yet (a new guest count keeps the old answer up). */
+  const slotsLoading = slots.loading || (slots.refreshing && !slotData);
   // The backend's slots for this date, grouped by slot type. Only bookable ones can be
   // chosen; the rest are still listed, disabled, so the taken times are visible.
   const allSlots = slotData?.slots ?? [];
@@ -350,12 +377,12 @@ export function YachtReservation({
     .filter((addon) => (quantities[addon.id] ?? 0) > 0)
     .map((addon) => ({ addon_id: addon.id, quantity: quantities[addon.id] ?? 0 }));
   const selection =
-    bookable && slotTypeId && startTime && !typedTaken && date && validGuests > 0
+    bookable && slotTypeId && startTime && !typedTaken && date && settledGuests > 0
       ? {
           slot_type_id: slotTypeId,
           date,
           start_time: startTime,
-          guests: validGuests,
+          guests: settledGuests,
           addons: selectedAddons,
         }
       : null;
@@ -363,13 +390,20 @@ export function YachtReservation({
   /** The backend's own start and end, once it has accepted this selection. */
   const quoted = selection && !quote.loading && !quote.error ? quote.data : null;
   const quoteError = !selection || quote.loading ? null : quote.error;
+  /**
+   * While the price is worked out again (e.g. for a new guest count), the last
+   * one stays visible, dimmed: useApiQuery keeps its previous answer while loading.
+   */
+  const updatingQuote = Boolean(selection) && (quote.loading || guestsSettling) ? quote.data : null;
+  /** Reserving needs the price for exactly what is chosen now. */
+  const canReserve = Boolean(quoted) && !guestsSettling;
   const timeRefused = getBackendErrorDetails(quoteError).code === "SLOT_NOT_AVAILABLE";
   const quoteErrorText = timeRefused
     ? "That start time isn’t available for this package. Please choose another time."
     : checkoutErrorMessage(quoteError, "We couldn’t work out the price just now.");
 
   const reserve = () => {
-    if (!selection) return;
+    if (!selection || !canReserve) return;
     startCheckout({ ...selection, yacht: { id: yachtId, slug, name } });
     router.push(userRoutes.checkout);
   };
@@ -509,7 +543,7 @@ export function YachtReservation({
           ) : (
             <>
               <h3 className="mt-[12px] text-[20px] leading-[28px]">{formatDay(date)}</h3>
-              {slots.loading ? (
+              {slotsLoading ? (
                 <Loading label="Loading charters" />
               ) : slots.error ? (
                 <Notice alert>
@@ -828,7 +862,16 @@ export function YachtReservation({
           <>
             {instruction ? (
               <p className="mt-[20px] text-[15px] leading-[24px] text-white/85">{instruction}</p>
-            ) : quote.loading ? (
+            ) : updatingQuote ? (
+              <div aria-busy="true" className="relative">
+                <div className="opacity-50 transition-opacity duration-300">
+                  <SummaryRows rows={quotePriceRows(updatingQuote)} dark />
+                </div>
+                <p role="status" className="mt-[10px] text-[13px] leading-[18px] text-white/70">
+                  Updating your price…
+                </p>
+              </div>
+            ) : quote.loading || guestsSettling ? (
               <div className="mt-[20px]">
                 <Spinner label="Calculating your price" />
               </div>
@@ -847,10 +890,10 @@ export function YachtReservation({
 
             <button
               type="button"
-              disabled={!quoted}
+              disabled={!canReserve}
               onClick={reserve}
               className="mt-[24px] flex h-[56px] w-full items-center justify-between bg-white px-[20px] text-[12px] tracking-[0.18em] uppercase transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/50"
-              style={{ color: quoted ? INK : undefined }}
+              style={{ color: canReserve ? INK : undefined }}
             >
               Reserve these dates
               <ArrowRight aria-hidden="true" strokeWidth={1.5} className="size-[13px]" />

@@ -122,33 +122,56 @@ export interface EnquiriesParams {
 
 // ── New enquiry ─────────────────────────────────────────────────────────────
 
-/** `CreateEnquiryDto` limits in Swagger (`maxLength` of `full_name` and `message`). */
+/** `CreateEnquiryDto` limits in Swagger. */
 export const ENQUIRY_NAME_MAX_LENGTH = 255;
 export const ENQUIRY_MESSAGE_MAX_LENGTH = 2000;
+export const ENQUIRY_DESTINATIONS_MAX = 10;
+export const ENQUIRY_DESTINATION_MAX_LENGTH = 100;
+export const ENQUIRY_OCCASION_MAX_LENGTH = 100;
+export const ENQUIRY_BUDGET_MAX_LENGTH = 100;
+export const ENQUIRY_PREFERENCES_MAX_LENGTH = 2000;
 /** `context` is stored as sent, up to 4 KB. */
 export const ENQUIRY_CONTEXT_MAX_BYTES = 4096;
 
-/** `CreateEnquiryDto`. Only `full_name` and `phone` are always required. */
-export interface CreateEnquiryRequest {
-  full_name: string;
+const optionalText = (max: number) => z.string().trim().min(1).max(max).optional();
+
+/**
+ * `CreateEnquiryDto`, exactly: only `full_name` and `phone` are always required,
+ * and nothing else may be sent (the backend answers 400 to any other property,
+ * e.g. the retired `slot_type_id`, `preferred_start_time` or an end date).
+ * Every request is checked against it before it leaves the browser.
+ */
+export const createEnquiryRequestSchema = z.strictObject({
+  full_name: z.string().trim().min(1).max(ENQUIRY_NAME_MAX_LENGTH),
   /** Required for a guest. A signed-in customer leaves it out (if sent, it must be theirs). */
-  email?: string;
+  email: z.email().optional(),
   /** E.164. */
-  phone: string;
+  phone: z.string().regex(/^\+[1-9]\d{6,14}$/),
   /** The yacht's backend id (never its slug). */
-  yacht_id?: string;
-  /** A package of that yacht; needs `yacht_id`. */
-  slot_type_id?: string;
-  /** Local date, today or later. */
-  preferred_date?: string;
-  /** Local time, HH:mm. */
-  preferred_start_time?: string;
-  /** At least 1. */
-  guests?: number;
-  message?: string;
-  /** The choices the customer made, stored as sent. */
-  context?: Record<string, unknown>;
-}
+  yacht_id: z.guid().optional(),
+  /** Local date (YYYY-MM-DD), today or later. */
+  preferred_date: z.iso.date().optional(),
+  guests: z.int().min(1).optional(),
+  message: optionalText(ENQUIRY_MESSAGE_MAX_LENGTH),
+  /** Any places, as typed. */
+  destinations: z
+    .array(z.string().trim().min(1).max(ENQUIRY_DESTINATION_MAX_LENGTH))
+    .min(1)
+    .max(ENQUIRY_DESTINATIONS_MAX)
+    .optional(),
+  /** Any occasion, as typed. */
+  occasion: optionalText(ENQUIRY_OCCASION_MAX_LENGTH),
+  /** Any budget, as typed: read by staff, never calculated with. */
+  budget: optionalText(ENQUIRY_BUDGET_MAX_LENGTH),
+  /** Luxuries, services and special requirements, as typed. */
+  preferences: optionalText(ENQUIRY_PREFERENCES_MAX_LENGTH),
+  /** Other choices the customer made, stored as sent (at most 4 KB). */
+  context: z
+    .record(z.string(), z.unknown())
+    .refine((value) => new TextEncoder().encode(JSON.stringify(value)).length <= ENQUIRY_CONTEXT_MAX_BYTES)
+    .optional(),
+});
+export type CreateEnquiryRequest = z.input<typeof createEnquiryRequestSchema>;
 
 const enquiryCreatedSchema = z.object({
   enquiry_id: z.string(),
@@ -159,13 +182,15 @@ const enquiryCreatedSchema = z.object({
 export type EnquiryCreated = z.infer<typeof enquiryCreatedSchema>;
 
 /**
- * POST /enquiries, with the customer's bearer token when signed in and no
- * credential for a guest. 400 validation, `INVALID_SLOT_TYPE`,
- * `GUESTS_EXCEED_CAPACITY` · 401 invalid Authorization · 403 staff token ·
- * 404 `YACHT_NOT_FOUND` · 429 ten a minute per address (`Retry-After`).
+ * POST /enquiries → 201, with the customer's bearer token when signed in and no
+ * credential for a guest. The body is checked against `createEnquiryRequestSchema`
+ * first (a ZodError for anything the backend would refuse). Backend errors: 400
+ * validation, `GUESTS_EXCEED_CAPACITY` · 401 invalid Authorization · 403 staff
+ * token · 404 `YACHT_NOT_FOUND` · 429 ten a minute per address (`Retry-After`).
  */
-export function createEnquiry(request: CreateEnquiryRequest): Promise<EnquiryCreated> {
-  return apiClient.post("/enquiries", { ...SLOW_START, body: request, schema: enquiryCreatedSchema });
+export async function createEnquiry(request: CreateEnquiryRequest): Promise<EnquiryCreated> {
+  const body = createEnquiryRequestSchema.parse(request);
+  return apiClient.post("/enquiries", { ...SLOW_START, body, schema: enquiryCreatedSchema });
 }
 
 /** GET /me/enquiries, paged by the backend. */
