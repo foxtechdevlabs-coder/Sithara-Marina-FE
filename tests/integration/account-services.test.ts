@@ -253,19 +253,23 @@ describe("new enquiry", () => {
     created_at: "2026-11-10T08:34:26.550Z",
   };
 
-  it("posts exactly the request to /enquiries and reads the 201", async () => {
+  it("posts exactly the CreateEnquiryDto request to /enquiries and reads the 201", async () => {
     const { createEnquiry } = await enquiries();
     const calls = stub(CREATED, 201);
+    // The example request from the backend's Swagger docs.
     const request = {
       full_name: "Asha Menon",
+      email: "asha@example.com",
       phone: "+919876543210",
-      yacht_id: "y-uuid",
-      slot_type_id: "s-uuid",
+      yacht_id: "3fa85f64-5717-4562-b3fc-2c963f66afa6",
       preferred_date: "2026-12-20",
-      preferred_start_time: "16:00",
       guests: 8,
       message: "A birthday trip with dinner on board.",
-      context: { destinations: ["Kerala Backwaters"] },
+      destinations: ["Kochi backwaters", "Marari beach"],
+      occasion: "Wedding anniversary",
+      budget: "Around ₹1 lakh",
+      preferences: "Live music, champagne on arrival, photographer, vegetarian menu",
+      context: { type: "Motor yacht", min_length_ft: 40 },
     };
 
     const created = await createEnquiry(request);
@@ -275,6 +279,32 @@ describe("new enquiry", () => {
     expect(calls[0]?.body).toEqual(request);
     expect(calls[0]?.headers.get("Authorization")).toBe("Bearer customer-token");
     expect(created.reference).toBe("ENQ-2026-0001");
+  });
+
+  it.each([
+    ["slot_type_id", { slot_type_id: "3fa85f64-5717-4562-b3fc-2c963f66afa6" }],
+    ["preferred_start_time", { preferred_start_time: "16:00" }],
+    ["preferred_end_date", { preferred_end_date: "2026-12-22" }],
+    ["duration", { duration: "A day" }],
+  ])("never sends the retired %s (refused before any request)", async (_name, extra) => {
+    const { createEnquiry } = await enquiries();
+    const calls = stub(CREATED, 201);
+    const request = { full_name: "Asha", phone: "+919876543210", ...extra };
+    // @ts-expect-error -- not a CreateEnquiryDto field any more
+    await expect(createEnquiry(request)).rejects.toThrow();
+    expect(calls).toHaveLength(0);
+  });
+
+  it("refuses values the backend would reject, before any request", async () => {
+    const { createEnquiry } = await enquiries();
+    const calls = stub(CREATED, 201);
+    const base = { full_name: "Asha", phone: "+919876543210" };
+    await expect(createEnquiry({ ...base, destinations: "Kochi" as unknown as string[] })).rejects.toThrow();
+    await expect(createEnquiry({ ...base, destinations: Array.from({ length: 11 }, (_, i) => `P${i}`) })).rejects.toThrow();
+    await expect(createEnquiry({ ...base, occasion: "x".repeat(101) })).rejects.toThrow();
+    await expect(createEnquiry({ ...base, yacht_id: "astra-one" })).rejects.toThrow();
+    await expect(createEnquiry({ ...base, phone: "9876543210" })).rejects.toThrow();
+    expect(calls).toHaveLength(0);
   });
 
   it("sends no credential for a guest", async () => {
