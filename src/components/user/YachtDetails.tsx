@@ -534,6 +534,8 @@ export default function YachtDetails({
           bookingMode={yacht.bookingMode}
           startingPrice={yacht.startingPrice}
           departureCity={yacht.departureCity}
+          opensAt={yacht.opensAt}
+          closesAt={yacht.closesAt}
           initialMonth={initialMonth}
           intro={<LifeAboard yacht={yacht} />}
           showAddons={false}

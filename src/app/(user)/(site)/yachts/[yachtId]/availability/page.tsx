@@ -36,6 +36,8 @@ export default async function YachtAvailabilityPage({
       suites={yacht.suites}
       startingPrice={formatMinorUnits(yacht.starting_price, yacht.currency)}
       departureCity={yacht.departure_city}
+      opensAt={yacht.opens_at}
+      closesAt={yacht.closes_at}
       slotTypes={yacht.slot_types}
       enquiryEnabled={yacht.enquiry_enabled}
       bookingMode={yacht.booking_mode}

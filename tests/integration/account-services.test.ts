@@ -290,7 +290,7 @@ describe("new enquiry", () => {
     const { createEnquiry } = await enquiries();
     const calls = stub(CREATED, 201);
     const request = { full_name: "Asha", phone: "+919876543210", ...extra };
-    // @ts-expect-error -- not a CreateEnquiryDto field any more
+    // Not a CreateEnquiryDto field any more: the strict request schema refuses it at run time.
     await expect(createEnquiry(request)).rejects.toThrow();
     expect(calls).toHaveLength(0);
   });

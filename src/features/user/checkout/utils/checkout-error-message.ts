@@ -7,7 +7,12 @@ const CODE_MESSAGES: Record<string, string> = {
   INVALID_ADDON: "One of your add-ons is no longer offered, or its quantity has changed.",
   GUESTS_EXCEED_CAPACITY: "That’s more guests than this yacht can take.",
   YACHT_NOT_FOUND: "This yacht is no longer available.",
-  SLOT_NOT_AVAILABLE: "That charter has just become unavailable. Please choose another time.",
+  SLOT_NOT_AVAILABLE: "This time is currently unavailable. Please choose another time.",
+  SLOT_DOUBLE_BOOKED: "This time overlaps another charter. Please choose a different time.",
+  BUFFER_TIME_VIOLATION:
+    "The yacht needs time between charters, and this start is too close to another. Please choose another start time.",
+  OUTSIDE_OPERATING_HOURS: "That start time is outside the yacht’s hours for this package. Please choose another time.",
+  PAST_DATE_TIME_REJECTED: "That start time has already passed. Please choose a later time.",
   PRICE_NOT_AVAILABLE: "This charter can’t be priced right now. Please choose another time.",
   GST_NOT_CONFIGURED: "We can’t work out the tax on this charter just now. Please try again later.",
   CHECKOUT_SESSION_NOT_FOUND: "This checkout has expired. Please choose your charter again.",

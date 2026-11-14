@@ -40,6 +40,9 @@ export interface YachtDetailsData {
   capacity: number;
   suites: number | null;
   departureCity: string | null;
+  /** HH:mm; null when not set. */
+  opensAt: string | null;
+  closesAt: string | null;
   slotTypes: YachtDetail["slot_types"];
   bookingMode: YachtDetail["booking_mode"];
   region: string | null;
@@ -124,6 +127,8 @@ export function toYachtDetails(yacht: YachtDetail, related: YachtCard[]): YachtD
     capacity: yacht.capacity,
     suites: yacht.suites,
     departureCity: yacht.departure_city,
+    opensAt: yacht.opens_at,
+    closesAt: yacht.closes_at,
     slotTypes: yacht.slot_types,
     bookingMode: yacht.booking_mode,
     region: regions || yacht.departure_city,
