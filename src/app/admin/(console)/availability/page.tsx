@@ -1,13 +1,19 @@
-import { RoutePlaceholder } from "@/components/shared/route-placeholder";
 import type { Metadata } from "next";
 
-export const metadata: Metadata = { title: "Availability calendar" };
+import { AvailabilityCalendar } from "@/features/admin/availability/components/availability-calendar";
 
-export default function AvailabilityCalendarPage() {
+export const metadata: Metadata = { title: "Availability" };
+
+const one = (value: string | string[] | undefined) => (typeof value === "string" ? value : "");
+
+export default async function AvailabilityPage({ searchParams }: PageProps<"/admin/availability">) {
+  const q = await searchParams;
   return (
-    <RoutePlaceholder
-      title="Availability calendar"
-      description="Fleet availability calendar. Feature module: features/admin/availability."
+    <AvailabilityCalendar
+      initialYacht={one(q.yacht)}
+      initialMonth={one(q.month)}
+      initialDate={one(q.date)}
+      notice={one(q.notice)}
     />
   );
 }

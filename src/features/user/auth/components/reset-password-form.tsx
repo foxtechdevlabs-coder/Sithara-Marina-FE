@@ -13,6 +13,7 @@ import {
   type FormEvent,
 } from "react";
 
+import { PasswordInput } from "@/components/ui/password-input";
 import { userRoutes } from "@/constants/routes";
 import { cx } from "@/lib/cx";
 import { isApiError } from "@/services/http/api-error";
@@ -401,10 +402,9 @@ export function ResetPasswordForm() {
                   <label htmlFor={id} className={labelClass}>
                     {field.label}
                   </label>
-                  <input
+                  <PasswordInput
                     id={id}
                     name={field.name}
-                    type="password"
                     autoComplete="new-password"
                     placeholder={field.placeholder}
                     disabled={!canEdit}
@@ -412,8 +412,9 @@ export function ResetPasswordForm() {
                     aria-describedby={error ? errorId : undefined}
                     className={cx(
                       inputClass,
-                      "mt-3.5 disabled:cursor-not-allowed disabled:bg-[#f4f5f6] lg:mt-[calc(var(--r)*14)]",
+                      "disabled:cursor-not-allowed disabled:bg-[#f4f5f6]",
                     )}
+                    wrapperClassName="mt-3.5 lg:mt-[calc(var(--r)*14)]"
                   />
                   {error ? (
                     <p id={errorId} className={fieldErrorClass}>

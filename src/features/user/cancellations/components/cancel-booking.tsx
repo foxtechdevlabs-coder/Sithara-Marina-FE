@@ -32,14 +32,16 @@ import {
   CANCELLATION_REASON_MAX,
   CANCELLATION_REASONS,
   getCancellationPreview,
-  requestCancellation,
+  submitCancellationRequest,
   type CancellationPreview,
 } from "@/services/user/cancellations.service";
 import { getMyBooking, type BookingDetail } from "@/services/user/customer-bookings.service";
 
+import { formatLeadTime, REFUND_CHANNEL } from "./cancellation-labels";
+
 async function loadCancellation(bookingRef: string, signal: AbortSignal) {
   const [booking, preview] = await Promise.all([
-    getMyBooking(bookingRef, signal),
+    getMyBooking(bookingRef, signal).catch(() => null),
     getCancellationPreview(bookingRef, signal),
   ]);
   return { booking, preview };
@@ -55,18 +57,27 @@ const requestHeading = (reference: string) => ({
 const composeReason = (reason: string, note: string) =>
   note.trim() ? `${reason}. ${note.trim()}` : reason;
 
+interface CancelBookingProps {
+  bookingRef?: string;
+  reference?: string;
+}
+
 /**
  * Figma C21 "A change of plans." (the booking, its policy and the reason),
  * then C31 "Before you send your request." to confirm it. Whether a request
  * is possible is the backend's answer (GET …/cancellation-preview).
  */
-export function CancelBooking({ bookingRef }: { bookingRef: string }) {
-  const query = useApiQuery((signal) => loadCancellation(bookingRef, signal), bookingRef);
+export function CancelBooking({ bookingRef, reference }: CancelBookingProps) {
+  const bookingReference = reference ?? bookingRef ?? "";
+  const query = useApiQuery(
+    (signal) => loadCancellation(bookingReference, signal),
+    bookingReference,
+  );
 
   if (!query.data) {
     return (
       <>
-        <AccountHeading {...requestHeading(bookingRef)} />
+        <AccountHeading {...requestHeading(bookingReference)} />
         <QueryFallback
           query={query}
           loadingLabel="Loading your booking"
@@ -76,7 +87,13 @@ export function CancelBooking({ bookingRef }: { bookingRef: string }) {
     );
   }
 
-  return <CancelBookingBody {...query.data} />;
+  return (
+    <CancelBookingBody
+      booking={query.data.booking}
+      preview={query.data.preview}
+      bookingReference={bookingReference}
+    />
+  );
 }
 
 type Step =
@@ -94,9 +111,11 @@ const BLOCKED_TEXT: Record<NonNullable<CancellationPreview["blocked_reason"]>, s
 function CancelBookingBody({
   booking,
   preview,
+  bookingReference,
 }: {
-  booking: BookingDetail;
+  booking: BookingDetail | null;
   preview: CancellationPreview;
+  bookingReference: string;
 }) {
   const router = useRouter();
   const formId = useId();
@@ -110,14 +129,24 @@ function CancelBookingBody({
       ? `Please shorten your note by ${composed.length - CANCELLATION_REASON_MAX} characters.`
       : null;
 
+  const yachtName = booking?.yacht.name ?? preview.booking_reference;
+  const dateStr = booking?.slot.date ? formatLongDate(booking.slot.date) : "";
+  const leadTimeStr = formatLeadTime(preview.minutes_before_departure);
+  const timeAndGuests = booking
+    ? `${formatTimeRange(booking.slot.start_time, booking.slot.end_time)} · ${guests(booking.guest_count)} · `
+    : "";
+  const refundChannelStr = preview.refund_channel
+    ? ` · Refund via ${REFUND_CHANNEL[preview.refund_channel]}`
+    : "";
+
   const summary = (
     <Card as="div" className="mt-8 lg:mt-10">
       <h2 className="text-navy-ink text-[1.375rem] leading-snug lg:text-[1.5rem]">
-        {booking.yacht.name}&nbsp;·&nbsp;{formatLongDate(booking.slot.date)}
+        {yachtName} {dateStr ? `· ${dateStr}` : ""}
       </h2>
       <MetaLines
         lines={[
-          `${formatTimeRange(booking.slot.start_time, booking.slot.end_time)} · ${guests(booking.guest_count)} · Paid ${formatAmount(preview.paid_amount, preview.currency)}`,
+          `${timeAndGuests}Paid ${formatAmount(preview.paid_amount, preview.currency)} · ${leadTimeStr}${refundChannelStr}`,
         ]}
       />
     </Card>
@@ -127,7 +156,7 @@ function CancelBookingBody({
     const isPending = preview.blocked_reason === "request_pending";
     return (
       <>
-        <AccountHeading {...requestHeading(booking.reference)} />
+        <AccountHeading {...requestHeading(bookingReference)} />
         {summary}
         <AccountNotice
           label={
@@ -151,14 +180,14 @@ function CancelBookingBody({
         <div className={`${buttonRowClass} mt-6`}>
           {isPending ? (
             <Link
-              href={userRoutes.accountBookingCancelConfirmed(booking.reference)}
+              href={userRoutes.accountBookingCancelConfirmed(bookingReference)}
               className={darkButtonClass}
             >
               View cancellation status
             </Link>
           ) : null}
           <Link
-            href={userRoutes.accountBooking(booking.reference)}
+            href={userRoutes.accountBooking(bookingReference)}
             className={secondaryButtonClass}
           >
             Back to booking
@@ -176,16 +205,16 @@ function CancelBookingBody({
   };
 
   const onSubmit = async () => {
-    if (isSubmitting.current) return; // one request, however often it is clicked
+    if (isSubmitting.current) return;
     isSubmitting.current = true;
     setStep({ kind: "submitting" });
     try {
-      await requestCancellation(booking.reference, composed);
-      router.push(userRoutes.accountBookingCancelReceived(booking.reference));
+      await submitCancellationRequest(bookingReference, { reason: composed });
+      router.push(userRoutes.accountBookingCancelReceived(bookingReference));
     } catch (error) {
       isSubmitting.current = false;
       if (isApiError(error) && error.code === "CANCELLATION_REQUEST_EXISTS") {
-        router.push(userRoutes.accountBookingCancelConfirmed(booking.reference));
+        router.push(userRoutes.accountBookingCancelConfirmed(bookingReference));
         return;
       }
       setStep({
@@ -210,12 +239,12 @@ function CancelBookingBody({
         <AccountHeading
           heading="Before you"
           headingSerif="send your request."
-          subtitle={`Review the request for booking ${booking.reference}.`}
+          subtitle={`Review the request for booking ${bookingReference}.`}
         />
         <Card title="Cancellation request" className="mt-8 lg:mt-10">
           <MetaLines
             lines={[
-              `${booking.yacht.name} · ${formatLongDate(booking.slot.date)}`,
+              ...(booking ? [`${booking.yacht.name} · ${formatLongDate(booking.slot.date)}`] : []),
               `Reason: ${reason}.`,
               ...(note.trim() ? [`Your note: ${note.trim()}`] : []),
             ]}
@@ -240,7 +269,7 @@ function CancelBookingBody({
             {step.kind === "submitting" ? "Sending your request…" : "Submit cancellation request"}
           </button>
           <Link
-            href={userRoutes.accountBooking(booking.reference)}
+            href={userRoutes.accountBooking(bookingReference)}
             className={secondaryButtonClass}
           >
             Keep my booking
@@ -253,7 +282,7 @@ function CancelBookingBody({
   // C21: the request form.
   return (
     <>
-      <AccountHeading {...requestHeading(booking.reference)} />
+      <AccountHeading {...requestHeading(bookingReference)} />
       {summary}
 
       <AccountNotice label="Your applicable cancellation policy" className="mt-6">
@@ -312,7 +341,7 @@ function CancelBookingBody({
             <ArrowRight aria-hidden="true" strokeWidth={1.5} className="size-3.5" />
           </button>
           <Link
-            href={userRoutes.accountBooking(booking.reference)}
+            href={userRoutes.accountBooking(bookingReference)}
             className={secondaryButtonClass}
           >
             Keep my booking

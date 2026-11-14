@@ -1,35 +1,48 @@
 import type { MetadataRoute } from "next";
 
 import { SITE_URL } from "@/config/site";
-import { listYachts } from "@/services/user/yachts.service";
+import { userRoutes } from "@/constants/routes";
+import { getHomeContent, type ContentPageLink } from "@/services/user/content.service";
+import { listYachts, type YachtCard } from "@/services/user/yachts.service";
 
-/** Regenerated hourly, so new yachts appear without a deploy. */
+/**
+ * Regenerated at most once an hour, so a backend that was asleep or down when
+ * the sitemap was last built does not leave yachts out until the next deploy.
+ */
 export const revalidate = 3600;
 
-/** The API's largest page size. */
+/** The backend's largest page size for GET /yachts. */
 const PAGE_SIZE = 100;
+/** A ceiling on pages read, so an unexpected `total` can never loop for long. */
+const MAX_PAGES = 20;
 
-async function listYachtSlugs(): Promise<string[]> {
-  const slugs: string[] = [];
-  for (let page = 1; ; page++) {
+/**
+ * Every yacht the public catalogue lists. GET /yachts only returns active,
+ * visible yachts, so nothing unpublished can appear here.
+ */
+async function loadPublishedYachts(): Promise<YachtCard[]> {
+  const yachts: YachtCard[] = [];
+  for (let page = 1; page <= MAX_PAGES; page++) {
     const { items, total } = await listYachts({ page, limit: PAGE_SIZE });
-    slugs.push(...items.map((yacht) => yacht.slug));
-    if (items.length === 0 || slugs.length >= total) return slugs;
+    yachts.push(...items);
+    if (items.length === 0 || yachts.length >= total) break;
   }
+  return yachts;
 }
 
-/** This runs during `next build`: an unreachable API must not fail the deploy. */
-async function loadYachtSlugs(): Promise<string[]> {
+/** The published content pages (GET /content/home `pages`); none when it cannot be read. */
+async function loadPublishedPages(): Promise<ContentPageLink[]> {
   try {
-    return await listYachtSlugs();
-  } catch (error) {
-    console.warn("Sitemap: yachts left out, the API could not be read.", error);
+    return (await getHomeContent()).pages;
+  } catch {
     return [];
   }
 }
 
 /**
- * Technical XML sitemap generator for all indexable public routes and dynamic yacht entries.
+ * Technical XML sitemap: the indexable public routes, plus one entry per
+ * published yacht at its detail page (`/yachts/{slug}`). If the yacht catalogue
+ * cannot be read, the static entries are still served; no yacht is invented.
  */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date();
@@ -55,12 +68,33 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
   ];
 
-  const yachtEntries: MetadataRoute.Sitemap = (await loadYachtSlugs()).map((slug) => ({
-    url: `${SITE_URL}/yachts/${encodeURIComponent(slug)}`,
-    lastModified: now,
-    changeFrequency: "weekly",
-    priority: 0.8,
-  }));
+  const pagesRequest = loadPublishedPages();
+  let yachts: YachtCard[] = [];
+  try {
+    yachts = await loadPublishedYachts();
+  } catch {
+    // Backend unavailable: serve the static entries rather than failing the sitemap.
+    yachts = [];
+  }
+  const pages = await pagesRequest;
 
-  return [...staticEntries, ...yachtEntries];
+  const seen = new Set(staticEntries.map((entry) => entry.url));
+  const yachtEntries: MetadataRoute.Sitemap = [];
+  for (const yacht of yachts) {
+    if (!yacht.slug) continue;
+    const url = `${SITE_URL}${userRoutes.yacht(yacht.slug)}`;
+    if (seen.has(url)) continue;
+    seen.add(url);
+    yachtEntries.push({ url, lastModified: now, changeFrequency: "weekly", priority: 0.8 });
+  }
+
+  const pageEntries: MetadataRoute.Sitemap = [];
+  for (const page of pages) {
+    const url = `${SITE_URL}${userRoutes.contentPage(page.slug)}`;
+    if (seen.has(url)) continue;
+    seen.add(url);
+    pageEntries.push({ url, lastModified: now, changeFrequency: "monthly", priority: 0.6 });
+  }
+
+  return [...staticEntries, ...yachtEntries, ...pageEntries];
 }

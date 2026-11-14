@@ -22,12 +22,24 @@ function isActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
+/**
+ * The one item to highlight: the closest match, so a nested item never also
+ * lights up the item of its parent path.
+ */
+function activeHref(pathname: string): string | undefined {
+  return adminNav
+    .flatMap((section) => section.items.map((item) => item.href as string))
+    .filter((href) => isActive(pathname, href))
+    .sort((a, b) => b.length - a.length)[0];
+}
+
 /** Sidebar links, signed-in staff member and sign out. */
 export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
   const { admin, signOut } = useAdminSession();
   const [signingOut, setSigningOut] = useState(false);
+  const current = activeHref(pathname);
 
   async function handleSignOut() {
     setSigningOut(true);
@@ -46,7 +58,7 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
           </p>
           <ul className="mt-[10px] flex flex-col gap-[8px]">
             {section.items.map(({ label, href, icon: Icon }) => {
-              const active = isActive(pathname, href);
+              const active = href === current;
               return (
                 <li key={href}>
                   <Link

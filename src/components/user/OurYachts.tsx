@@ -5,8 +5,12 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { INK, MarinaFonts, MarinaFooter, SANS } from "@/components/user/marina-chrome";
+import { YachtFilterBar } from "@/components/user/YachtFilterBar";
+import type { YachtFilters } from "@/components/user/yacht-search";
+import { Reveal } from "@/components/shared/reveal";
 import { userRoutes } from "@/constants/routes";
 import type { FleetYacht } from "@/features/user/yachts/utils/yacht-view";
+import type { YachtFilterOptions } from "@/services/user/yachts.service";
 
 /* ------------------------------------------------------------------ */
 /* Figma colours                                                       */
@@ -68,10 +72,10 @@ function Intro() {
   );
 }
 
-function YachtCard({ yacht }: { yacht: FleetYacht }) {
+function YachtCard({ yacht, index }: { yacht: FleetYacht; index: number }) {
   const href = userRoutes.yacht(yacht.slug);
   return (
-    <article>
+    <Reveal as="article" delay={(index % 2) * 120}>
       <Link href={href} className="group relative block overflow-hidden" aria-label={yacht.name}>
         {yacht.image ? (
           <img
@@ -160,7 +164,7 @@ function YachtCard({ yacht }: { yacht: FleetYacht }) {
           />
         </Link>
       </div>
-    </article>
+    </Reveal>
   );
 }
 
@@ -213,8 +217,17 @@ export default function OurYachts({
   pagination,
   failure,
   editHref,
+  filterBar,
 }: {
   yachts: FleetYacht[];
+  /** The filters above the list: the URL's selections and GET /yachts/filters (null if it failed). */
+  filterBar?: {
+    filters: YachtFilters;
+    options: YachtFilterOptions | null;
+    onChange: (next: YachtFilters) => void;
+    /** No result can be shown yet for the new filters. */
+    updating?: boolean;
+  };
   summary?: ResultsSummary;
   pagination?: ListPagination;
   failure?: "invalid-filter" | "unavailable";
@@ -228,8 +241,33 @@ export default function OurYachts({
       <section className="mx-auto w-full max-w-[1728px] px-5 pt-[37px] pb-[140px] lg:px-[clamp(40px,11.8vw,204px)] lg:pb-[211px]">
         <Intro />
 
+        {filterBar ? (
+          <YachtFilterBar
+            filters={filterBar.filters}
+            options={filterBar.options}
+            onChange={filterBar.onChange}
+            updating={filterBar.updating}
+          >
+            {renderResults()}
+          </YachtFilterBar>
+        ) : (
+          renderResults()
+        )}
+      </section>
+
+      <MarinaFooter />
+    </div>
+  );
+
+  function renderResults() {
+    return (
+      <>
         {summary && (
-          <div className="mt-[56px] flex flex-wrap items-center justify-between gap-4 border-y border-[#e5e7eb] py-[18px] lg:mt-[80px]">
+          <div
+            className={`flex flex-wrap items-center justify-between gap-4 border-y border-[#e5e7eb] py-[18px] ${
+              filterBar ? "mt-[40px] lg:mt-[48px]" : "mt-[56px] lg:mt-[80px]"
+            }`}
+          >
             <div className="min-w-0">
               <p className="text-[14px]" style={{ color: BODY }}>
                 Showing {summary.shown} of {summary.total}{" "}
@@ -247,7 +285,7 @@ export default function OurYachts({
                 </p>
               )}
             </div>
-            {summary.filtered && (
+            {summary.filtered && !filterBar && (
               <div className="flex gap-[24px] text-[12px] tracking-[0.18em] uppercase">
                 <Link
                   href={summary.editHref}
@@ -322,8 +360,8 @@ export default function OurYachts({
             summary ? "mt-[48px] lg:mt-[64px]" : "mt-[80px] lg:mt-[127px]"
           }`}
         >
-          {yachts.map((yacht) => (
-            <YachtCard key={yacht.slug} yacht={yacht} />
+          {yachts.map((yacht, index) => (
+            <YachtCard key={yacht.slug} yacht={yacht} index={index} />
           ))}
         </div>
 
@@ -339,9 +377,7 @@ export default function OurYachts({
             <PageLink href={pagination.nextHref}>Next</PageLink>
           </nav>
         )}
-      </section>
-
-      <MarinaFooter />
-    </div>
-  );
+      </>
+    );
+  }
 }

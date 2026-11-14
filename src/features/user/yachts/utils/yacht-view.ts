@@ -260,3 +260,19 @@ export function formatDuration(minutes: number): string {
   if (rest === 0) return `${hours} ${hours === 1 ? "hour" : "hours"}`;
   return hours === 0 ? `${rest} min` : `${hours} hr ${rest} min`;
 }
+
+/** The marina's timezone, for instants the API returns as ISO date-times. */
+export const MARINA_TIMEZONE = "Asia/Kolkata";
+
+/** "10 Nov 2026, 1:35 pm", in the marina's timezone unless told otherwise. */
+export function formatDateTime(instant: string, timezone: string = MARINA_TIMEZONE): string {
+  return new Intl.DateTimeFormat("en-IN", {
+    timeZone: timezone,
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(new Date(instant));
+}

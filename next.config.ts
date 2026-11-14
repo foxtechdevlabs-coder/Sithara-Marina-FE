@@ -14,6 +14,9 @@ const nextConfig: NextConfig = {
   typedRoutes: true,
   poweredByHeader: false,
   images: {
+    // 75 is the default; 90 keeps the large decorative photos visually lossless
+    // while still serving them resized as AVIF/WebP instead of multi-MB PNGs.
+    qualities: [75, 90],
     remotePatterns: [
       {
         protocol: "https",

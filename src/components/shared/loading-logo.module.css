@@ -31,6 +31,15 @@
   padding: 64px 16px;
 }
 
+/*
+ * A whole-page loader (a route's loading.tsx) stays invisible a little longer:
+ * a page that arrives quickly, e.g. from cached data, then opens with no loading
+ * screen at all; only a genuine wait shows the logo.
+ */
+.page:not(.quick) {
+  animation-delay: 350ms;
+}
+
 .page .logo {
   width: clamp(60px, 5.5vw, 74px);
 }

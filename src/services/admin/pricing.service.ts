@@ -12,13 +12,30 @@ import { adminApiClient } from "./admin-api-client";
 export const PRICE_RULE_KINDS = ["base", "weekend", "season", "holiday"] as const;
 export type PriceRuleKind = (typeof PRICE_RULE_KINDS)[number];
 
+/** fixed: `amount` is the whole charter price. percent: the base price moved by `percent` (not for base rules). */
+export const PRICE_ADJUSTMENTS = ["fixed", "percent"] as const;
+export type PriceAdjustment = (typeof PRICE_ADJUSTMENTS)[number];
+
+/** Percent rules: -90 to +500, up to 2 decimals (20 = 20% more, -20 = 20% less). */
+export const PERCENT_MIN = -90;
+export const PERCENT_MAX = 500;
+
 /** PriceRuleResponseDto */
 export const priceRuleSchema = z.object({
   id: z.string(),
+  /** Older responses may not carry it. */
+  yacht_id: z.string().optional(),
   slot_type_id: z.string(),
   kind: z.enum(PRICE_RULE_KINDS),
   name: z.string().nullable(),
-  amount: z.number(),
+  /** Older responses had no adjustment: those rules are fixed. */
+  adjustment: z.enum(PRICE_ADJUSTMENTS).default("fixed"),
+  /** Fixed rules: paise excl. GST. Null for percent rules. */
+  amount: z.number().nullable(),
+  /** Percent rules: the change to the base price. Null for fixed rules. */
+  percent: z.number().nullable().default(null),
+  /** Set on rules created together by POST /admin/price-rules/bulk. */
+  batch_id: z.string().nullable().default(null),
   included_guests: z.number().nullable(),
   extra_guest_amount: z.number().nullable(),
   /** YYYY-MM-DD */
@@ -46,7 +63,12 @@ const PRICE_RULES_PAGE_SIZE = 100;
 export interface PriceRuleInput {
   slot_type_id: string;
   kind: PriceRuleKind;
-  amount: number;
+  /** Default fixed; percent isn't allowed for base rules. */
+  adjustment?: PriceAdjustment;
+  /** Fixed rules only (required for them). */
+  amount?: number;
+  /** Percent rules only (required for them). */
+  percent?: number;
   included_guests?: number;
   extra_guest_amount?: number;
   name?: string;
@@ -60,7 +82,10 @@ export interface PriceRuleInput {
 /** UpdatePriceRuleDto: any field except the slot type; null clears an optional field. */
 export interface PriceRulePatch {
   kind?: PriceRuleKind;
+  /** Switching to percent needs `percent` (clears amount and guest pricing); to fixed needs `amount`. */
+  adjustment?: PriceAdjustment;
   amount?: number;
+  percent?: number;
   included_guests?: number | null;
   extra_guest_amount?: number | null;
   name?: string | null;

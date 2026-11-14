@@ -1,13 +1,9 @@
-import { RoutePlaceholder } from "@/components/shared/route-placeholder";
 import type { Metadata } from "next";
+
+import { CustomerList } from "@/features/admin/customers/components/customer-list";
 
 export const metadata: Metadata = { title: "Customers" };
 
 export default function CustomersPage() {
-  return (
-    <RoutePlaceholder
-      title="Customers"
-      description="Customer management. Feature module: features/admin/customers."
-    />
-  );
+  return <CustomerList />;
 }

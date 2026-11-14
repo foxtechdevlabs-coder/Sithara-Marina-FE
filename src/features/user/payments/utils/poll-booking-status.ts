@@ -1,9 +1,11 @@
-import { bookingOutcome } from "@/features/user/booking/utils/booking-status";
+import { paymentOutcome } from "@/features/user/booking/utils/booking-status";
 import { isApiError } from "@/services/http/api-error";
 import type { BookingStatusResponse } from "@/services/user/booking.service";
 
 export const POLL_INTERVAL_MS = 2_000;
 export const POLL_TIMEOUT_MS = 60_000;
+/** After the window closed without a Razorpay result: a short check, not a long wait. */
+export const DISMISS_CHECK_MS = 20_000;
 
 export type PollResult =
   | { outcome: "confirmed" | "failed"; status: BookingStatusResponse }
@@ -14,6 +16,8 @@ export interface PollOptions {
   read: (signal: AbortSignal) => Promise<BookingStatusResponse>;
   /** Stops polling, e.g. when the page unmounts. */
   signal?: AbortSignal;
+  /** Longest wait; 60 seconds unless told otherwise. */
+  timeoutMs?: number;
 }
 
 /**
@@ -29,9 +33,14 @@ function isPermanent(error: unknown): boolean {
 /**
  * Reads the booking status at once, then every 2 seconds for at most 60 seconds.
  * A tick that finds the previous request still running is skipped, so requests
- * never overlap. Only the backend's answer can end in success.
+ * never overlap. Only the backend's answer can end in success; a failed payment or
+ * a closed booking ends it too. Nothing else does before 60 seconds.
  */
-export function pollBookingStatus({ read, signal }: PollOptions): Promise<PollResult> {
+export function pollBookingStatus({
+  read,
+  signal,
+  timeoutMs = POLL_TIMEOUT_MS,
+}: PollOptions): Promise<PollResult> {
   return new Promise((resolve) => {
     if (signal?.aborted) {
       resolve({ outcome: "cancelled" });
@@ -42,8 +51,6 @@ export function pollBookingStatus({ read, signal }: PollOptions): Promise<PollRe
     const startedAt = Date.now();
     let inFlight = false;
     let finished = false;
-    let interval: ReturnType<typeof setInterval> | undefined;
-    let deadline: ReturnType<typeof setTimeout> | undefined;
 
     const finish = (result: PollResult) => {
       if (finished) return;
@@ -57,13 +64,15 @@ export function pollBookingStatus({ read, signal }: PollOptions): Promise<PollRe
     const onAbort = () => finish({ outcome: "cancelled" });
 
     const tick = async () => {
-      if (inFlight || finished || Date.now() - startedAt >= POLL_TIMEOUT_MS) return;
+      if (inFlight || finished || Date.now() - startedAt >= timeoutMs) return;
       inFlight = true;
       try {
         const status = await read(requests.signal);
-        const outcome = bookingOutcome(status.status);
+        const outcome = paymentOutcome(status);
         if (outcome === "confirmed") finish({ outcome: "confirmed", status });
-        else if (outcome === "closed") finish({ outcome: "failed", status });
+        else if (outcome === "closed" || outcome === "payment_failed") {
+          finish({ outcome: "failed", status });
+        }
       } catch (error) {
         if (isPermanent(error)) finish({ outcome: "error", error });
       } finally {
@@ -72,8 +81,9 @@ export function pollBookingStatus({ read, signal }: PollOptions): Promise<PollRe
     };
 
     signal?.addEventListener("abort", onAbort, { once: true });
-    deadline = setTimeout(() => finish({ outcome: "timeout" }), POLL_TIMEOUT_MS);
-    interval = setInterval(() => void tick(), POLL_INTERVAL_MS);
+    // finish() reads these; it cannot run before they are set (the first tick is below).
+    const deadline = setTimeout(() => finish({ outcome: "timeout" }), timeoutMs);
+    const interval = setInterval(() => void tick(), POLL_INTERVAL_MS);
     void tick();
   });
 }

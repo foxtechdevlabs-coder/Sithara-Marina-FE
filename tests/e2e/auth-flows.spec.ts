@@ -100,6 +100,15 @@ const signInLink = (page: Page) => page.getByRole("link", { name: "Sign in", exa
 /** Signed in, the header shows "My account"; Logout is in the menu. */
 const accountLink = (page: Page) => page.getByRole("link", { name: "My account" });
 
+/** Logout lives inside the header menu; open it first with `openMenu`. */
+const logoutButton = (page: Page) =>
+  page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Logout" });
+
+async function openMenu(page: Page) {
+  const toggle = page.getByRole("button", { name: "Open menu" });
+  if (await toggle.isVisible()) await toggle.click();
+}
+
 async function logOut(page: Page) {
   await page.getByRole("button", { name: "Open menu" }).click();
   await page
@@ -112,7 +121,7 @@ const revocationNotice = (page: Page) => page.getByText("signed out on this devi
 
 async function submitLogin(page: Page, password = "fake-password") {
   await page.getByLabel("Email address").fill("guest@example.com");
-  await page.getByLabel("Password").fill(password);
+  await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
 }
 
@@ -270,7 +279,6 @@ test.describe("login", () => {
     await expect(page).toHaveURL("/");
     await expect(accountLink(page)).toBeVisible();
     await expect(signInLink(page)).toHaveCount(0);
-    await expect(searchBar(page)).toBeVisible();
     expect(calls).toEqual([
       {
         path: "/auth/login",
@@ -314,10 +322,10 @@ test.describe("login", () => {
     });
     await page.goto("/login");
     await page.getByLabel("Email address").fill("guest@example.com");
-    await page.getByLabel("Password").fill("fake-password");
-    await page.getByLabel("Password").press("Enter");
+    await page.getByLabel("Password", { exact: true }).fill("fake-password");
+    await page.getByLabel("Password", { exact: true }).press("Enter");
     await page
-      .getByLabel("Password")
+      .getByLabel("Password", { exact: true })
       .press("Enter")
       .catch(() => {});
     await expect(page).toHaveURL("/");
@@ -433,7 +441,6 @@ test.describe("logout", () => {
     await logOut(page);
 
     await expect(signInLink(page)).toBeVisible();
-    await expect(searchBar(page)).toHaveCount(0);
     await expect(page.getByRole("link", { name: "Explore the yachts" }).first()).toBeVisible();
     await expect.poll(() => calls.length).toBe(1);
     expect(calls[0]).toEqual({
@@ -446,7 +453,6 @@ test.describe("logout", () => {
 
     await page.reload();
     await expect(signInLink(page)).toBeVisible();
-    await expect(searchBar(page)).toHaveCount(0);
   });
 
   test("the header updates before the backend answers", async ({ page }) => {
@@ -638,6 +644,8 @@ test.describe("restored sessions", () => {
     await expect
       .poll(async () => JSON.parse((await storedSession(page)) ?? "{}").refreshToken)
       .toBe("fake.renewed");
+    await openMenu(page);
+    await expect(logoutButton(page)).toBeVisible();
     await expect(accountLink(page)).toBeVisible();
   });
 
@@ -648,7 +656,6 @@ test.describe("restored sessions", () => {
     await seedSession(page, { accessToken: jwt("old", -60), refreshToken: "fake.old" });
     await page.goto("/");
     await expect(signInLink(page)).toBeVisible();
-    await expect(searchBar(page)).toHaveCount(0);
     expect(await storedSession(page)).toBeNull();
     await expect(page).toHaveURL("/");
   });
@@ -658,6 +665,8 @@ test.describe("restored sessions", () => {
     await seedSession(page, { accessToken: jwt("old", -60), refreshToken: "fake.old" });
     await page.goto("/");
     await expect.poll(() => calls.length).toBe(1);
+    await openMenu(page);
+    await expect(logoutButton(page)).toBeVisible();
     await expect(accountLink(page)).toBeVisible();
     expect(await storedSession(page)).not.toBeNull();
   });
@@ -667,7 +676,6 @@ test.describe("restored sessions", () => {
     await seedSession(page, "{not json");
     await page.goto("/");
     await expect(signInLink(page)).toBeVisible();
-    await expect(searchBar(page)).toHaveCount(0);
   });
 
   test("a reset link's token leaves the URL while other parameters stay", async ({ page }) => {

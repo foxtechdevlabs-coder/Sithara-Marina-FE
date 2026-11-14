@@ -26,6 +26,7 @@ import {
   createPriceRule,
   deletePriceRule,
   updatePriceRule,
+  type PriceAdjustment,
   type PriceRule,
   type PriceRuleKind,
 } from "@/services/admin/pricing.service";
@@ -33,8 +34,12 @@ import { isApiError } from "@/services/http/api-error";
 
 import {
   draftFromRule,
+  effectiveAdjustment,
   emptyRuleDraft,
   formatPaise,
+  formatPercent,
+  parsePercent,
+  rulePriceText,
   toRuleInput,
   toRulePatch,
   validateRuleDraft,
@@ -150,6 +155,28 @@ function RuleForm({
           </p>
         </div>
         <div>
+          <Label htmlFor={fieldId("adjustment")} required>
+            Price type
+          </Label>
+          <SelectBox
+            id={fieldId("adjustment")}
+            value={effectiveAdjustment(draft)}
+            onChange={(v) => set("adjustment", v as PriceAdjustment)}
+            disabled={draft.kind === "base"}
+            options={[
+              { value: "fixed", label: "Fixed price" },
+              { value: "percent", label: "Percent of the base price" },
+            ]}
+          />
+          <p className="mt-[6px] text-[11px] leading-[16px]" style={{ color: BODY }}>
+            {draft.kind === "base"
+              ? "A base price is always a fixed amount."
+              : effectiveAdjustment(draft) === "percent"
+                ? "Moves the base price up or down; follows it when the base changes."
+                : "Replaces the base price with this amount."}
+          </p>
+        </div>
+        <div>
           <Label htmlFor={fieldId("name")} hint="optional">
             Name
           </Label>
@@ -164,52 +191,80 @@ function RuleForm({
           />
           <FieldError id={fieldId("name")} message={errors.name} />
         </div>
-        <div>
-          <Label htmlFor={fieldId("amount")} required hint="per charter, excl. GST">
-            Price (₹)
-          </Label>
-          <input
-            id={fieldId("amount")}
-            inputMode="decimal"
-            className={input}
-            placeholder="40000"
-            value={draft.amount}
-            onChange={(e) => set("amount", money(e.currentTarget.value))}
-            {...errorProps(fieldId("amount"), errors.amount)}
-          />
-          <FieldError id={fieldId("amount")} message={errors.amount} />
-        </div>
-        <div>
-          <Label htmlFor={fieldId("includedGuests")} hint="covered by the price">
-            Included guests
-          </Label>
-          <input
-            id={fieldId("includedGuests")}
-            inputMode="numeric"
-            className={input}
-            maxLength={4}
-            placeholder="10"
-            value={draft.includedGuests}
-            onChange={(e) => set("includedGuests", e.currentTarget.value.replace(/\D/g, ""))}
-            {...errorProps(fieldId("includedGuests"), errors.includedGuests)}
-          />
-          <FieldError id={fieldId("includedGuests")} message={errors.includedGuests} />
-        </div>
-        <div>
-          <Label htmlFor={fieldId("extraGuestAmount")} hint="per extra guest, excl. GST">
-            Extra guest (₹)
-          </Label>
-          <input
-            id={fieldId("extraGuestAmount")}
-            inputMode="decimal"
-            className={input}
-            placeholder="1500"
-            value={draft.extraGuestAmount}
-            onChange={(e) => set("extraGuestAmount", money(e.currentTarget.value))}
-            {...errorProps(fieldId("extraGuestAmount"), errors.extraGuestAmount)}
-          />
-          <FieldError id={fieldId("extraGuestAmount")} message={errors.extraGuestAmount} />
-        </div>
+        {effectiveAdjustment(draft) === "percent" ? (
+          <>
+            <div>
+              <Label htmlFor={fieldId("percent")} required hint="-90 to +500">
+                Change to base price (%)
+              </Label>
+              <input
+                id={fieldId("percent")}
+                inputMode="decimal"
+                className={input}
+                placeholder="20 or -15"
+                value={draft.percent}
+                onChange={(e) => set("percent", e.currentTarget.value.replace(/[^\d.+-]/g, ""))}
+                {...errorProps(fieldId("percent"), errors.percent)}
+              />
+              <FieldError id={fieldId("percent")} message={errors.percent} />
+              {!errors.percent && parsePercent(draft.percent) !== null && (
+                <p className="mt-[6px] text-[11px] leading-[16px]" style={{ color: BODY }}>
+                  {formatPercent(parsePercent(draft.percent)!)}: a ₹ 40,000 base becomes{" "}
+                  {formatPaise(Math.round(4_000_000 * (1 + parsePercent(draft.percent)! / 100)))}.
+                </p>
+              )}
+            </div>
+          </>
+        ) : (
+          <>
+            <div>
+              <Label htmlFor={fieldId("amount")} required hint="per charter, excl. GST">
+                Price (₹)
+              </Label>
+              <input
+                id={fieldId("amount")}
+                inputMode="decimal"
+                className={input}
+                placeholder="40000"
+                value={draft.amount}
+                onChange={(e) => set("amount", money(e.currentTarget.value))}
+                {...errorProps(fieldId("amount"), errors.amount)}
+              />
+              <FieldError id={fieldId("amount")} message={errors.amount} />
+            </div>
+            <div>
+              <Label htmlFor={fieldId("includedGuests")} hint="covered by the price">
+                Included guests
+              </Label>
+              <input
+                id={fieldId("includedGuests")}
+                inputMode="numeric"
+                className={input}
+                maxLength={4}
+                placeholder="10"
+                value={draft.includedGuests}
+                onChange={(e) => set("includedGuests", e.currentTarget.value.replace(/\D/g, ""))}
+                {...errorProps(fieldId("includedGuests"), errors.includedGuests)}
+              />
+              <FieldError id={fieldId("includedGuests")} message={errors.includedGuests} />
+            </div>
+            <div>
+              <Label htmlFor={fieldId("extraGuestAmount")} hint="per extra guest, excl. GST">
+                Extra guest (₹)
+              </Label>
+              <input
+                id={fieldId("extraGuestAmount")}
+                inputMode="decimal"
+                className={input}
+                placeholder="1500"
+                value={draft.extraGuestAmount}
+                onChange={(e) => set("extraGuestAmount", money(e.currentTarget.value))}
+                {...errorProps(fieldId("extraGuestAmount"), errors.extraGuestAmount)}
+              />
+              <FieldError id={fieldId("extraGuestAmount")} message={errors.extraGuestAmount} />
+            </div>
+          </>
+        )}
         <div>
           <Label
             htmlFor={fieldId("startsOn")}
@@ -372,8 +427,7 @@ export function PriceRulesSection({
     const label = rule.name
       ? `"${rule.name}"`
       : `this ${KIND_LABEL[rule.kind].toLowerCase()} price`;
-    if (!window.confirm(`Delete ${label} (${formatPaise(rule.amount)})? This can't be undone.`))
-      return;
+    if (!window.confirm(`Delete ${label} (${rulePriceText(rule)})? This can't be undone.`)) return;
     busy.current = true;
     setDeletingId(rule.id);
     setProblem("");
@@ -505,7 +559,7 @@ export function PriceRulesSection({
                               </span>
                             )}
                           </span>
-                          <span className="text-[15px]">{formatPaise(r.amount)}</span>
+                          <span className="text-[15px]">{rulePriceText(r)}</span>
                           <span className="text-[12px]" style={{ color: BODY }}>
                             {r.included_guests !== null && `${r.included_guests} guests incl.`}
                             {r.extra_guest_amount !== null &&
@@ -514,6 +568,7 @@ export function PriceRulesSection({
                               ` · ${formatDate(r.starts_on)}${r.ends_on ? ` – ${formatDate(r.ends_on)}` : " onwards"}`}
                             {!r.starts_on && r.ends_on && ` · until ${formatDate(r.ends_on)}`}
                             {r.priority !== 0 && ` · priority ${r.priority}`}
+                            {r.batch_id && " · from a bulk rule"}
                           </span>
                           <span className="flex gap-[14px]">
                             <button

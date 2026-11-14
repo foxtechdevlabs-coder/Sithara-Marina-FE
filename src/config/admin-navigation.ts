@@ -1,11 +1,11 @@
 import {
-  BadgeIndianRupee,
   CalendarCheck2,
   CalendarDays,
   ChartColumn,
   CreditCard,
   Files,
   Handshake,
+  LifeBuoy,
   LayoutGrid,
   type LucideIcon,
   MessagesSquare,
@@ -46,9 +46,9 @@ export const adminNav: readonly AdminNavSection[] = [
       { label: "Bookings", href: adminRoutes.bookings, icon: CalendarCheck2 },
       { label: "Enquiries", href: adminRoutes.enquiries, icon: MessagesSquare },
       { label: "Yachts", href: adminRoutes.fleet, icon: Ship },
-      { label: "Pricing & slots", href: adminRoutes.availabilitySlots, icon: BadgeIndianRupee },
       { label: "Availability", href: adminRoutes.availability, icon: CalendarDays },
       { label: "Customers", href: adminRoutes.customers, icon: Users },
+      { label: "Support", href: adminRoutes.support, icon: LifeBuoy },
     ],
   },
   {

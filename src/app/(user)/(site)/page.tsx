@@ -14,6 +14,22 @@ import { JournalSection } from "@/features/user/home/components/journal-section"
 import { JourneyCtaSection } from "@/features/user/home/components/journey-cta-section";
 import { KeralaLineArt } from "@/features/user/home/components/kerala-line-art";
 import { generateFaqSchema } from "@/lib/seo-schema";
+import { listAllFaqs, type Faq } from "@/services/user/content.service";
+
+/**
+ * Published content (FAQs) is read again at most every minute, so changes made in
+ * the backend appear without a new deploy.
+ */
+export const revalidate = 60; // the same minute as the content service's cache
+
+/** The published FAQs; none (or the backend unreachable) leaves only the introduction. */
+async function loadFaqs(): Promise<Faq[]> {
+  try {
+    return await listAllFaqs();
+  } catch {
+    return [];
+  }
+}
 
 export const metadata: Metadata = {
   title: "Luxury Yacht & Houseboat Charters in Kerala",
@@ -36,12 +52,12 @@ export const metadata: Metadata = {
   },
 };
 
-export default function HomePage() {
-  const faqSchema = generateFaqSchema();
+export default async function HomePage() {
+  const faqs = await loadFaqs();
 
   return (
     <>
-      <JsonLd data={faqSchema} id="home-faq-schema" />
+      {faqs.length > 0 && <JsonLd data={generateFaqSchema(faqs)} id="home-faq-schema" />}
       <HeroSection />
       <BrandTextSection />
       <AboutSection />
@@ -51,7 +67,7 @@ export default function HomePage() {
       <AstraWaySection />
       <GuestsSection />
       <JournalSection />
-      <FaqSection />
+      <FaqSection faqs={faqs} />
       <JourneyCtaSection />
     </>
   );

@@ -13,7 +13,7 @@ export function useBookingStatusPoll(bookingId: string, checkoutToken: string | 
   const [state, setState] = useState<PollState>({ outcome: "idle" });
   const running = useRef<AbortController | null>(null);
 
-  const start = useCallback(async () => {
+  const start = useCallback(async (timeoutMs?: number) => {
     if (running.current) return;
     const controller = new AbortController();
     running.current = controller;
@@ -21,10 +21,16 @@ export function useBookingStatusPoll(bookingId: string, checkoutToken: string | 
     const result = await pollBookingStatus({
       read: (signal) => getBookingStatus(bookingId, checkoutToken, signal),
       signal: controller.signal,
+      timeoutMs,
     });
     if (running.current === controller) running.current = null;
     if (result.outcome !== "cancelled") setState(result);
   }, [bookingId, checkoutToken]);
+
+  /** Forgets a finished poll's result, e.g. before a new payment attempt. */
+  const reset = useCallback(() => {
+    if (!running.current) setState({ outcome: "idle" });
+  }, []);
 
   useEffect(
     () => () => {
@@ -34,5 +40,5 @@ export function useBookingStatusPoll(bookingId: string, checkoutToken: string | 
     [],
   );
 
-  return { state, start };
+  return { state, start, reset };
 }

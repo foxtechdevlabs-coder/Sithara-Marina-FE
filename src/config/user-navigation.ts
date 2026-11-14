@@ -7,12 +7,18 @@ export interface NavItem {
   href: Route;
 }
 
-// Labels follow the design reference. "Life on board", "Our story" and "The
+// Labels follow the design reference, in title case like every menu item. "Life on board", "Our story" and "The
 // journal" join this list once their routes exist.
 export const primaryNav: readonly NavItem[] = [
-  { label: "Our yachts", href: userRoutes.yachts },
-  { label: "Find your yacht", href: userRoutes.search },
-  { label: "Get in touch", href: userRoutes.planCharter },
+  { label: "Our Yachts", href: userRoutes.yachts },
+  { label: "Find Your Yacht", href: userRoutes.search },
+  { label: "Get In Touch", href: userRoutes.planCharter },
+];
+
+/** Shown in the menu once a customer is signed in. */
+export const accountMenuNav: readonly NavItem[] = [
+  { label: "My Enquiries", href: userRoutes.accountEnquiries },
+  { label: "Cancellation Request", href: userRoutes.accountCancellations },
 ];
 
 /** Booking call to action in the top-right corner of the header. */
