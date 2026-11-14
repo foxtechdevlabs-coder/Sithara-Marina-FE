@@ -290,8 +290,10 @@ describe("new enquiry", () => {
     const { createEnquiry } = await enquiries();
     const calls = stub(CREATED, 201);
     const request = { full_name: "Asha", phone: "+919876543210", ...extra };
-    // @ts-expect-error -- not a CreateEnquiryDto field any more
-    await expect(createEnquiry(request)).rejects.toThrow();
+    // Retired fields are no longer part of CreateEnquiryDto; cast to simulate a stale caller.
+    await expect(
+      createEnquiry(request as Parameters<typeof createEnquiry>[0]),
+    ).rejects.toThrow();
     expect(calls).toHaveLength(0);
   });
 
