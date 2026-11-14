@@ -29,10 +29,7 @@ const cacheInit = (cache?: CatalogueCache) =>
 
 /** Error codes documented for these endpoints. */
 export type YachtErrorCode =
-  | "INVALID_FILTER"
-  | "YACHT_NOT_FOUND"
-  | "INVALID_SLOT_TYPE"
-  | "GUESTS_EXCEED_CAPACITY";
+  "INVALID_FILTER" | "YACHT_NOT_FOUND" | "INVALID_SLOT_TYPE" | "GUESTS_EXCEED_CAPACITY";
 
 const bookingModeSchema = z.enum(["instant", "enquiry_only"]);
 const dayStatusSchema = z.enum(["available", "partly_available", "unavailable", "past"]);
@@ -163,9 +160,7 @@ const yachtDetailSchema = z.object({
   departure_points: z.array(z.string()),
   amenities: z.array(z.string()),
   inclusions: z.array(z.string()),
-  crew: z.array(
-    z.object({ name: z.string(), role: z.string(), bio: z.string().nullable() }),
-  ),
+  crew: z.array(z.object({ name: z.string(), role: z.string(), bio: z.string().nullable() })),
   policies: z.string().nullable(),
   photos: z.array(z.object({ url: z.string(), sort_order: z.number() })),
   opens_at: z.string().nullable(),
@@ -176,6 +171,8 @@ const yachtDetailSchema = z.object({
   booking_mode: bookingModeSchema,
   enquiry_enabled: z.boolean(),
   slot_types: z.array(slotTypeSchema),
+  /** A 360° view is ready: GET /yachts/{slug}/spin. */
+  has_spin: z.boolean().default(false),
 });
 export type YachtDetail = z.infer<typeof yachtDetailSchema>;
 
@@ -297,4 +294,32 @@ export type YachtAddons = z.infer<typeof addonsSchema>;
 /** GET /yachts/{slug}/addons. 404 `YACHT_NOT_FOUND`. */
 export function getYachtAddons(slug: string, signal?: AbortSignal): Promise<YachtAddons> {
   return apiClient.get(`${yachtPath(slug)}/addons`, { ...PUBLIC, signal, schema: addonsSchema });
+}
+
+// ── 360° view ───────────────────────────────────────────────────────────────
+
+const spinSchema = z.object({
+  frame_count: z.number(),
+  size: z.string(),
+  width: z.number(),
+  /** Signed links (valid about an hour), in display order: the first is the starting view. */
+  frames: z.array(z.object({ index: z.number(), url: z.string() })),
+});
+export type YachtSpin = z.infer<typeof spinSchema>;
+
+/**
+ * GET /yachts/{slug}/spin?size=large|small. 404 `YACHT_NOT_FOUND` or
+ * `SPIN_NOT_FOUND` when there's no 360° view to show.
+ */
+export function getYachtSpin(
+  slug: string,
+  size: "large" | "small",
+  signal?: AbortSignal,
+): Promise<YachtSpin> {
+  return apiClient.get(`${yachtPath(slug)}/spin`, {
+    ...PUBLIC,
+    query: { size },
+    signal,
+    schema: spinSchema,
+  });
 }

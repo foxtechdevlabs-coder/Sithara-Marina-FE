@@ -1,20 +1,23 @@
 # Feature: `profile` (user area)
 
-**Scope:** Customer account details.
+**Scope:** Customer account details, password and notification preferences.
 
-**Routes:** `/account`
-
-`components/account-ui.tsx`: the sign-in guard used by `src/app/(user)/(site)/account/layout.tsx`, the account page frame and tabs, status pills and pagination. Add only the folders you need:
+**Routes:** `/account/profile` (+ `/saved`, `/email`), `/account/security` (+ `/updated`),
+`/account/notifications` (+ `/saved`), all under `src/app/(user)/(account)/account/(panel)`.
+The account overview is `/account`.
 
 ```
 profile/
-├── components/   UI used only by this feature
-├── hooks/        React hooks for this feature
-├── types/        Types for this feature's data
-└── utils/        Pure helpers for this feature
+├── components/   profile-form.tsx, email-change.tsx, security-settings.tsx,
+│                 notification-preferences.tsx, profile-confirmations.tsx
+│                 profile-details-form.tsx — earlier standalone form, not routed
+└── types/        profile.schema.ts — Zod schemas used by profile-details-form.tsx
 ```
 
-API calls for this feature belong in `src/services/user/profile.service.ts`, which uses
-`src/services/http/api-client.ts`. Route files in `src/app` stay thin and render components
-from this folder.
+- The account sidebar and mobile "My account" bar live in `src/features/user/account`
+  (`account-shell.tsx`). `src/components/user/account-nav.tsx` is the earlier sidebar and is not
+  rendered.
+- `src/services/user/profile.service.ts` returns **mock data** (see `src/services/user/mocks`)
+  until the account API exists; each function keeps the Zod schema the real response must match.
+
 See [docs/folder-structure.md](../../../../docs/folder-structure.md).

@@ -21,10 +21,16 @@ export const enquirySchema = z.object({
   /** new, in_progress, proposal_sent, accepted, rejected, closed */
   status: z.string(),
   yacht: yachtRef.nullable(),
-  slot_type: z.object({ id: z.string(), name: z.string() }).nullable(),
+  /** No longer sent by the backend; kept for enquiries that still carry them. */
+  slot_type: z.object({ id: z.string(), name: z.string() }).nullable().optional(),
   preferred_date: nullableString,
-  preferred_start_time: nullableString,
+  preferred_start_time: nullableString.optional(),
   guests: z.number().nullable(),
+  /** Empty when none were given. */
+  destinations: z.array(z.string()).default([]),
+  occasion: nullableString.default(null),
+  budget: nullableString.default(null),
+  preferences: nullableString.default(null),
   message: nullableString,
   created_at: z.string(),
   contact: z.object({

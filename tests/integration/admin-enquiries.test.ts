@@ -119,6 +119,37 @@ describe("enquiries service", () => {
     );
   });
 
+  it("reads the current backend shape: destinations, occasion, budget, no slot or start time", async () => {
+    const { svc } = await load();
+    const current: Record<string, unknown> = { ...enquiry };
+    delete current.slot_type;
+    delete current.preferred_start_time;
+    stub(() =>
+      json({
+        items: [
+          {
+            ...current,
+            destinations: ["Kochi backwaters", "Fort Kochi"],
+            occasion: "Birthday",
+            budget: "₹2–3 lakh",
+            preferences: "Vegetarian menu",
+          },
+        ],
+        total: 1,
+        page: 1,
+        limit: 20,
+      }),
+    );
+    const [item] = (await svc.listEnquiries()).items;
+    expect(item?.destinations).toEqual(["Kochi backwaters", "Fort Kochi"]);
+    expect([item?.occasion, item?.budget, item?.preferences]).toEqual([
+      "Birthday",
+      "₹2–3 lakh",
+      "Vegetarian menu",
+    ]);
+    expect(item?.slot_type).toBeUndefined();
+  });
+
   it("assigns, drafts, edits, sends and revises a proposal", async () => {
     const { svc } = await load();
     stub((url, method) => {

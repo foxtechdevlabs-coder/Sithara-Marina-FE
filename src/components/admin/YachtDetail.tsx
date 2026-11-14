@@ -43,6 +43,8 @@ const NOTICES: Record<string, string> = {
     "Yacht created. It stays hidden from the website until it has a priced package and a photo, and you make it visible.",
   "no-photos":
     "Yacht created without photos, because photo upload isn't available right now. You can add them later in Edit yacht.",
+  "no-spin":
+    "Yacht created, but its 360° video couldn't be uploaded. You can add it again in Edit yacht, under Photos.",
   saved: "Changes saved.",
   published: "Yacht created and published. It is now visible on the website.",
   "not-published":
@@ -325,7 +327,11 @@ export default function YachtDetail({ yachtId }: { yachtId: string }) {
 
       {notice && (
         <Notice
-          tone={notice === NOTICES["not-published"] ? "error" : "success"}
+          tone={
+            notice === NOTICES["not-published"] || notice === NOTICES["no-spin"]
+              ? "error"
+              : "success"
+          }
           className="mt-[14px]"
         >
           {notice}

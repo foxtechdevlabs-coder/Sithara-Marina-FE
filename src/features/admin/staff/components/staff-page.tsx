@@ -161,7 +161,7 @@ export function StaffPage() {
       setNotice(
         invited.invite_sent
           ? `Invitation sent to ${invited.email}.`
-          : `${invited.full_name}'s account was created, but the email couldn't be sent. They can use "Forgot password" on the sign-in page to get a new link.`,
+          : `${invited.full_name}'s account was created, but the email couldn't be sent. Ask a super admin to send them a new link.`,
       );
       setDraft(EMPTY_INVITE);
       setReviewing(false);

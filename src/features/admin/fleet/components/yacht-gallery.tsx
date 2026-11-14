@@ -70,6 +70,8 @@ type Props =
       yachtId: string;
       photos: YachtPhoto[];
       onPhotosChange: (photos: YachtPhoto[]) => void;
+      /** True while an upload, reorder or delete is still being saved. */
+      onBusyChange?: (busy: boolean) => void;
     };
 
 /**
@@ -94,6 +96,10 @@ export function YachtGallery(props: Props) {
   const [problem, setProblem] = useState("");
   const [notice, setNotice] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
+
+  // Lets the page wait for photo changes that are still being saved.
+  const onBusyChange = props.mode === "live" ? props.onBusyChange : undefined;
+  useEffect(() => onBusyChange?.(busy), [busy, onBusyChange]);
 
   const tiles: Tile[] =
     props.mode === "queued"

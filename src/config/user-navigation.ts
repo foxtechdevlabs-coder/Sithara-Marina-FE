@@ -16,10 +16,13 @@ export const primaryNav: readonly NavItem[] = [
 ];
 
 /** Shown in the menu once a customer is signed in. */
-export const accountNav: readonly NavItem[] = [
+export const accountMenuNav: readonly NavItem[] = [
   { label: "My Enquiries", href: userRoutes.accountEnquiries },
   { label: "Cancellation Request", href: userRoutes.accountCancellations },
 ];
 
 /** Booking call to action in the top-right corner of the header. */
 export const bookingNav: NavItem = { label: "Book yachts", href: userRoutes.yachts };
+
+/** Account shortcut beside the booking button: the account overview (Figma C51). */
+export const accountNav: NavItem = { label: "My account", href: userRoutes.account };

@@ -40,6 +40,9 @@ export interface YachtDetailsData {
   capacity: number;
   suites: number | null;
   departureCity: string | null;
+  /** HH:mm; null when not set. */
+  opensAt: string | null;
+  closesAt: string | null;
   slotTypes: YachtDetail["slot_types"];
   bookingMode: YachtDetail["booking_mode"];
   region: string | null;
@@ -58,6 +61,8 @@ export interface YachtDetailsData {
   policies: string | null;
   enquiryEnabled: boolean;
   relatedYachts: FleetYacht[];
+  /** A 360° view is ready to show. */
+  hasSpin: boolean;
 }
 
 const METRES_PER_FOOT = 0.3048;
@@ -114,16 +119,18 @@ export function toYachtDetails(yacht: YachtDetail, related: YachtCard[]): YachtD
     .sort((a, b) => a.sort_order - b.sort_order)
     .map((photo, index) => ({ src: photo.url, alt: `${yacht.name}, photo ${index + 1}` }));
   const regions = yacht.cruising_regions.join(" · ");
-  const hours =
-    yacht.opens_at && yacht.closes_at ? `${yacht.opens_at} – ${yacht.closes_at}` : null;
+  const hours = yacht.opens_at && yacht.closes_at ? `${yacht.opens_at} – ${yacht.closes_at}` : null;
 
   return {
+    hasSpin: yacht.has_spin,
     id: yacht.id,
     slug: yacht.slug,
     name: yacht.name,
     capacity: yacht.capacity,
     suites: yacht.suites,
     departureCity: yacht.departure_city,
+    opensAt: yacht.opens_at,
+    closesAt: yacht.closes_at,
     slotTypes: yacht.slot_types,
     bookingMode: yacht.booking_mode,
     region: regions || yacht.departure_city,

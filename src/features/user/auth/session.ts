@@ -93,6 +93,21 @@ export function clearAuthSession(): void {
   write(null);
 }
 
+/**
+ * Swaps in the access token POST /me/password returns. The refresh token is
+ * kept: the change ends the account's other sessions, not this one.
+ */
+export function replaceAccessToken(accessToken: string): void {
+  const session = readAuthSession();
+  if (session) write({ ...session, accessToken });
+}
+
+/** Keeps the header's name in step after PATCH /me or an email change. */
+export function updateSessionUser(user: AuthUser): void {
+  const session = readAuthSession();
+  if (session) write({ ...session, user });
+}
+
 /** React hook: the current customer session (always `null` during SSR). */
 export function useAuthSession(): AuthSession | null {
   return useSyncExternalStore(subscribe, readAuthSession, () => null);

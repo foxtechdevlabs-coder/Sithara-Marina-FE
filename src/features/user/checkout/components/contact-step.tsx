@@ -95,7 +95,9 @@ export function ContactStep({ draft, saved }: ContactStepProps) {
     } catch (error) {
       submitted.current = false;
       setSubmitting(false);
-      setFormError(checkoutErrorMessage(error, "We couldn’t start your checkout. Please try again."));
+      setFormError(
+        checkoutErrorMessage(error, "We couldn’t start your checkout. Please try again."),
+      );
     }
   }
 

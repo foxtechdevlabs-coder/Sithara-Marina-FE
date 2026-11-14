@@ -16,7 +16,7 @@ import {
 } from "@/components/admin/form-parts";
 import { adminRoutes } from "@/constants/routes";
 import { refundChannelText, refundStatusLabel } from "@/features/admin/refunds/utils/money-format";
-import { listCancellationRequests } from "@/services/admin/cancellation-requests.service";
+import { findPendingCancellationRequest } from "@/services/admin/cancellation-requests.service";
 import { useAdminSession } from "@/features/admin/auth/components/admin-session-provider";
 import { useAdminQuery } from "@/features/admin/fleet/hooks/use-admin-query";
 import { cx } from "@/lib/cx";
@@ -82,6 +82,15 @@ export function BookingDetail({ bookingId }: { bookingId: string }) {
     (signal) => getBookingTimeline(bookingId, { limit: 100 }, signal),
     `timeline:${bookingId}`,
   );
+  // Cancellation is reviewed only when the customer has asked for it.
+  const reference = booking.data?.reference ?? "";
+  const pendingCancel = useAdminQuery(
+    (signal) =>
+      reference
+        ? findPendingCancellationRequest(bookingId, reference, signal)
+        : Promise.resolve(null),
+    `pending-cancel:${bookingId}:${reference}`,
+  );
   const [tab, setTab] = useState<Tab>("overview");
   const [notice, setNotice] = useState("");
 
@@ -132,7 +141,18 @@ export function BookingDetail({ bookingId }: { bookingId: string }) {
         />
       </div>
 
-      <PendingCancellationRequest bookingId={b.id} reference={b.reference} />
+      {pendingCancel.data && (
+        <Notice tone="error" className="mt-[18px] lg:max-w-[880px]">
+          The customer asked to cancel this booking on{" "}
+          {formatInstant(pendingCancel.data.requested_at)}.{" "}
+          <Link
+            href={adminRoutes.cancellationRequest(pendingCancel.data.id)}
+            className="underline underline-offset-2"
+          >
+            Review the request
+          </Link>
+        </Notice>
+      )}
       {notice && <Notice className="mt-[18px] lg:max-w-[880px]">{notice}</Notice>}
 
       <div className="mt-[24px] grid gap-[28px] lg:mt-[30px] lg:grid-cols-[minmax(0,560px)_minmax(0,252px)] lg:gap-[28px]">
@@ -155,7 +175,7 @@ export function BookingDetail({ bookingId }: { bookingId: string }) {
             />
           )}
         </div>
-        <Actions booking={b} onSaved={saved} />
+        <Actions booking={b} cancelRequestId={pendingCancel.data?.id ?? null} onSaved={saved} />
       </div>
     </div>
   );
@@ -385,6 +405,8 @@ function EditDetails({
   onCancel: () => void;
   onSaved: (b: Booking) => void;
 }) {
+  // Online bookings use the customer's own email and phone; only office bookings take staff edits.
+  const contactLocked = b.source !== "office";
   const [name, setName] = useState(b.contact.full_name);
   const [email, setEmail] = useState(b.contact.email);
   const [phone, setPhone] = useState(b.contact.phone ?? "");
@@ -400,8 +422,8 @@ function EditDetails({
     const cleanPhone = phone.replace(/[\s()-]/g, "");
     const count = Number(guests);
     if (!name.trim()) next.name = "Enter the lead guest's name.";
-    if (!EMAIL.test(email.trim())) next.email = "Enter a valid email address.";
-    if (cleanPhone && !E164.test(cleanPhone))
+    if (!contactLocked && !EMAIL.test(email.trim())) next.email = "Enter a valid email address.";
+    if (!contactLocked && cleanPhone && !E164.test(cleanPhone))
       next.phone = "Use the international format, e.g. +919876543210.";
     if (!Number.isInteger(count) || count < 1) next.guests = "Enter the number of guests.";
     setErrors(next);
@@ -409,8 +431,12 @@ function EditDetails({
 
     const patch: BookingPatch = {
       ...(name.trim() !== b.contact.full_name ? { contact_name: name.trim() } : {}),
-      ...(email.trim() !== b.contact.email ? { contact_email: email.trim() } : {}),
-      ...(cleanPhone !== (b.contact.phone ?? "") ? { contact_phone: cleanPhone || null } : {}),
+      ...(!contactLocked && email.trim() !== b.contact.email
+        ? { contact_email: email.trim() }
+        : {}),
+      ...(!contactLocked && cleanPhone !== (b.contact.phone ?? "")
+        ? { contact_phone: cleanPhone || null }
+        : {}),
       ...(count !== b.guest_count ? { guest_count: count } : {}),
       ...(requests.trim() !== (b.special_requests ?? "")
         ? { special_requests: requests.trim() || null }
@@ -435,7 +461,7 @@ function EditDetails({
     label: string,
     value: string,
     set: (v: string) => void,
-    opts: { type?: string; error?: string; required?: boolean } = {},
+    opts: { type?: string; error?: string; required?: boolean; locked?: boolean } = {},
   ) => (
     <div>
       <Label htmlFor={id} required={opts.required}>
@@ -446,6 +472,8 @@ function EditDetails({
         type={opts.type ?? "text"}
         value={value}
         onChange={(e) => set(e.currentTarget.value)}
+        disabled={opts.locked}
+        aria-describedby={opts.locked ? "edit-contact-locked" : undefined}
         className={input}
         {...errorProps(id, opts.error)}
       />
@@ -468,9 +496,14 @@ function EditDetails({
         {field("edit-email", "Email", email, setEmail, {
           type: "email",
           error: errors.email,
-          required: true,
+          required: !contactLocked,
+          locked: contactLocked,
         })}
-        {field("edit-phone", "Contact", phone, setPhone, { type: "tel", error: errors.phone })}
+        {field("edit-phone", "Contact", phone, setPhone, {
+          type: "tel",
+          error: errors.phone,
+          locked: contactLocked,
+        })}
         {field("edit-guests", "Number of guests", guests, setGuests, {
           type: "number",
           error: errors.guests,
@@ -488,6 +521,12 @@ function EditDetails({
           />
         </div>
       </div>
+      {contactLocked && (
+        <p id="edit-contact-locked" className="mt-[12px] text-[11px]" style={{ color: BODY }}>
+          Email and contact number come from the customer’s own booking, so they can’t be changed
+          here. Staff can change them only on office bookings.
+        </p>
+      )}
       <p className="mt-[12px] text-[11px]" style={{ color: BODY }}>
         The guest count can change only if the price stays the same.
       </p>
@@ -860,9 +899,12 @@ function detailText(e: TimelineEvent): string {
 
 function Actions({
   booking: b,
+  cancelRequestId,
   onSaved,
 }: {
   booking: Booking;
+  /** The customer's pending cancellation request; without one there's nothing to review. */
+  cancelRequestId: string | null;
   onSaved: (b: Booking, message: string) => void;
 }) {
   const [confirming, setConfirming] = useState<"completed" | "no_show" | null>(null);
@@ -904,9 +946,12 @@ function Actions({
         </Link>,
         "reschedule",
       ),
+    );
+  if (isOpen(b) && cancelRequestId)
+    items.push(
       action(
         <Link
-          href={adminRoutes.bookingCancel(b.id)}
+          href={adminRoutes.cancellationRequest(cancelRequestId)}
           className={cx(smallOutline, "w-[160px]")}
           style={OUTLINE_STYLE}
         >
@@ -1029,34 +1074,5 @@ function Actions({
         Created {formatInstant(b.created_at)}
       </p>
     </aside>
-  );
-}
-
-/** A banner when the customer has asked to cancel and nobody has decided yet. */
-function PendingCancellationRequest({
-  bookingId,
-  reference,
-}: {
-  bookingId: string;
-  reference: string;
-}) {
-  const pending = useAdminQuery(
-    (signal) =>
-      listCancellationRequests({ status: "pending", search: reference, limit: 5 }, signal).then(
-        (list) => list.items.find((r) => r.booking.id === bookingId) ?? null,
-      ),
-    `pending-cancel:${bookingId}`,
-  );
-  if (!pending.data) return null;
-  return (
-    <Notice tone="error" className="mt-[18px] lg:max-w-[880px]">
-      The customer asked to cancel this booking on {formatInstant(pending.data.requested_at)}.{" "}
-      <Link
-        href={adminRoutes.cancellationRequest(pending.data.id)}
-        className="underline underline-offset-2"
-      >
-        Review the request
-      </Link>
-    </Notice>
   );
 }

@@ -176,7 +176,7 @@ export function createHttpClient({
       try {
         data = JSON.parse(text);
       } catch (cause) {
-        if (response.ok) {
+        if (response.ok || response.status === 304) {
           throw new ApiError(`Invalid JSON in response from ${label}`, {
             kind: "parse",
             status: response.status,
@@ -189,7 +189,7 @@ export function createHttpClient({
       }
     }
 
-    if (!response.ok) {
+    if (!response.ok && response.status !== 304) {
       const error = new ApiError(`Request failed: ${label} (${response.status})`, {
         kind: "http",
         status: response.status,

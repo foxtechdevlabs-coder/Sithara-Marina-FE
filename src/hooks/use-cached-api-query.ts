@@ -32,6 +32,15 @@ export interface CachedApiQuery<T> extends ApiQuery<T> {
   refreshing: boolean;
 }
 
+export interface CachedApiQueryOptions {
+  /**
+   * While a new key has no answer yet, keep showing the previous key's answer
+   * (`refreshing`), e.g. the same date's slots while a new guest count is priced.
+   * Callers must check the data still fits what they show.
+   */
+  keepPrevious?: boolean;
+}
+
 /**
  * `useApiQuery` that shows the last answer for the same key at once (e.g. when a
  * yacht is opened again) and still asks the backend every time, replacing it with
@@ -45,6 +54,7 @@ export interface CachedApiQuery<T> extends ApiQuery<T> {
 export function useCachedApiQuery<T>(
   load: (signal: AbortSignal) => Promise<T>,
   key: string,
+  { keepPrevious = false }: CachedApiQueryOptions = {},
 ): CachedApiQuery<T> {
   const query = useApiQuery<T>((signal) => {
     let shared = inFlight.get(key) as Promise<T> | undefined;
@@ -68,7 +78,9 @@ export function useCachedApiQuery<T>(
   }, key);
 
   const cached = recent(key);
-  const data = (cached?.data as T | undefined) ?? (query.loading ? undefined : query.data);
+  // useApiQuery keeps the last answer while a new key loads; shown only when asked for.
+  const data =
+    (cached?.data as T | undefined) ?? (query.loading && !keepPrevious ? undefined : query.data);
   return {
     ...query,
     data,

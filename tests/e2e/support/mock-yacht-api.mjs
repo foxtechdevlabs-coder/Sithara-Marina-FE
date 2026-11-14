@@ -153,7 +153,10 @@ const FILTERS = {
   currency: "INR",
 };
 
-const error = (statusCode, code, message) => ({ status: statusCode, body: { statusCode, code, message } });
+const error = (statusCode, code, message) => ({
+  status: statusCode,
+  body: { statusCode, code, message },
+});
 
 function listYachts(query) {
   if (query.get("type") === "broken") return error(500, undefined, "Test failure");
@@ -169,7 +172,8 @@ function listYachts(query) {
       (!has("type") || yacht.type?.toLowerCase() === query.get("type").toLowerCase()) &&
       yacht.capacity >= guests &&
       (!has("min_price") ||
-        (yacht.starting_price !== null && yacht.starting_price >= Number(query.get("min_price")))) &&
+        (yacht.starting_price !== null &&
+          yacht.starting_price >= Number(query.get("min_price")))) &&
       (!has("max_price") ||
         (yacht.starting_price !== null && yacht.starting_price <= Number(query.get("max_price")))),
   ).map((yacht) => ({

@@ -1,276 +1,353 @@
 "use client";
 
+import { ArrowRight, ChevronDown } from "lucide-react";
 import Link from "next/link";
-import { useRef, useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
+import { useId, useRef, useState, type FormEvent } from "react";
 
-import { userRoutes } from "@/constants/routes";
 import {
+  AccountHeading,
+  AccountNotice,
+  buttonRowClass,
+  Card,
+  darkButtonClass,
   fieldErrorClass,
   inputClass,
   labelClass,
-  Loading,
-  Notice,
-  primaryButtonClass,
-  primaryButtonStyle,
-  SectionTitle,
-  SummaryRows,
-  textLinkClass,
-} from "@/features/user/checkout/components/checkout-ui";
+  MetaLines,
+  secondaryButtonClass,
+} from "@/features/user/account/components/account-ui";
+import { QueryFallback } from "@/features/user/account/components/query-fallback";
+import { accountErrorMessage } from "@/features/user/account/utils/account-error";
 import {
-  AccountPage,
-  DetailGrid,
-  StatusPill,
-} from "@/features/user/profile/components/account-ui";
-import { accountErrorMessage, isConflict } from "@/features/user/profile/utils/account-error-message";
-import { formatDateTime, formatMinorUnits } from "@/features/user/yachts/utils/yacht-view";
+  formatAmount,
+  formatLongDate,
+  formatTimeRange,
+  guests,
+} from "@/features/user/account/utils/account-format";
+import { userRoutes } from "@/constants/routes";
 import { useApiQuery } from "@/hooks/use-api-query";
 import { isApiError } from "@/services/http/api-error";
-import { getBackendErrorDetails } from "@/services/http/backend-error";
 import {
-  CANCELLATION_REASON_MAX_LENGTH,
+  CANCELLATION_REASON_MAX,
+  CANCELLATION_REASONS,
   getCancellationPreview,
   submitCancellationRequest,
-  type CancellationRequest,
+  type CancellationPreview,
 } from "@/services/user/cancellations.service";
+import { getMyBooking, type BookingDetail } from "@/services/user/customer-bookings.service";
 
-import {
-  BLOCKED_REASON,
-  formatLeadTime,
-  REFUND_CHANNEL,
-  REFUND_DECISION,
-  REQUEST_STATUS,
-} from "./cancellation-labels";
+import { formatLeadTime, REFUND_CHANNEL } from "./cancellation-labels";
 
-const NOT_FOUND =
-  "We couldn’t find this booking on your account. It may belong to another account, or its unpaid hold has ended.";
+async function loadCancellation(bookingRef: string, signal: AbortSignal) {
+  const [booking, preview] = await Promise.all([
+    getMyBooking(bookingRef, signal).catch(() => null),
+    getCancellationPreview(bookingRef, signal),
+  ]);
+  return { booking, preview };
+}
+
+const requestHeading = (reference: string) => ({
+  heading: "A change",
+  headingSerif: "of plans.",
+  subtitle: `Request a cancellation for ${reference}. We will guide you through the next step.`,
+});
+
+/** The chosen reason and the optional note, as the one `reason` the backend takes. */
+const composeReason = (reason: string, note: string) =>
+  note.trim() ? `${reason}. ${note.trim()}` : reason;
+
+interface CancelBookingProps {
+  bookingRef?: string;
+  reference?: string;
+}
 
 /**
- * Cancellation for one booking: the backend's preview (eligibility, money paid
- * and refundable, policy), then a reason. A submitted request is only a
- * request: our team decides, so nothing here says the booking is cancelled.
+ * Figma C21 "A change of plans." (the booking, its policy and the reason),
+ * then C31 "Before you send your request." to confirm it. Whether a request
+ * is possible is the backend's answer (GET …/cancellation-preview).
  */
-export function CancelBooking({ reference }: { reference: string }) {
-  const preview = useApiQuery((signal) => getCancellationPreview(reference, signal), reference);
-  const [reason, setReason] = useState("");
-  const [fieldError, setFieldError] = useState<string | null>(null);
-  const [formError, setFormError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState<CancellationRequest | null>(null);
-  const inFlight = useRef(false);
+export function CancelBooking({ bookingRef, reference }: CancelBookingProps) {
+  const bookingReference = reference ?? bookingRef ?? "";
+  const query = useApiQuery(
+    (signal) => loadCancellation(bookingReference, signal),
+    bookingReference,
+  );
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (inFlight.current) return;
-    const trimmed = reason.trim();
-    if (!trimmed) {
-      setFieldError("Please tell us why you’d like to cancel.");
-      return;
-    }
-    if (trimmed.length > CANCELLATION_REASON_MAX_LENGTH) {
-      setFieldError(`Please keep this under ${CANCELLATION_REASON_MAX_LENGTH} characters.`);
-      return;
-    }
-    inFlight.current = true;
-    setSubmitting(true);
-    setFieldError(null);
-    setFormError(null);
-    try {
-      setSubmitted(await submitCancellationRequest(reference, { reason: trimmed }));
-      preview.reload(); // now reads "request pending"
-    } catch (error) {
-      if (getBackendErrorDetails(error).code === undefined && isBadRequest(error)) {
-        setFieldError("Please check your reason: it may be blank or too long.");
-      } else {
-        setFormError(accountErrorMessage(error, "We couldn’t send your request.", NOT_FOUND));
-      }
-      if (isConflict(error)) preview.reload(); // the backend's view has changed
-    } finally {
-      inFlight.current = false;
-      setSubmitting(false);
-    }
+  if (!query.data) {
+    return (
+      <>
+        <AccountHeading {...requestHeading(bookingReference)} />
+        <QueryFallback
+          query={query}
+          loadingLabel="Loading your booking"
+          notFoundMessage="We couldn’t find this booking in your account."
+        />
+      </>
+    );
   }
 
-  const data = preview.data;
-
   return (
-    <AccountPage
-      heading="Cancel"
-      headingSerif="booking."
-      intro={`Booking ${reference}. Review what the cancellation means before sending a request.`}
-    >
-      <div className="max-w-[760px]">
-        {submitted ? (
-          <RequestSent request={submitted} />
-        ) : preview.loading && !data ? (
-          <Loading label="Checking whether this booking can be cancelled" />
-        ) : !data ? (
-          <Notice alert>
-            {accountErrorMessage(
-              preview.error,
-              "We couldn’t check this booking just now.",
-              NOT_FOUND,
-            )}{" "}
-            <button type="button" className={textLinkClass} onClick={preview.reload}>
-              Try again
-            </button>
-          </Notice>
-        ) : (
-          <>
-            <div className="flex flex-wrap items-center gap-[12px]">
-              <StatusPill tone={data.can_request ? "positive" : "negative"}>
-                {data.can_request ? "Cancellation can be requested" : "Cancellation unavailable"}
-              </StatusPill>
-              <span className="text-[14px] text-[#4a4f55]">
-                {formatLeadTime(data.minutes_before_departure)}
-              </span>
-            </div>
-
-            {!data.can_request && data.blocked_reason && (
-              <Notice alert>
-                {BLOCKED_REASON[data.blocked_reason]}{" "}
-                {data.blocked_reason === "request_pending" && (
-                  <Link href={userRoutes.accountCancellations} className={textLinkClass}>
-                    See your cancellation requests
-                  </Link>
-                )}
-              </Notice>
-            )}
-
-            <div className="mt-[40px]">
-              <SectionTitle>Payments and refunds</SectionTitle>
-              <SummaryRows
-                rows={[
-                  { label: "Paid", value: money(data.paid_amount, data.currency) },
-                  { label: "Already refunded", value: money(data.refunded_amount, data.currency) },
-                  {
-                    label: "Refund on its way",
-                    value: money(data.refund_pending_amount, data.currency),
-                  },
-                  {
-                    label: "Most that could still be refunded",
-                    value: money(data.refundable_amount, data.currency),
-                    strong: true,
-                  },
-                ]}
-              />
-              <div className="mt-[20px]">
-                <DetailGrid
-                  items={[
-                    {
-                      label: "Refund method",
-                      value: data.refund_channel
-                        ? REFUND_CHANNEL[data.refund_channel]
-                        : "Nothing has been paid",
-                    },
-                    {
-                      label: "Refund under the policy",
-                      value:
-                        data.policy_refund === null
-                          ? "Decided by our team when they review your request"
-                          : money(data.policy_refund, data.currency),
-                    },
-                  ]}
-                />
-              </div>
-            </div>
-
-            <div className="mt-[40px]">
-              <SectionTitle>Cancellation policy</SectionTitle>
-              <p className="mt-[12px] text-[15px] leading-[24px] whitespace-pre-line text-[#4a4f55]">
-                {data.cancellation_summary ??
-                  "The cancellation policy hasn’t been published yet. Our concierge can tell you more."}
-              </p>
-            </div>
-
-            {data.can_request && (
-              <form onSubmit={handleSubmit} noValidate className="mt-[40px] grid gap-[16px]">
-                <SectionTitle>Request a cancellation</SectionTitle>
-                <div>
-                  <label htmlFor="cancel-reason" className={labelClass}>
-                    Why would you like to cancel?
-                  </label>
-                  <textarea
-                    id="cancel-reason"
-                    rows={5}
-                    value={reason}
-                    maxLength={CANCELLATION_REASON_MAX_LENGTH}
-                    disabled={submitting}
-                    aria-invalid={Boolean(fieldError)}
-                    aria-describedby="cancel-reason-hint"
-                    onChange={(event) => {
-                      setReason(event.currentTarget.value);
-                      setFieldError(null);
-                    }}
-                    className={`${inputClass} mt-[12px] h-auto py-[14px]`}
-                  />
-                  <p id="cancel-reason-hint" className="mt-[8px] text-[13px] text-[#7a7f85]">
-                    {reason.length} / {CANCELLATION_REASON_MAX_LENGTH}
-                  </p>
-                  {fieldError && (
-                    <p role="alert" className={fieldErrorClass}>
-                      {fieldError}
-                    </p>
-                  )}
-                </div>
-                {formError && <Notice alert>{formError}</Notice>}
-                <p className="text-[14px] leading-[21px] text-[#4a4f55]">
-                  Sending a request doesn’t cancel your booking yet. Our team reviews it and decides
-                  the refund; you’ll see the decision on your cancellation requests.
-                </p>
-                <div>
-                  <button
-                    type="submit"
-                    disabled={submitting}
-                    className={primaryButtonClass}
-                    style={primaryButtonStyle}
-                  >
-                    {submitting ? "Sending your request…" : "Send cancellation request"}
-                  </button>
-                </div>
-              </form>
-            )}
-          </>
-        )}
-      </div>
-    </AccountPage>
+    <CancelBookingBody
+      booking={query.data.booking}
+      preview={query.data.preview}
+      bookingReference={bookingReference}
+    />
   );
 }
 
-const money = (amount: number, currency: string) => formatMinorUnits(amount, currency) ?? "";
+type Step =
+  | { kind: "edit" }
+  | { kind: "review" }
+  | { kind: "submitting" }
+  | { kind: "error"; message: string };
 
-const isBadRequest = (error: unknown) => isApiError(error) && error.status === 400;
+const BLOCKED_TEXT: Record<NonNullable<CancellationPreview["blocked_reason"]>, string> = {
+  not_confirmed: "Only a confirmed booking can be cancelled online.",
+  charter_started: "Your charter has already begun, so it can no longer be cancelled online.",
+  request_pending: "A cancellation request for this booking is already with our team.",
+};
 
-function RequestSent({ request }: { request: CancellationRequest }) {
-  const status = REQUEST_STATUS[request.status];
-  return (
-    <div role="status">
-      <StatusPill tone={status.tone}>{status.label}</StatusPill>
-      <p className="mt-[20px] text-[22px] leading-[30px]">Your cancellation request has been sent.</p>
-      <p className="mt-[8px] text-[15px] leading-[24px] text-[#4a4f55]">
-        Your booking stays as it is until our team decides. We’ll let you know the outcome.
-      </p>
-      <div className="mt-[28px]">
-        <DetailGrid
-          items={[
-            { label: "Request reference", value: request.id },
-            { label: "Booking", value: request.booking_reference },
-            { label: "Requested", value: formatDateTime(request.requested_at) },
-            ...(request.refund_decision
-              ? [{ label: "Refund decision", value: REFUND_DECISION[request.refund_decision] }]
-              : []),
-            ...(request.refund_amount !== null
-              ? [{ label: "Refund amount", value: money(request.refund_amount, request.currency) }]
-              : []),
-          ]}
+function CancelBookingBody({
+  booking,
+  preview,
+  bookingReference,
+}: {
+  booking: BookingDetail | null;
+  preview: CancellationPreview;
+  bookingReference: string;
+}) {
+  const router = useRouter();
+  const formId = useId();
+  const [reason, setReason] = useState<string>(CANCELLATION_REASONS[0]);
+  const [note, setNote] = useState("");
+  const [step, setStep] = useState<Step>({ kind: "edit" });
+  const isSubmitting = useRef(false);
+  const composed = composeReason(reason, note);
+  const noteError =
+    composed.length > CANCELLATION_REASON_MAX
+      ? `Please shorten your note by ${composed.length - CANCELLATION_REASON_MAX} characters.`
+      : null;
+
+  const yachtName = booking?.yacht.name ?? preview.booking_reference;
+  const dateStr = booking?.slot.date ? formatLongDate(booking.slot.date) : "";
+  const leadTimeStr = formatLeadTime(preview.minutes_before_departure);
+  const timeAndGuests = booking
+    ? `${formatTimeRange(booking.slot.start_time, booking.slot.end_time)} · ${guests(booking.guest_count)} · `
+    : "";
+  const refundChannelStr = preview.refund_channel
+    ? ` · Refund via ${REFUND_CHANNEL[preview.refund_channel]}`
+    : "";
+
+  const summary = (
+    <Card as="div" className="mt-8 lg:mt-10">
+      <h2 className="text-navy-ink text-[1.375rem] leading-snug lg:text-[1.5rem]">
+        {yachtName} {dateStr ? `· ${dateStr}` : ""}
+      </h2>
+      <MetaLines
+        lines={[
+          `${timeAndGuests}Paid ${formatAmount(preview.paid_amount, preview.currency)} · ${leadTimeStr}${refundChannelStr}`,
+        ]}
+      />
+    </Card>
+  );
+
+  if (!preview.can_request) {
+    const isPending = preview.blocked_reason === "request_pending";
+    return (
+      <>
+        <AccountHeading {...requestHeading(bookingReference)} />
+        {summary}
+        <AccountNotice
+          label={
+            isPending ? "Your request has been sent" : "This booking can’t be cancelled online"
+          }
+          className="mt-6"
+        >
+          {preview.blocked_reason ? BLOCKED_TEXT[preview.blocked_reason] : null}{" "}
+          {isPending ? (
+            "Please do not submit another request."
+          ) : (
+            <>
+              Please speak to our concierge on{" "}
+              <a href="tel:+919724553452" className="underline underline-offset-2">
+                +91 97245 53452
+              </a>{" "}
+              and we will help with any change to your plans.
+            </>
+          )}
+        </AccountNotice>
+        <div className={`${buttonRowClass} mt-6`}>
+          {isPending ? (
+            <Link
+              href={userRoutes.accountBookingCancelConfirmed(bookingReference)}
+              className={darkButtonClass}
+            >
+              View cancellation status
+            </Link>
+          ) : null}
+          <Link
+            href={userRoutes.accountBooking(bookingReference)}
+            className={secondaryButtonClass}
+          >
+            Back to booking
+          </Link>
+        </div>
+      </>
+    );
+  }
+
+  const onReview = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (noteError) return;
+    setStep({ kind: "review" });
+    window.scrollTo({ top: 0 });
+  };
+
+  const onSubmit = async () => {
+    if (isSubmitting.current) return;
+    isSubmitting.current = true;
+    setStep({ kind: "submitting" });
+    try {
+      await submitCancellationRequest(bookingReference, { reason: composed });
+      router.push(userRoutes.accountBookingCancelReceived(bookingReference));
+    } catch (error) {
+      isSubmitting.current = false;
+      if (isApiError(error) && error.code === "CANCELLATION_REQUEST_EXISTS") {
+        router.push(userRoutes.accountBookingCancelConfirmed(bookingReference));
+        return;
+      }
+      setStep({
+        kind: "error",
+        message: accountErrorMessage(
+          error,
+          "We couldn’t send your request just now. Your booking is unchanged — please try again.",
+          {
+            CANCELLATION_NOT_ALLOWED:
+              "This booking can no longer be cancelled online. Please speak to our concierge.",
+            BOOKING_NOT_FOUND: "We couldn’t find this booking in your account.",
+          },
+        ),
+      });
+    }
+  };
+
+  // C31: confirm before sending.
+  if (step.kind !== "edit") {
+    return (
+      <>
+        <AccountHeading
+          heading="Before you"
+          headingSerif="send your request."
+          subtitle={`Review the request for booking ${bookingReference}.`}
         />
-      </div>
-      <Link
-        href={userRoutes.accountCancellations}
-        className={`${primaryButtonClass} mt-[28px]`}
-        style={primaryButtonStyle}
-      >
-        View your cancellation requests
-      </Link>
-    </div>
+        <Card title="Cancellation request" className="mt-8 lg:mt-10">
+          <MetaLines
+            lines={[
+              ...(booking ? [`${booking.yacht.name} · ${formatLongDate(booking.slot.date)}`] : []),
+              `Reason: ${reason}.`,
+              ...(note.trim() ? [`Your note: ${note.trim()}`] : []),
+            ]}
+          />
+        </Card>
+        <AccountNotice label="Please confirm" className="mt-6">
+          Submitting this request does not immediately confirm cancellation or a refund. The team
+          will review your booking terms and show the verified outcome.
+        </AccountNotice>
+        {step.kind === "error" ? (
+          <p role="alert" className={fieldErrorClass}>
+            {step.message}
+          </p>
+        ) : null}
+        <div className={`${buttonRowClass} mt-6`}>
+          <button
+            type="button"
+            onClick={() => void onSubmit()}
+            disabled={step.kind === "submitting"}
+            className={darkButtonClass}
+          >
+            {step.kind === "submitting" ? "Sending your request…" : "Submit cancellation request"}
+          </button>
+          <Link
+            href={userRoutes.accountBooking(bookingReference)}
+            className={secondaryButtonClass}
+          >
+            Keep my booking
+          </Link>
+        </div>
+      </>
+    );
+  }
+
+  // C21: the request form.
+  return (
+    <>
+      <AccountHeading {...requestHeading(bookingReference)} />
+      {summary}
+
+      <AccountNotice label="Your applicable cancellation policy" className="mt-6">
+        {preview.cancellation_summary ??
+          "The terms accepted with this booking apply. Any refund is assessed against that policy and the time of the request."}{" "}
+        No refund amount is promised before it is verified.
+      </AccountNotice>
+
+      <form onSubmit={onReview} noValidate className="mt-8 max-w-[34rem] space-y-8">
+        <div>
+          <label htmlFor={`${formId}-reason`} className={labelClass}>
+            Reason for cancellation *
+          </label>
+          <div className="relative">
+            <select
+              id={`${formId}-reason`}
+              value={reason}
+              required
+              onChange={(event) => setReason(event.target.value)}
+              className={`${inputClass} appearance-none pr-11`}
+            >
+              {CANCELLATION_REASONS.map((option) => (
+                <option key={option}>{option}</option>
+              ))}
+            </select>
+            <ChevronDown
+              aria-hidden="true"
+              strokeWidth={1.5}
+              className="text-navy-ink pointer-events-none absolute top-1/2 right-4 size-4 -translate-y-1/2"
+            />
+          </div>
+        </div>
+        <div>
+          <label htmlFor={`${formId}-note`} className={labelClass}>
+            A note for our team
+          </label>
+          <textarea
+            id={`${formId}-note`}
+            value={note}
+            rows={2}
+            placeholder="Please add any details you would like us to consider."
+            aria-invalid={noteError ? true : undefined}
+            aria-describedby={noteError ? `${formId}-note-error` : undefined}
+            onChange={(event) => setNote(event.target.value)}
+            className={`${inputClass} h-auto min-h-[55px] resize-y py-4 leading-snug`}
+          />
+          {noteError ? (
+            <p id={`${formId}-note-error`} className={fieldErrorClass}>
+              {noteError}
+            </p>
+          ) : null}
+        </div>
+        <div className={buttonRowClass}>
+          <button type="submit" className={darkButtonClass}>
+            Review cancellation request
+            <ArrowRight aria-hidden="true" strokeWidth={1.5} className="size-3.5" />
+          </button>
+          <Link
+            href={userRoutes.accountBooking(bookingReference)}
+            className={secondaryButtonClass}
+          >
+            Keep my booking
+          </Link>
+        </div>
+      </form>
+    </>
   );
 }

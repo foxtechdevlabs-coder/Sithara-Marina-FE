@@ -1,9 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  bookingOutcome,
-  type BookingOutcome,
-} from "@/features/user/booking/utils/booking-status";
+import { bookingOutcome, type BookingOutcome } from "@/features/user/booking/utils/booking-status";
 import {
   pollBookingStatus,
   POLL_INTERVAL_MS,

@@ -3,7 +3,7 @@
 import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import { Spinner } from "@/components/ui/spinner";
 import { INK, SANS, SERIF } from "@/components/user/marina-chrome";
@@ -23,6 +23,13 @@ import { GuestCountField } from "@/features/user/checkout/components/guest-count
 import { quotePriceRows } from "@/features/user/checkout/components/price-summary";
 import { useQuote } from "@/features/user/checkout/components/quote-summary";
 import { checkoutErrorMessage } from "@/features/user/checkout/utils/checkout-error-message";
+import {
+  allowedStartRange,
+  rangeFromMessage,
+  startTimeProblem,
+  turnaroundMinutes,
+  type StartRange,
+} from "@/features/user/availability/utils/start-time-check";
 import { startCheckout } from "@/features/user/checkout/utils/checkout-store";
 import {
   formatClockTime,
@@ -69,13 +76,57 @@ const selectable = (status: DayStatus) => status === "available" || status === "
 /** A null price means the slot cannot be booked, whatever its state says. */
 const isOpen = (slot: YachtSlot) => slot.state === "available" && slot.price !== null;
 
-/** Why a time cannot be chosen, from the slot's own state. */
+/**
+ * Why a start cannot be chosen, from the slot's own state. A "booked" or "held"
+ * window is one that would overlap another charter (or a customer's checkout) or
+ * the turnaround around it: not necessarily a reservation of its own, so it is
+ * never called "booked" here.
+ */
 function closedReason(slot: YachtSlot): string {
-  if (slot.state === "booked") return "Booked";
-  if (slot.state === "held") return "On hold";
-  if (slot.state === "blocked") return "Unavailable";
   if (slot.state === "past") return "Past";
+  if (slot.state === "booked" || slot.state === "held" || slot.state === "blocked") {
+    return "Unavailable";
+  }
   return "Not bookable"; // available, but no price applies
+}
+
+/** The longer reason, for screen readers. */
+function closedReasonLong(slot: YachtSlot): string {
+  if (slot.state === "past") return "this start has passed";
+  if (slot.state === "blocked") return "the yacht is unavailable then";
+  if (slot.state === "booked" || slot.state === "held") {
+    return "it would overlap another charter or the yacht’s turnaround time";
+  }
+  return "it can’t be booked online";
+}
+
+/** "between 5:00 am and 4:00 pm" */
+const rangeText = (range: StartRange) =>
+  `between ${formatClockTime(range.earliest)} and ${formatClockTime(range.latest)}`;
+
+/** Refusals that mean "choose another time": never shown with Try again. */
+const TIME_CODES = new Set([
+  "SLOT_DOUBLE_BOOKED",
+  "BUFFER_TIME_VIOLATION",
+  "OUTSIDE_OPERATING_HOURS",
+  "SLOT_NOT_AVAILABLE",
+  "PAST_DATE_TIME_REJECTED",
+]);
+
+/**
+ * Guest counts are sent once the customer stops changing them for this long, so
+ * pressing + three times asks for one new price, not three.
+ */
+const GUEST_SETTLE_MS = 350;
+
+/** `value`, once it has stopped changing for `delay` ms. */
+function useSettledValue<T>(value: T, delay: number): T {
+  const [settled, setSettled] = useState(value);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSettled(value), delay);
+    return () => window.clearTimeout(timer);
+  }, [value, delay]);
+  return settled;
 }
 
 const timeInputClass =
@@ -214,6 +265,12 @@ export interface YachtReservationProps {
   /** Formatted, excluding GST; null when the backend has no starting price. */
   startingPrice: string | null;
   departureCity: string | null;
+  /**
+   * The yacht's hours (HH:mm): a package may start from opening until closing
+   * minus its length. Without them, the package's listed starts bound the field.
+   */
+  opensAt?: string | null;
+  closesAt?: string | null;
   /** YYYY-MM. */
   initialMonth: string;
   /** Left-column content above the calendar. */
@@ -245,6 +302,8 @@ export function YachtReservation({
   bookingMode,
   startingPrice,
   departureCity,
+  opensAt = null,
+  closesAt = null,
   initialMonth,
   intro,
   after,
@@ -263,6 +322,12 @@ export function YachtReservation({
   const overCapacity = guests > capacity;
   /** The count the API may see: never above the yacht's capacity. */
   const validGuests = guests >= 1 && !overCapacity ? guests : 0;
+  /**
+   * The count the backend is asked about (slots and price). The field and the
+   * counter follow every press at once; the requests follow the settled count.
+   */
+  const settledGuests = useSettledValue(validGuests, GUEST_SETTLE_MS);
+  const guestsSettling = settledGuests !== validGuests;
 
   const slotTypeParam = slotTypeId ? { slot_type_id: slotTypeId } : {};
   const nextMonth = shiftMonth(month, 1);
@@ -280,9 +345,12 @@ export function YachtReservation({
   const slots = useCachedApiQuery(
     (signal) =>
       date
-        ? getYachtSlots(slug, { date, ...(validGuests ? { guests: validGuests } : {}) }, signal)
+        ? getYachtSlots(slug, { date, ...(settledGuests ? { guests: settledGuests } : {}) }, signal)
         : Promise.resolve(null),
-    `slots|${slug}|${date}|${validGuests}`,
+    `slots|${slug}|${date}|${settledGuests}`,
+    // A new guest count only changes the prices: the same date's packages and times
+    // stay on screen while they are fetched (another date's are never shown).
+    { keepPrevious: true },
   );
   const addons = useCachedApiQuery(
     (signal) => (showAddons ? getYachtAddons(slug, signal) : Promise.resolve(null)),
@@ -301,6 +369,8 @@ export function YachtReservation({
   const timezone = calendar.data?.timezone;
 
   const slotData = slots.data?.date === date ? slots.data : null;
+  /** Nothing for this date to show yet (a new guest count keeps the old answer up). */
+  const slotsLoading = slots.loading || (slots.refreshing && !slotData);
   // The backend's slots for this date, grouped by slot type. Only bookable ones can be
   // chosen; the rest are still listed, disabled, so the taken times are visible.
   const allSlots = slotData?.slots ?? [];
@@ -328,17 +398,33 @@ export function YachtReservation({
       slotData?.currency ?? "INR",
     );
   const packageSlots = slotsOf(slotTypeId);
-  const packageTimes = packageSlots.map((slot) => slot.start_time).sort();
-  const earliest = packageTimes[0];
-  const latest = packageTimes.at(-1);
   const packageTerms = packageSlots[0];
   /** Every listed time of the chosen package, free and taken, in time order. */
   const packageTimeline = allSlots
     .filter((slot) => slot.slot_type_id === slotTypeId)
     .sort((a, b) => a.start_time.localeCompare(b.start_time));
   const takenTimes = packageTimeline.filter((slot) => !isOpen(slot));
-  /** A typed time the API already lists as taken for this package: never sent. */
-  const typedTaken = startTime ? takenTimes.find((slot) => slot.start_time === startTime) : undefined;
+  // The package's length, from the yacht's slot types, else from one of its slots.
+  const timelineSample = packageTimeline[0];
+  const packageMinutes =
+    slotTypes.find((type) => type.id === slotTypeId)?.duration_minutes ??
+    (timelineSample
+      ? (Date.parse(timelineSample.ends_at) - Date.parse(timelineSample.starts_at)) / 60_000
+      : null);
+  /**
+   * The starts this package allows, from the yacht's hours. Without them there is
+   * no range here at all: the listed starts are only suggestions (and may be
+   * taken), so the backend's quote decides.
+   */
+  const startRange: StartRange | null = allowedStartRange(opensAt, closesAt, packageMinutes);
+  /**
+   * A typed start that clearly cannot work (outside the allowed starts, or covering
+   * a window the backend already marks unavailable): never sent. Anything else is
+   * left to the backend's quote, which has the final say.
+   */
+  const typedProblem = startTime
+    ? startTimeProblem({ start: startTime, durationMinutes: packageMinutes, windows: allSlots, range: startRange })
+    : null;
 
   // A new answer for this date drops a package it no longer offers. The chosen time is not
   // compared with the list: every change of date, package or time is checked by the quote.
@@ -350,12 +436,12 @@ export function YachtReservation({
     .filter((addon) => (quantities[addon.id] ?? 0) > 0)
     .map((addon) => ({ addon_id: addon.id, quantity: quantities[addon.id] ?? 0 }));
   const selection =
-    bookable && slotTypeId && startTime && !typedTaken && date && validGuests > 0
+    bookable && slotTypeId && startTime && !typedProblem && date && settledGuests > 0
       ? {
           slot_type_id: slotTypeId,
           date,
           start_time: startTime,
-          guests: validGuests,
+          guests: settledGuests,
           addons: selectedAddons,
         }
       : null;
@@ -363,13 +449,43 @@ export function YachtReservation({
   /** The backend's own start and end, once it has accepted this selection. */
   const quoted = selection && !quote.loading && !quote.error ? quote.data : null;
   const quoteError = !selection || quote.loading ? null : quote.error;
-  const timeRefused = getBackendErrorDetails(quoteError).code === "SLOT_NOT_AVAILABLE";
-  const quoteErrorText = timeRefused
-    ? "That start time isn’t available for this package. Please choose another time."
-    : checkoutErrorMessage(quoteError, "We couldn’t work out the price just now.");
+  /**
+   * While the price is worked out again (e.g. for a new guest count), the last
+   * one stays visible, dimmed: useApiQuery keeps its previous answer while loading.
+   */
+  const updatingQuote = Boolean(selection) && (quote.loading || guestsSettling) ? quote.data : null;
+  /** Reserving needs the price for exactly what is chosen now. */
+  const canReserve = Boolean(quoted) && !guestsSettling;
+  const refusal = getBackendErrorDetails(quoteError);
+  /** The backend refused the time itself: the customer chooses another, no Try again. */
+  const timeRefused = TIME_CODES.has(refusal.code ?? "");
+  const refusedRange = startRange ?? rangeFromMessage(refusal.messages[0]);
+  const turnaround = turnaroundMinutes(refusal.messages[0]);
+  const quoteErrorText =
+    refusal.code === "SLOT_DOUBLE_BOOKED"
+      ? "This time overlaps another charter. Please choose a different time."
+      : refusal.code === "BUFFER_TIME_VIOLATION"
+        ? turnaround
+          ? `The yacht needs ${turnaround} minutes between charters. Please choose another start time.`
+          : "The yacht needs time between charters. Please choose another start time."
+        : refusal.code === "OUTSIDE_OPERATING_HOURS"
+          ? refusedRange
+            ? `This package can start ${rangeText(refusedRange)}. Please choose a time in that range.`
+            : "That start time is outside the yacht’s hours. Please choose another time."
+          : refusal.code === "SLOT_NOT_AVAILABLE"
+            ? "This time is currently unavailable. Please choose another time."
+            : refusal.code === "PAST_DATE_TIME_REJECTED"
+              ? "That start time has already passed. Please choose a later time."
+              : checkoutErrorMessage(quoteError, "We couldn’t work out the price just now.");
+  /** The typed start's own problem, worded for the customer. */
+  const typedProblemText = !typedProblem
+    ? null
+    : typedProblem.kind === "outside-hours"
+      ? `This package can start ${rangeText(typedProblem.range)}. Please choose a time in that range.`
+      : `A charter starting at ${formatClockTime(startTime)} would overlap another charter or the yacht’s turnaround time. Please choose a different time.`;
 
   const reserve = () => {
-    if (!selection) return;
+    if (!selection || !canReserve) return;
     startCheckout({ ...selection, yacht: { id: yachtId, slug, name } });
     router.push(userRoutes.checkout);
   };
@@ -382,8 +498,8 @@ export function YachtReservation({
         ? "Choose a charter package to see your total."
         : !startTime
           ? "Choose your start time to see your total."
-          : typedTaken
-            ? "That start time is taken. Please choose an available time."
+          : typedProblem
+            ? "Please choose another start time to see your total."
             : null;
 
   const reservation = (
@@ -509,7 +625,7 @@ export function YachtReservation({
           ) : (
             <>
               <h3 className="mt-[12px] text-[20px] leading-[28px]">{formatDay(date)}</h3>
-              {slots.loading ? (
+              {slotsLoading ? (
                 <Loading label="Loading charters" />
               ) : slots.error ? (
                 <Notice alert>
@@ -601,7 +717,7 @@ export function YachtReservation({
                                   type="button"
                                   disabled={!open}
                                   aria-pressed={open ? chosen : undefined}
-                                  aria-label={`${formatClockTime(slot.start_time)} to ${formatClockTime(slot.end_time)}: ${open ? "available" : closedReason(slot)}`}
+                                  aria-label={`${formatClockTime(slot.start_time)} to ${formatClockTime(slot.end_time)}: ${open ? "available" : `unavailable, ${closedReasonLong(slot)}`}`}
                                   onClick={() => setStartTime(slot.start_time)}
                                   className={cx(
                                     "flex h-[52px] w-full flex-col items-center justify-center border text-[14px] leading-[18px] transition-colors duration-300",
@@ -628,18 +744,37 @@ export function YachtReservation({
                             );
                           })}
                         </ul>
-                        {takenTimes.length > 0 && (
-                          <p className="mt-[10px] text-[13px] leading-[18px]" style={{ color: MUTED }}>
-                            Unavailable:{" "}
-                            {takenTimes
-                              .map(
-                                (slot) =>
-                                  `${formatClockTime(slot.start_time)}–${formatClockTime(slot.end_time)} (${closedReason(slot).toLowerCase()})`,
-                              )
-                              .join(", ")}
-                            .
-                          </p>
-                        )}
+                        {(() => {
+                          const overlapping = takenTimes.filter(
+                            (slot) => slot.state === "booked" || slot.state === "held" || slot.state === "blocked",
+                          );
+                          const passed = takenTimes.filter((slot) => slot.state === "past");
+                          // Free, but with no price for that time: it can't be booked online.
+                          const unpriced = takenTimes.filter((slot) => slot.state === "available");
+                          const list = (slots: YachtSlot[]) =>
+                            slots.map((slot) => formatClockTime(slot.start_time)).join(", ");
+                          return (
+                            <>
+                              {overlapping.length > 0 && (
+                                <p className="mt-[10px] text-[13px] leading-[18px]" style={{ color: MUTED }}>
+                                  Not available for this package, as a charter starting then would
+                                  overlap another charter or the yacht’s turnaround time:{" "}
+                                  {list(overlapping)}.
+                                </p>
+                              )}
+                              {passed.length > 0 && (
+                                <p className="mt-[6px] text-[13px] leading-[18px]" style={{ color: MUTED }}>
+                                  Already passed: {list(passed)}.
+                                </p>
+                              )}
+                              {unpriced.length > 0 && (
+                                <p className="mt-[6px] text-[13px] leading-[18px]" style={{ color: MUTED }}>
+                                  Not bookable online: {list(unpriced)}.
+                                </p>
+                              )}
+                            </>
+                          );
+                        })()}
                       </div>
 
                       <label
@@ -653,9 +788,9 @@ export function YachtReservation({
                         id="charter-start"
                         type="time"
                         value={startTime}
-                        min={earliest}
-                        max={latest}
-                        aria-invalid={Boolean(quoteError) || Boolean(typedTaken)}
+                        min={startRange?.earliest}
+                        max={startRange?.latest}
+                        aria-invalid={Boolean(quoteError) || Boolean(typedProblem)}
                         aria-describedby="charter-start-hint"
                         onChange={(event) => setStartTime(event.currentTarget.value)}
                         className={timeInputClass}
@@ -664,15 +799,14 @@ export function YachtReservation({
                       <p
                         id="charter-start-hint"
                         className="mt-[8px] text-[13px] leading-[18px]"
-                        style={{ color: quoteError || typedTaken ? "#b42318" : MUTED }}
+                        style={{ color: quoteError || typedProblem ? "#b42318" : MUTED }}
                       >
-                        {typedTaken
-                          ? `${formatClockTime(typedTaken.start_time)} is ${closedReason(typedTaken).toLowerCase()} for this package. Please choose an available time.`
+                        {typedProblemText
+                          ? typedProblemText
                           : quoteError
                             ? quoteErrorText
-                            : earliest &&
-                            latest &&
-                            `Earliest start ${formatClockTime(earliest)}, latest ${formatClockTime(latest)}.`}
+                            : startRange &&
+                              `Any start ${rangeText(startRange)}; the whole charter must be free.`}
                       </p>
                     </div>
                   )}
@@ -828,7 +962,16 @@ export function YachtReservation({
           <>
             {instruction ? (
               <p className="mt-[20px] text-[15px] leading-[24px] text-white/85">{instruction}</p>
-            ) : quote.loading ? (
+            ) : updatingQuote ? (
+              <div aria-busy="true" className="relative">
+                <div className="opacity-50 transition-opacity duration-300">
+                  <SummaryRows rows={quotePriceRows(updatingQuote)} dark />
+                </div>
+                <p role="status" className="mt-[10px] text-[13px] leading-[18px] text-white/70">
+                  Updating your price…
+                </p>
+              </div>
+            ) : quote.loading || guestsSettling ? (
               <div className="mt-[20px]">
                 <Spinner label="Calculating your price" />
               </div>
@@ -847,10 +990,10 @@ export function YachtReservation({
 
             <button
               type="button"
-              disabled={!quoted}
+              disabled={!canReserve}
               onClick={reserve}
               className="mt-[24px] flex h-[56px] w-full items-center justify-between bg-white px-[20px] text-[12px] tracking-[0.18em] uppercase transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/50"
-              style={{ color: quoted ? INK : undefined }}
+              style={{ color: canReserve ? INK : undefined }}
             >
               Reserve these dates
               <ArrowRight aria-hidden="true" strokeWidth={1.5} className="size-[13px]" />

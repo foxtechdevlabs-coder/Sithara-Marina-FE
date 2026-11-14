@@ -67,16 +67,19 @@ type Tab = "enquiry" | "proposal" | "history";
 
 const textarea = cx(input, "h-auto min-h-[88px] py-[12px] leading-[20px]");
 
-/** "Kochi · 12 November · 4 hours · 8 guests" etc. from the enquiry. */
+/** "12 November · 8 guests · Birthday · Budget ₹2–3 lakh" etc. from the enquiry. */
 function preferenceLines(e: Detail): string[] {
   const first = [
     e.preferred_date ? dayText(e.preferred_date) : null,
     e.preferred_start_time ? `from ${e.preferred_start_time}` : null,
     e.slot_type?.name ?? null,
     e.guests ? `${e.guests} guests` : null,
+    e.occasion,
+    e.budget ? `Budget ${e.budget}` : null,
   ].filter(Boolean);
   const second = [
     e.yacht ? `${e.yacht.name} preferred` : "Flexible on yacht",
+    ...(e.destinations.length ? [e.destinations.join(", ")] : []),
     ...contextEntries(e.context),
   ];
   return [first.join(" · ") || "No date or size given", second.join(" · ")];
@@ -188,6 +191,9 @@ function EnquiryTab({
         {lines[0]}
         <br />
         {lines[1]}
+        {e.preferences && (
+          <span className="mt-[8px] block whitespace-pre-line">Preferences: {e.preferences}</span>
+        )}
         {e.message && (
           <span className="mt-[8px] block" style={{ color: "#0d1b2a" }}>
             “{e.message}”

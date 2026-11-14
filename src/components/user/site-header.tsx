@@ -8,7 +8,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 
-import { accountNav, bookingNav, primaryNav } from "@/config/user-navigation";
+import { accountMenuNav, accountNav, bookingNav, primaryNav } from "@/config/user-navigation";
 import { userRoutes } from "@/constants/routes";
 import { signOut, useAuthSession } from "@/features/user/auth/session";
 import { cx } from "@/lib/cx";
@@ -42,9 +42,8 @@ const accountMenuItemClass =
  * Site-wide header: menu toggle on the left, logo centred, booking button on
  * the right. On the home page it floats transparently over the hero video with
  * white text and logo; on every other page it is a white bar with dark text,
- * as in the Figma designs. Signed out, Sign in sits beside the booking button;
- * signed in, the account links, the user's name (when the session has one: POST
- * /auth/login returns no user) and Logout are all inside the menu.
+ * as in the Figma designs. Signed in, Logout replaces Sign in, next to the
+ * user's name when the session has one (POST /auth/login returns no user).
  */
 export function SiteHeader() {
   const session = useAuthSession();
@@ -155,9 +154,35 @@ export function SiteHeader() {
         </Link>
 
         <div className="flex gap-1.5 md:gap-2.5 lg:gap-[1.125rem]">
-          {/* Sign in: full button from lg, icon-only from sm; inside the menu on phones.
-              Signed in, the account (name and Logout) lives in the menu instead. */}
-          {session ? null : (
+          {/* Sign in / Logout: full button from lg, icon-only from sm; inside the menu on phones. */}
+          {session ? (
+            <>
+              {/* From xl only: narrower headers would run into the logo; the menu shows it there. */}
+              {userName ? (
+                <span
+                  title={userName}
+                  className="hidden max-w-36 self-center truncate text-[0.875rem] xl:block"
+                >
+                  {userName}
+                </span>
+              ) : null}
+              {/* Signed in, the header leads to the account; Logout lives in the menu. */}
+              <Link
+                href={accountNav.href}
+                onClick={closeMenu}
+                aria-label={accountNav.label}
+                aria-current={isCurrent(accountNav.href) ? "page" : undefined}
+                className={cx(accountButtonClass, focusRing)}
+              >
+                <UserRound
+                  aria-hidden="true"
+                  strokeWidth={1.5}
+                  className="size-[1.125rem] shrink-0"
+                />
+                <span className="hidden lg:inline">{accountNav.label}</span>
+              </Link>
+            </>
+          ) : (
             <Link
               href={userRoutes.login}
               onClick={closeMenu}
@@ -233,7 +258,7 @@ export function SiteHeader() {
             </li>
           ))}
           {session
-            ? accountNav.map((item) => (
+            ? accountMenuNav.map((item) => (
                 <li key={item.href}>
                   <Link
                     href={item.href}
@@ -252,7 +277,20 @@ export function SiteHeader() {
               {userName}
             </li>
           ) : null}
-          {/* Logout at every width; Sign in only on phones, which have no room for the header button. */}
+          {/* Signed in: My account (phones only) and Logout. Signed out: Sign in (phones only). */}
+          {session ? (
+            <li className="sm:hidden">
+              <Link
+                href={accountNav.href}
+                onClick={closeMenu}
+                aria-current={isCurrent(accountNav.href) ? "page" : undefined}
+                className={cx(accountMenuItemClass, focusRingBase, "focus-visible:outline-white")}
+              >
+                <UserRound aria-hidden="true" strokeWidth={1.25} className="size-5" />
+                {accountNav.label}
+              </Link>
+            </li>
+          ) : null}
           <li className={session ? undefined : "sm:hidden"}>
             {session ? (
               <button
