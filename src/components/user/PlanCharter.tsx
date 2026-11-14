@@ -71,7 +71,11 @@ const budgetOptions = ["Under ₹ 10 lakh", "₹ 10–25 lakh", "₹ 25 lakh +",
 /** Turns into a small field for the customer's own occasion, luxury or budget. */
 const OTHER = "Other";
 const contactMethods = ["Email", "Phone call", "WhatsApp"];
-const steps = ["Share your wishes here", "We send a tailored proposal", "Refine it together, then confirm"];
+const steps = [
+  "Share your wishes here",
+  "We send a tailored proposal",
+  "Refine it together, then confirm",
+];
 
 const MARINA_TIMEZONE = "Asia/Kolkata";
 
@@ -174,7 +178,9 @@ function Chips({
               onClick={() => onToggle(option)}
               className={cx(
                 "min-h-[52px] border px-[20px] py-[10px] text-[15px] leading-[20px] transition-colors",
-                active ? "border-[#0d1b2a] bg-[#0d1b2a] text-white" : "bg-white hover:border-[#0d1b2a]",
+                active
+                  ? "border-[#0d1b2a] bg-[#0d1b2a] text-white"
+                  : "bg-white hover:border-[#0d1b2a]",
               )}
               style={active ? undefined : { borderColor: BORDER, color: INK }}
             >
@@ -537,7 +543,10 @@ export interface PlanCharterYacht {
 function Hero({ yacht }: { yacht: PlanCharterYacht | null }) {
   return (
     <section className="mx-auto grid w-full max-w-[1728px] lg:grid-cols-[minmax(0,535fr)_minmax(0,465fr)]">
-      <div className="px-5 pt-[48px] pb-[64px] text-white lg:px-[118px] lg:pt-[76px] lg:pb-[84px]" style={{ backgroundColor: NAVY }}>
+      <div
+        className="px-5 pt-[48px] pb-[64px] text-white lg:px-[118px] lg:pt-[76px] lg:pb-[84px]"
+        style={{ backgroundColor: NAVY }}
+      >
         <nav aria-label="Breadcrumb" className="text-[13px] leading-[18px] text-white/75">
           <ol className="flex flex-wrap items-center gap-[10px]">
             <li>
@@ -597,11 +606,20 @@ function Hero({ yacht }: { yacht: PlanCharterYacht | null }) {
   );
 }
 
-function Sidebar({ yacht, canEnquireFor }: { yacht: PlanCharterYacht | null; canEnquireFor: boolean }) {
+function Sidebar({
+  yacht,
+  canEnquireFor,
+}: {
+  yacht: PlanCharterYacht | null;
+  canEnquireFor: boolean;
+}) {
   return (
     <aside className="grid gap-[20px] self-start">
       <div className="px-[30px] py-[32px]" style={{ backgroundColor: PANEL }}>
-        <p className="text-[12px] leading-[16px] tracking-[0.18em] uppercase" style={{ color: MUTED }}>
+        <p
+          className="text-[12px] leading-[16px] tracking-[0.18em] uppercase"
+          style={{ color: MUTED }}
+        >
           Your concierge
         </p>
         <p
@@ -628,7 +646,11 @@ function Sidebar({ yacht, canEnquireFor }: { yacht: PlanCharterYacht | null; can
         </a>
         <ol className="mt-[24px] space-y-[14px] border-t pt-[20px]" style={{ borderColor: BORDER }}>
           {steps.map((step, index) => (
-            <li key={step} className="flex gap-[12px] text-[15px] leading-[22px]" style={{ color: BODY }}>
+            <li
+              key={step}
+              className="flex gap-[12px] text-[15px] leading-[22px]"
+              style={{ color: BODY }}
+            >
               <span style={{ color: MUTED }}>{String(index + 1).padStart(2, "0")}</span>
               {step}
             </li>
@@ -1158,7 +1180,10 @@ export default function PlanCharter({
               onToggle={setContactMethod}
             />
 
-            <label className="mt-[28px] flex items-start gap-[10px] text-[14px] leading-[20px]" style={{ color: BODY }}>
+            <label
+              className="mt-[28px] flex items-start gap-[10px] text-[14px] leading-[20px]"
+              style={{ color: BODY }}
+            >
               <input
                 type="checkbox"
                 name="consent"

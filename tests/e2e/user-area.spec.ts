@@ -36,6 +36,7 @@ test("signed-in home shows the search bar until the user logs out", async ({ pag
 
   await page.goto("/");
   await expect(page.getByRole("link", { name: "Sign in" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "My account" })).toHaveAttribute("href", "/account");
 
   // Logout is inside the header menu.
   await page.getByRole("button", { name: "Open menu" }).click();
@@ -284,15 +285,7 @@ test("create-account page uses the site header and footer", async ({ page }) => 
 });
 
 test("removed pages are no longer served", async ({ page }) => {
-  for (const path of [
-    "/about",
-    "/contact",
-    "/account",
-    "/account/bookings",
-    "/terms",
-    "/privacy",
-    "/cancellation-policy",
-  ]) {
+  for (const path of ["/about", "/contact", "/terms", "/privacy", "/cancellation-policy"]) {
     const response = await page.goto(path);
     expect(response?.status(), path).toBe(404);
   }
@@ -307,4 +300,78 @@ test("unknown URLs return 404 with the not-found page", async ({ page }) => {
 test("user pages are indexable and not served with admin robots headers", async ({ request }) => {
   const response = await request.get("/yachts");
   expect(response.headers()["x-robots-tag"]).toBeUndefined();
+});
+
+test("layout has no horizontal overflow at the current viewport", async ({ page }) => {
+  for (const path of ["/", "/yachts", "/checkout", "/plan-your-charter", "/login"]) {
+    await page.goto(path);
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    expect(overflow, path).toBeLessThanOrEqual(0);
+  }
+});
+
+test.describe("customer account", () => {
+  // Account pages need a session (checked in the browser). The account API is
+  // answered here with OpenAPI-shaped data, so no backend is needed.
+  test.beforeEach(async ({ page }) => {
+    const empty = { items: [], total: 0, page: 1, limit: 100 };
+    const answers: Record<string, unknown> = {
+      "/auth/me": {
+        id: "u-1",
+        fullName: "Ajin Raj",
+        email: "ajin@example.com",
+        phone: "+919876543210",
+        role: "customer",
+      },
+      "/me/bookings": empty,
+      "/me/enquiries": empty,
+    };
+    await page.route(
+      (url) => url.hostname !== "localhost" && url.pathname in answers,
+      (route) =>
+        route.fulfill({
+          contentType: "application/json",
+          body: JSON.stringify(answers[new URL(route.request().url()).pathname]),
+        }),
+    );
+    await page.addInitScript(() => {
+      sessionStorage.setItem(
+        "sithara-marina:auth-session",
+        JSON.stringify({
+          accessToken: `header.${btoa(JSON.stringify({ exp: 4102444800 }))}.signature`,
+          refreshToken: "id.secret",
+        }),
+      );
+    });
+  });
+
+  test("/account opens the overview inside the site layout", async ({ page }) => {
+    await page.goto("/account");
+    await expect(page).toHaveURL("/account");
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Your account, thoughtfully arranged." }),
+    ).toBeVisible();
+    await expect(page.getByRole("contentinfo")).toBeVisible();
+  });
+
+  test("profile page renders with account navigation and validates the name", async ({ page }) => {
+    await page.goto("/account/profile");
+    await expect(page).toHaveTitle("Profile details | Sithara Marina");
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Your details, kept personal." }),
+    ).toBeVisible();
+    await expect(page.getByLabel("Full name")).toHaveValue("Ajin Raj");
+    await expect(page.getByRole("contentinfo")).toBeVisible();
+
+    await page.getByLabel("Full name").fill("");
+    await page.getByRole("button", { name: "Save profile" }).click();
+    await expect(page.getByText("Please enter your full name.")).toBeVisible();
+  });
+});
+
+test("account pages send signed-out visitors to sign in and back", async ({ page }) => {
+  await page.goto("/account/profile");
+  await expect(page).toHaveURL("/login?next=%2Faccount%2Fprofile");
 });

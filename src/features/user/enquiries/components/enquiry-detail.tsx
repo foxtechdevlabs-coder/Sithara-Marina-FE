@@ -2,93 +2,133 @@
 
 import Link from "next/link";
 
+import {
+  AccountHeading,
+  AccountNotice,
+  Card,
+  CardTitle,
+  DetailRows,
+  MetaLines,
+  primaryButtonClass,
+  primaryButtonStyle,
+  secondaryButtonClass,
+  StatusChip,
+} from "@/features/user/account/components/account-ui";
+import { QueryFallback } from "@/features/user/account/components/query-fallback";
+import {
+  formatInstantDate,
+  formatLongDate,
+  guests,
+} from "@/features/user/account/utils/account-format";
+import { ENQUIRY_STATUS_LABELS } from "@/features/user/customer-bookings/utils/booking-view";
 import { userRoutes } from "@/constants/routes";
-import {
-  Loading,
-  Notice,
-  SectionTitle,
-  textLinkClass,
-} from "@/features/user/checkout/components/checkout-ui";
-import {
-  AccountPage,
-  DetailGrid,
-  StatusPill,
-} from "@/features/user/profile/components/account-ui";
-import { accountErrorMessage } from "@/features/user/profile/utils/account-error-message";
 import { useApiQuery } from "@/hooks/use-api-query";
-import { getMyEnquiryDetails } from "@/services/user/enquiries.service";
+import { getMyEnquiry } from "@/services/user/enquiries.service";
 
-import { enquiryFacts } from "./enquiry-list";
-import { ENQUIRY_STATUS } from "./enquiry-labels";
-import { ProposalCard } from "./proposal-card";
+import { PROPOSAL_STATUS_LABELS, proposalLine, proposalTotal } from "../utils/enquiry-view";
 
-const NOT_FOUND = "We couldn’t find this enquiry on your account.";
+const HEADING = { heading: "Your enquiry,", headingSerif: "in detail." };
 
-/**
- * One enquiry and every proposal sent for it, from GET /me/enquiries/{ref}. A
- * decision reloads this one call, so the page shows the backend's new state.
- */
+/** An enquiry and the proposals sent for it (GET /me/enquiries/{ref}). */
 export function EnquiryDetail({ reference }: { reference: string }) {
-  const detail = useApiQuery((signal) => getMyEnquiryDetails(reference, signal), reference);
-  const data = detail.data;
+  const query = useApiQuery((signal) => getMyEnquiry(reference, signal), reference);
+  const enquiry = query.data;
+
+  if (!enquiry) {
+    return (
+      <>
+        <AccountHeading {...HEADING} />
+        <QueryFallback
+          query={query}
+          loadingLabel="Loading your enquiry"
+          notFoundMessage="We couldn’t find this enquiry in your account."
+        />
+      </>
+    );
+  }
 
   return (
-    <AccountPage heading="Enquiry" headingSerif={reference} intro={undefined}>
-      <Link href={userRoutes.accountEnquiries} className={`${textLinkClass} text-[14px]`}>
-        All enquiries
-      </Link>
-      <div className="mt-[24px]" aria-busy={detail.loading}>
-        {detail.loading && !data ? (
-          <Loading label="Loading your enquiry" />
-        ) : !data ? (
-          <Notice alert>
-            {accountErrorMessage(detail.error, "We couldn’t load this enquiry.", NOT_FOUND)}{" "}
-            <button type="button" className={textLinkClass} onClick={detail.reload}>
-              Try again
-            </button>
-          </Notice>
-        ) : (
-          <>
-            <div className="flex flex-wrap items-center gap-[12px]">
-              <StatusPill tone={ENQUIRY_STATUS[data.status].tone}>
-                {ENQUIRY_STATUS[data.status].label}
-              </StatusPill>
-              <span className="text-[18px]">{data.yacht?.name ?? "Any yacht"}</span>
-            </div>
-            <div className="mt-[20px]">
-              <DetailGrid items={enquiryFacts(data)} />
-            </div>
-            {data.message && (
-              <p className="mt-[16px] max-w-[760px] text-[15px] leading-[24px] whitespace-pre-line">
-                <span className="text-[#7a7f85]">Your message: </span>
-                {data.message}
-              </p>
-            )}
+    <>
+      <AccountHeading
+        {...HEADING}
+        subtitle={`Enquiry ${enquiry.reference} · ${ENQUIRY_STATUS_LABELS[enquiry.status]}`}
+      />
 
-            <div className="mt-[48px]">
-              <SectionTitle>Proposals</SectionTitle>
-              {detail.loading && <Loading label="Updating" />}
-              {data.proposals.length === 0 ? (
-                <Notice>
-                  Our concierge hasn’t sent a proposal yet. You’ll find it here as soon as they do.
-                </Notice>
-              ) : (
-                <div className="mt-[20px] grid gap-[28px]">
-                  {data.proposals.map((proposal) => (
-                    <ProposalCard
-                      key={proposal.id}
-                      proposal={proposal}
-                      enquiryClosed={data.status === "closed"}
-                      onChanged={detail.reload}
-                      showPermalink
+      <DetailRows
+        className="mt-8 lg:mt-10"
+        rows={[
+          { label: "Yacht", value: enquiry.yacht?.name ?? "Charter" },
+          ...(enquiry.slot_type?.name ? [{ label: "Charter", value: enquiry.slot_type.name }] : []),
+          ...(enquiry.destinations?.length
+            ? [{ label: "Destinations", value: enquiry.destinations.join(", ") }]
+            : []),
+          ...(enquiry.occasion ? [{ label: "Occasion", value: enquiry.occasion }] : []),
+          {
+            label: "Preferred date",
+            value: enquiry.preferred_date
+              ? [formatLongDate(enquiry.preferred_date), enquiry.preferred_start_time]
+                  .filter(Boolean)
+                  .join(" · ")
+              : "Flexible",
+          },
+          ...(enquiry.guests ? [{ label: "Your company", value: guests(enquiry.guests) }] : []),
+          ...(enquiry.budget ? [{ label: "Indicative budget", value: enquiry.budget }] : []),
+          ...(enquiry.preferences ? [{ label: "Preferences", value: enquiry.preferences }] : []),
+          ...(enquiry.message ? [{ label: "Your message", value: enquiry.message }] : []),
+          { label: "Sent", value: formatInstantDate(enquiry.created_at) },
+        ]}
+      />
+
+      <section aria-labelledby="enquiry-proposals" className="mt-10 lg:mt-12">
+        <CardTitle>
+          <span id="enquiry-proposals">Proposals for you</span>
+        </CardTitle>
+        {enquiry.proposals.length === 0 ? (
+          <AccountNotice label="Being prepared" className="mt-5">
+            Our concierge is preparing a proposal for this enquiry. We will email you as soon as it
+            is ready.
+          </AccountNotice>
+        ) : (
+          <ul className="mt-5 space-y-5">
+            {enquiry.proposals.map((proposal) => {
+              const isOpen = proposal.status === "sent";
+              const total = proposalTotal(proposal);
+              return (
+                <li key={proposal.id}>
+                  <Card as="article">
+                    <CardTitle>
+                      {proposal.yacht?.name ?? "Charter"}&nbsp;·&nbsp;Proposal {proposal.version}
+                    </CardTitle>
+                    <MetaLines
+                      lines={[
+                        proposalLine(proposal),
+                        ...(total ? [`Total ${total}`] : []),
+                        ...(isOpen && proposal.expires_at
+                          ? [`Open until ${formatInstantDate(proposal.expires_at)}`]
+                          : []),
+                      ]}
                     />
-                  ))}
-                </div>
-              )}
-            </div>
-          </>
+                    <StatusChip className="mt-3" tone={isOpen ? "forest" : "pearl"}>
+                      {PROPOSAL_STATUS_LABELS[proposal.status]}
+                    </StatusChip>
+                    <Link
+                      href={userRoutes.accountProposal(proposal.id)}
+                      className={`${isOpen ? primaryButtonClass : secondaryButtonClass} mt-4`}
+                      style={isOpen ? primaryButtonStyle : undefined}
+                    >
+                      {isOpen ? "Review proposal" : "View proposal"}
+                    </Link>
+                  </Card>
+                </li>
+              );
+            })}
+          </ul>
         )}
-      </div>
-    </AccountPage>
+      </section>
+
+      <Link href={userRoutes.accountEnquiries} className={`${secondaryButtonClass} mt-8`}>
+        Back to my enquiries
+      </Link>
+    </>
   );
 }

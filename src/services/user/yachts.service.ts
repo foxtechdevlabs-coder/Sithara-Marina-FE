@@ -29,10 +29,7 @@ const cacheInit = (cache?: CatalogueCache) =>
 
 /** Error codes documented for these endpoints. */
 export type YachtErrorCode =
-  | "INVALID_FILTER"
-  | "YACHT_NOT_FOUND"
-  | "INVALID_SLOT_TYPE"
-  | "GUESTS_EXCEED_CAPACITY";
+  "INVALID_FILTER" | "YACHT_NOT_FOUND" | "INVALID_SLOT_TYPE" | "GUESTS_EXCEED_CAPACITY";
 
 const bookingModeSchema = z.enum(["instant", "enquiry_only"]);
 const dayStatusSchema = z.enum(["available", "partly_available", "unavailable", "past"]);
@@ -163,9 +160,7 @@ const yachtDetailSchema = z.object({
   departure_points: z.array(z.string()),
   amenities: z.array(z.string()),
   inclusions: z.array(z.string()),
-  crew: z.array(
-    z.object({ name: z.string(), role: z.string(), bio: z.string().nullable() }),
-  ),
+  crew: z.array(z.object({ name: z.string(), role: z.string(), bio: z.string().nullable() })),
   policies: z.string().nullable(),
   photos: z.array(z.object({ url: z.string(), sort_order: z.number() })),
   opens_at: z.string().nullable(),

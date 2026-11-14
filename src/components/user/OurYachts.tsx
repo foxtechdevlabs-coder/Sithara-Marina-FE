@@ -21,7 +21,6 @@ const MUTED = "#7a7f85"; // breadcrumb
 const META = "#555a60"; // metres / guests / suites
 const AREA = "#8a8f94"; // small cruising-area label
 
-
 /* ------------------------------------------------------------------ */
 /* Sections                                                            */
 /* ------------------------------------------------------------------ */
@@ -313,8 +312,8 @@ export default function OurYachts({
             className="mt-[56px] max-w-[520px] text-[16px] leading-[27px]"
             style={{ color: BODY }}
           >
-            We couldn’t search with those filters. The date may be in the past or too far ahead,
-            or the price range may be reversed.{" "}
+            We couldn’t search with those filters. The date may be in the past or too far ahead, or
+            the price range may be reversed.{" "}
             {editHref && (
               <>
                 <Link href={editHref} className="underline underline-offset-2">

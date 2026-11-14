@@ -379,11 +379,16 @@ test.describe("auth navigation stays in the tab", () => {
 
   test("verification replaces its history entries and opens no tab", async ({ page, context }) => {
     await mockEmailEndpoint(page, "/auth/verify-email", () => ({ status: 200, body: verified }));
+    // Account setup loads the account (UserDto).
+    await mockEmailEndpoint(page, "/auth/me", () => ({
+      status: 200,
+      body: { ...verified.user, phone: null },
+    }));
     await page.goto("/login");
     await page.goto("/verify-email#token=fake.link");
     await expect(page).toHaveURL("/verify-email/success");
     await page.getByRole("button", { name: "Continue" }).click();
-    await expect(page).toHaveURL("/");
+    await expect(page).toHaveURL("/account/setup");
     expect(context.pages()).toHaveLength(1);
 
     await page.goBack();

@@ -85,7 +85,10 @@ export type Quote = z.infer<typeof quoteSchema>;
  * `GUESTS_EXCEED_CAPACITY` · 404 `YACHT_NOT_FOUND` · 409 `SLOT_NOT_AVAILABLE`,
  * `PRICE_NOT_AVAILABLE`, `GST_NOT_CONFIGURED`.
  */
-export function getPricingQuote(selection: CheckoutSelection, signal?: AbortSignal): Promise<Quote> {
+export function getPricingQuote(
+  selection: CheckoutSelection,
+  signal?: AbortSignal,
+): Promise<Quote> {
   return apiClient.post("/pricing/quote", {
     ...SLOW_START,
     auth: false,

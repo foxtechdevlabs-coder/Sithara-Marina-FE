@@ -38,12 +38,48 @@ export const userRoutes = {
   /** After registering: "Check your inbox", until the emailed link is opened. */
   verifyEmailPending: "/verify-email/pending",
 
-  /** Signed-in customer pages. */
-  accountEnquiries: "/account/enquiries",
-  accountEnquiry: (reference: string) => `/account/enquiries/${id(reference)}` as Route,
-  accountProposal: (proposalId: string) => `/account/proposals/${id(proposalId)}` as Route,
+  /** Customer account (signed-in only). */
+  account: "/account",
+  /** The account sections as one page: what the mobile "My account" bar opens. */
+  accountMenu: "/account/menu",
+  accountBookings: "/account/bookings",
+  accountPastBookings: "/account/bookings?tab=past" as Route,
+  accountBooking: (bookingId: string) => `/account/bookings/${id(bookingId)}` as Route,
+  accountBookingInvoice: (bookingId: string) =>
+    `/account/bookings/${id(bookingId)}/invoice` as Route,
+  accountBookingCancel: (bookingId: string) => `/account/bookings/${id(bookingId)}/cancel` as Route,
+  /** "Your request is with us.": right after a cancellation request is sent. */
+  accountBookingCancelReceived: (bookingId: string) =>
+    `/account/bookings/${id(bookingId)}/cancel/received` as Route,
+  /** The cancellation's status and outcome. */
+  accountBookingCancelConfirmed: (bookingId: string) =>
+    `/account/bookings/${id(bookingId)}/cancel/confirmed` as Route,
+  accountBookingRefund: (bookingId: string) => `/account/bookings/${id(bookingId)}/refund` as Route,
   accountCancellations: "/account/cancellations",
-  accountBookingCancel: (reference: string) => `/account/bookings/${id(reference)}/cancel` as Route,
+  accountEnquiries: "/account/enquiries",
+  /** An enquiry and the proposals sent for it (`reference` e.g. "ENQ-2026-0001"). */
+  accountEnquiry: (reference: string) => `/account/enquiries/${id(reference)}` as Route,
+  /** One proposal (`proposalId` is its UUID), to accept or decline. */
+  accountProposal: (proposalId: string) => `/account/proposals/${id(proposalId)}` as Route,
+  accountProfile: "/account/profile",
+  accountProfileSaved: "/account/profile/saved",
+  accountProfileEmail: "/account/profile/email",
+  /** Email verification after a code was sent to `email` from Profile details. */
+  accountProfileEmailFor: (email: string) =>
+    `/account/profile/email${withQuery({ email })}` as Route,
+  accountSecurity: "/account/security",
+  accountSecurityUpdated: "/account/security/updated",
+  accountNotifications: "/account/notifications",
+  accountNotificationsSaved: "/account/notifications/saved",
+  accountHelp: "/account/help",
+  /** Help & support with a booking chosen as the related journey. */
+  accountHelpFor: (bookingId: string) =>
+    `/account/help${withQuery({ booking: bookingId })}` as Route,
+  /** "Your message is with us." for support reference `reference`. */
+  accountHelpSent: (reference: string) =>
+    `/account/help/sent${withQuery({ ref: reference })}` as Route,
+  /** First-time setup after the email is verified (no account sidebar). */
+  accountSetup: "/account/setup",
 
   planCharter: "/plan-your-charter",
   /** The custom quote page with this yacht (and optionally a guest count) already chosen. */

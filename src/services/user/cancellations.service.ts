@@ -2,6 +2,8 @@ import { z } from "zod";
 
 import { apiClient } from "@/services/http/api-client";
 
+import { bookingStatusSchema } from "./booking.service";
+
 /*
  * Customer cancellations. Contract: the backend's Swagger docs at
  * `<NEXT_PUBLIC_API_BASE_URL>/docs`. Every call needs the signed-in customer's
@@ -12,24 +14,24 @@ import { apiClient } from "@/services/http/api-client";
 /** The hosted backend can take ~40 s to wake from idle (Render). */
 const SLOW_START = { timeoutMs: 60_000 } as const;
 
+/** Reasons offered in the form; sent as the free-text `reason`. */
+export const CANCELLATION_REASONS = [
+  "My travel plans have changed",
+  "Weather or sea conditions",
+  "A health or family matter",
+  "Something else",
+] as const;
+
 /** `CreateCancellationRequestDto.reason` maxLength in Swagger. */
+export const CANCELLATION_REASON_MAX = 1000;
 export const CANCELLATION_REASON_MAX_LENGTH = 1000;
 
 const bookingRef = (ref: string) => `/me/bookings/${encodeURIComponent(ref)}`;
 
-const bookingStatusSchema = z.enum([
-  "pending_payment",
-  "confirmed",
-  "completed",
-  "cancelled",
-  "refunded",
-  "no_show",
-]);
-
 export const cancellationStatusSchema = z.enum(["pending", "approved", "rejected"]);
 export type CancellationStatus = z.infer<typeof cancellationStatusSchema>;
 
-const refundDecisionSchema = z.enum(["full", "partial", "none"]);
+export const refundDecisionSchema = z.enum(["full", "partial", "none"]);
 export type RefundDecision = z.infer<typeof refundDecisionSchema>;
 
 /** Error codes documented for these endpoints. */
@@ -120,6 +122,20 @@ export function submitCancellationRequest(
   });
 }
 
+/**
+ * Legacy/convenience wrapper for submitting a cancellation request.
+ */
+export function requestCancellation(
+  reference: string,
+  reason: string | null,
+): Promise<CancellationRequest> {
+  return apiClient.post(`${bookingRef(reference)}/cancellation-requests`, {
+    ...SLOW_START,
+    body: reason ? { reason } : {},
+    schema: requestSchema,
+  });
+}
+
 const requestListSchema = z.object({
   items: z.array(requestSchema),
   total: z.number(),
@@ -146,4 +162,13 @@ export function getCancellationRequests(
     signal,
     schema: requestListSchema,
   });
+}
+
+/** GET /me/cancellation-requests (first page of up to 100), optionally by status. */
+export async function listMyCancellationRequests(
+  status?: CancellationStatus,
+  signal?: AbortSignal,
+): Promise<CancellationRequest[]> {
+  const page = await getCancellationRequests({ status, limit: 100 }, signal);
+  return page.items;
 }
