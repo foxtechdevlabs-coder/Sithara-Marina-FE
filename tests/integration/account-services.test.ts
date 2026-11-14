@@ -290,10 +290,8 @@ describe("new enquiry", () => {
     const { createEnquiry } = await enquiries();
     const calls = stub(CREATED, 201);
     const request = { full_name: "Asha", phone: "+919876543210", ...extra };
-    // Retired fields are no longer part of CreateEnquiryDto; cast to simulate a stale caller.
-    await expect(
-      createEnquiry(request as Parameters<typeof createEnquiry>[0]),
-    ).rejects.toThrow();
+    // Not a CreateEnquiryDto field any more: the strict request schema refuses it at run time.
+    await expect(createEnquiry(request)).rejects.toThrow();
     expect(calls).toHaveLength(0);
   });
 
