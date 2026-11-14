@@ -11,6 +11,10 @@ import { SearchSelect } from "@/components/admin/search-select";
 import { adminRoutes } from "@/constants/routes";
 import { BookingSetupFields } from "@/features/admin/fleet/components/booking-setup-fields";
 import { YachtGallery, type QueuedPhoto } from "@/features/admin/fleet/components/yacht-gallery";
+import {
+  YachtSpinSection,
+  type QueuedSpin,
+} from "@/features/admin/fleet/components/yacht-spin-section";
 import { useAdminQuery } from "@/features/admin/fleet/hooks/use-admin-query";
 import { usePublishBreadcrumbYacht } from "@/features/admin/fleet/hooks/use-breadcrumb-yacht";
 import {
@@ -52,7 +56,8 @@ import {
   type YachtDetail,
   type YachtPhoto,
 } from "@/services/admin/fleet.service";
-import { uploadYachtPhoto } from "@/services/admin/media.service";
+import { uploadSpinVideo, uploadYachtPhoto } from "@/services/admin/media.service";
+import { attachYachtSpin } from "@/services/admin/yacht-spin.service";
 import {
   createPriceRule,
   deletePriceRule,
@@ -412,7 +417,13 @@ function YachtEditor({
     ...(start?.cruising_regions.filter((r) => !REGIONS.includes(r)) ?? []),
   ]);
   const [photos, setPhotos] = useState<YachtPhoto[]>(() => saved?.photos ?? []);
+  // Photos are saved as soon as they change; these let "Save changes" account for them.
+  const [photosBusy, setPhotosBusy] = useState(false);
+  const [initialPhotoIds] = useState(() => (saved?.photos ?? []).map((p) => p.id).join(","));
+  const photosChanged = editing && photos.map((p) => p.id).join(",") !== initialPhotoIds;
   const [queued, setQueued] = useState<QueuedPhoto[]>([]);
+  /** Optional 360° video for a new yacht: uploaded once the yacht exists. */
+  const [queuedSpin, setQueuedSpin] = useState<QueuedSpin | null>(null);
   // The backend's copy, kept current as parts of a save succeed so a retry is safe.
   const [bookingBase, setBookingBase] = useState(savedBooking);
   const [booking, setBooking] = useState(() =>
@@ -466,7 +477,9 @@ function YachtEditor({
     ? isSetupChanged(booking, bookingBase) ||
       priceChanges(booking, bookingBase.setup, bookingBase.rules).length > 0
     : false;
-  const dirty = editing ? Object.keys(patch).length > 0 || statusChange || bookingChanged : true;
+  const dirty = editing
+    ? Object.keys(patch).length > 0 || statusChange || bookingChanged || photosChanged
+    : true;
 
   /* Ready to publish — the items from the design. */
   const photoCount = editing ? photos.length : queued.length;
@@ -550,6 +563,11 @@ function YachtEditor({
       ...bookingSetupErrors(booking, bookingBase),
     };
     if (Object.keys(found).length) return showErrors(found);
+    if (photosBusy) {
+      setProblem("");
+      setNotice("Photos are still uploading. Save again once they’ve finished.");
+      return;
+    }
     if (editing && !dirty) {
       setProblem("");
       setNotice("No changes to save.");
@@ -617,6 +635,19 @@ function YachtEditor({
     }
   }
 
+  /** Uploads the 360° video and starts processing it; the yacht page shows the progress. */
+  async function startQueuedSpin(yachtId: string, spin: QueuedSpin): Promise<boolean> {
+    try {
+      const mediaId = await uploadSpinVideo(spin.file, (fraction) =>
+        setSubmitting(`Uploading 360° video ${Math.round(fraction * 100)}%…`),
+      );
+      await attachYachtSpin(yachtId, mediaId, spin.frameCount);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   /** After POST /admin/yachts: hours and packages, photos, publishing. Returns where to go. */
   async function finishNewYacht(id: string, intent: "publish" | "draft" | "update") {
     let setupOk = true;
@@ -627,10 +658,12 @@ function YachtEditor({
       setupOk = false;
     }
     const photosOk = queued.length === 0 || (await uploadQueued(id));
+    const spinOk = !queuedSpin || (await startQueuedSpin(id, queuedSpin));
 
     let next = `${adminRoutes.fleetYacht(id)}?notice=created`;
     if (!setupOk) next = `${adminRoutes.fleetYachtPricing(id)}?notice=setup`;
     else if (!photosOk) next = `${adminRoutes.fleetYacht(id)}?notice=no-photos`;
+    else if (!spinOk) next = `${adminRoutes.fleetYacht(id)}?notice=no-spin`;
     else if (intent === "publish" && !hasPricedPackage(booking))
       next = `${adminRoutes.fleetYachtPricing(id)}?notice=publish`;
     else if (intent === "publish" && queued.length > 0) {
@@ -1046,9 +1079,15 @@ function YachtEditor({
                   yachtId={saved.id}
                   photos={photos}
                   onPhotosChange={setPhotos}
+                  onBusyChange={setPhotosBusy}
                 />
               ) : (
                 <YachtGallery mode="queued" queued={queued} onQueuedChange={setQueued} />
+              )}
+              {saved ? (
+                <YachtSpinSection mode="live" yachtId={saved.id} slug={saved.slug} />
+              ) : (
+                <YachtSpinSection mode="queued" value={queuedSpin} onChange={setQueuedSpin} />
               )}
             </Section>
 

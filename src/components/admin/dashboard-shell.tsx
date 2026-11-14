@@ -167,15 +167,6 @@ export function DashboardShell({ children }: { children: ReactNode }) {
             </p>
           </div>
           <div className="flex items-center gap-[14px]">
-            {/^\/admin\/fleet\/(?!new$)[^/]+$/.test(pathname) && (
-              <Link
-                href={adminRoutes.fleetNew}
-                className="flex h-[47px] w-[120px] items-center justify-center gap-[4px] border bg-white text-[12px] transition-colors hover:bg-[#f2f1ee]"
-                style={{ borderColor: INK }}
-              >
-                + Add yacht
-              </Link>
-            )}
             <NotificationBell />
             <Link
               href={userRoutes.home}

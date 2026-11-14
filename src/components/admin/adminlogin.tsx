@@ -48,7 +48,6 @@ export default function AdminLogin() {
   const router = useRouter();
   const { status, signIn } = useAdminSession();
   const [submitting, setSubmitting] = useState(false);
-  const [showHelp, setShowHelp] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
@@ -148,26 +147,6 @@ export default function AdminLogin() {
           {submitting ? "Signing in…" : "Sign in securely"}
           {!submitting && <ArrowRight aria-hidden="true" strokeWidth={1.5} className="size-3" />}
         </button>
-
-        <div className="mt-[20px] w-full sm:w-[196px] lg:mt-[44px]">
-          <button
-            type="button"
-            aria-expanded={showHelp}
-            onClick={() => setShowHelp((s) => !s)}
-            className="w-full py-1 text-center text-[12px] hover:underline"
-          >
-            Forgot your password?
-          </button>
-        </div>
-        {showHelp && (
-          <p
-            role="status"
-            className="mt-2 max-w-[560px] text-[13px] leading-[20px]"
-            style={{ color: AUTH_BODY }}
-          >
-            Ask a super admin to send you a password reset link.
-          </p>
-        )}
       </form>
 
       <aside

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRef, useState, type CSSProperties, type TouchEvent } from "react";
 
 import { userRoutes } from "@/constants/routes";
+import { YachtSpinViewer } from "@/features/user/yachts/components/yacht-spin-viewer";
 import { cx } from "@/lib/cx";
 import { dummyFleet } from "../data/dummy-fleet";
 import { ROUND_BUTTON_GRADIENT } from "./round-button";
@@ -77,6 +78,8 @@ const roundControl =
  */
 export function FeaturedYachtSection() {
   const [activeIndex, setActiveIndex] = useState(0);
+  /** The slide whose 360° view has finished loading (its photo then sits underneath). */
+  const [spinReady, setSpinReady] = useState<string | null>(null);
   const touchStartX = useRef<number | null>(null);
   const count = FEATURED_YACHTS.length;
   const yacht = FEATURED_YACHTS[activeIndex] ?? FEATURED_YACHTS[0];
@@ -132,26 +135,36 @@ export function FeaturedYachtSection() {
               )}
             />
           ))}
+          {/* The active yacht's 360° view, when it has one; it covers the photo once every frame is ready. */}
+          <YachtSpinViewer
+            key={yacht.id}
+            slug={yacht.id}
+            name={yacht.name}
+            fit="cover"
+            onReady={() => setSpinReady(yacht.id)}
+            onUnavailable={() => setSpinReady(null)}
+            fill
+          />
           {/* Light top shade keeps the white heading readable on bright-sky photos. */}
           <div
             aria-hidden="true"
-            className="absolute inset-x-0 top-0 h-[45%] bg-gradient-to-b from-black/30 to-transparent"
+            className="pointer-events-none absolute inset-x-0 top-0 h-[45%] bg-gradient-to-b from-black/30 to-transparent"
           />
           {/* Phones: blend the photo band into the navy above and below it. */}
           <div
             aria-hidden="true"
-            className="from-brand-950 absolute inset-x-0 top-0 h-16 bg-gradient-to-b to-transparent md:hidden"
+            className="from-brand-950 pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-b to-transparent md:hidden"
           />
           <div
             aria-hidden="true"
-            className="from-brand-950 absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t to-transparent md:hidden"
+            className="from-brand-950 pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t to-transparent md:hidden"
           />
         </div>
         <p aria-live="polite" className="sr-only">
           {`Yacht ${activeIndex + 1} of ${count}: ${yacht.name}`}
         </p>
 
-        <div className="absolute inset-x-0 top-0 flex flex-col items-center px-5 pt-12 text-center lg:top-[calc(var(--r)*70)] lg:pt-0">
+        <div className="pointer-events-none absolute inset-x-0 top-0 flex flex-col items-center px-5 pt-12 text-center lg:top-[calc(var(--r)*70)] lg:pt-0">
           <p className="text-[0.6875rem] tracking-[0.2em] uppercase lg:text-[max(calc(var(--r)*11),10px)]">
             The yacht collection
           </p>
@@ -163,7 +176,7 @@ export function FeaturedYachtSection() {
           </Reveal>
         </div>
 
-        <div aria-hidden="true">
+        <div aria-hidden="true" className="pointer-events-none">
           <Image
             src="/images/home/featured-yacht-arc.png"
             alt=""
@@ -177,6 +190,11 @@ export function FeaturedYachtSection() {
             <span className="mt-2 text-[0.8125rem] leading-none tracking-[0.08em] lg:mt-[calc(var(--r)*8)] lg:text-[max(calc(var(--r)*13),10px)]">
               {String(activeIndex + 1).padStart(2, "0")}
             </span>
+            {spinReady === yacht.id && (
+              <span className="mt-2 text-[0.6875rem] tracking-[0.2em] uppercase opacity-90 lg:mt-[calc(var(--r)*8)] lg:text-[max(calc(var(--r)*11),10px)]">
+                360° · drag to turn
+              </span>
+            )}
           </div>
         </div>
 

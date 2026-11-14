@@ -117,6 +117,22 @@ export function listCancellationRequests(
   });
 }
 
+/**
+ * The customer's undecided cancellation request for this booking, or null when
+ * they haven't asked to cancel (searched by its reference, then matched by id).
+ */
+export async function findPendingCancellationRequest(
+  bookingId: string,
+  reference: string,
+  signal?: AbortSignal,
+) {
+  const list = await listCancellationRequests(
+    { status: "pending", search: reference, limit: 5 },
+    signal,
+  );
+  return list.items.find((r) => r.booking.id === bookingId) ?? null;
+}
+
 /** GET /admin/cancellation-requests/{id} — with the refund preview. */
 export function getCancellationRequest(
   id: string,

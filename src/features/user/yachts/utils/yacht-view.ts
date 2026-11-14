@@ -58,6 +58,8 @@ export interface YachtDetailsData {
   policies: string | null;
   enquiryEnabled: boolean;
   relatedYachts: FleetYacht[];
+  /** A 360° view is ready to show. */
+  hasSpin: boolean;
 }
 
 const METRES_PER_FOOT = 0.3048;
@@ -118,6 +120,7 @@ export function toYachtDetails(yacht: YachtDetail, related: YachtCard[]): YachtD
     yacht.opens_at && yacht.closes_at ? `${yacht.opens_at} – ${yacht.closes_at}` : null;
 
   return {
+    hasSpin: yacht.has_spin,
     id: yacht.id,
     slug: yacht.slug,
     name: yacht.name,

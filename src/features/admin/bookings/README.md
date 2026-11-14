@@ -5,14 +5,14 @@ cancellation.
 
 **Routes (admin Figma screen):**
 
-| Route                             | Screen                                                             |
-| --------------------------------- | ------------------------------------------------------------------ |
-| `/admin/bookings`                 | A08 — "Every booking, in view."                                    |
-| `/admin/bookings/new`             | A09 → A10 — new office booking, then payment                       |
-| `/admin/bookings/[id]`            | A11 — "The complete charter record." (overview, payments, history) |
-| `/admin/bookings/[id]/payment`    | A10 — offline payment; `?mode=link` opens A38 (payment link)       |
-| `/admin/bookings/[id]/reschedule` | A12 — "A new time on the water."                                   |
-| `/admin/bookings/[id]/cancel`     | A13 — "Review a change of plans."                                  |
+| Route                             | Screen                                                                     |
+| --------------------------------- | -------------------------------------------------------------------------- |
+| `/admin/bookings`                 | A08 — "Every booking, in view."                                            |
+| `/admin/bookings/new`             | A09 → A10 — new office booking, then payment                               |
+| `/admin/bookings/[id]`            | A11 — "The complete charter record." (overview, payments, history)         |
+| `/admin/bookings/[id]/payment`    | A10 — offline payment; `?mode=link` opens A38 (payment link)               |
+| `/admin/bookings/[id]/reschedule` | A12 — "A new time on the water."                                           |
+| `/admin/bookings/[id]/cancel`     | Opens the customer’s pending cancellation request; none: nothing to review |
 
 ## Backend contract (see the backend's `/docs`)
 
@@ -26,7 +26,7 @@ cancellation.
 | `POST /admin/bookings/{id}/notes`          | Internal note (also the note typed on the forms)             |
 | `POST /admin/bookings/{id}/payment-link`   | Payment link (A38)                                           |
 | `POST /admin/bookings/{id}/payments`       | Offline payment for a pending office booking                 |
-| `POST /admin/bookings/{id}/cancel`         | Cancellation with refund decision                            |
+| `POST /admin/bookings/{id}/cancel`         | Not used by the screens: cancellations go through requests   |
 | `POST /admin/bookings/{id}/reschedule`     | Reschedule                                                   |
 | `POST /admin/bookings/{id}/price-override` | "Change the price" (super admin, unpaid office bookings)     |
 | `POST /admin/bookings/{id}/status`         | Mark completed / no-show                                     |
@@ -64,3 +64,7 @@ partial / none, optional note shown to the customer), `POST …/{id}/reject` (re
 to the customer). Approving cancels the booking and records the refund owed; the screen then links
 to refunding the captured payment. The bookings list shows how many requests wait; a booking with a
 pending request shows a banner. The booking record's Payments tab lists its `refunds`.
+
+**Cancellation rule:** a booking is cancelled only when the customer has asked. "Review
+cancellation" appears on a booking only while it has a pending cancellation request, and opens that
+request. The staff-initiated cancel form was removed.

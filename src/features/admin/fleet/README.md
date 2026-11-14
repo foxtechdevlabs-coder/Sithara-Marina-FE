@@ -64,3 +64,33 @@ validation (mirrors the backend DTO rules): `utils/yacht-form.ts`. Error wording
   Needs a price. They are changed on the edit form.
 - Bookings, availability, activity and "next charter" on the yacht page are not connected yet.
 - Photo upload needs the storage bucket's CORS rule to allow `PUT` from the admin origin.
+
+## 360° view (optional)
+
+On the yacht form, under Photos (`components/yacht-spin-section.tsx`; API in
+`src/services/admin/yacht-spin.service.ts`).
+
+- Video: MP4, MOV or WebM, 2–60 seconds, up to 200 MB. Type and size are checked before upload.
+  The length is read by the browser when it can; some MOV files can't be read, and the backend
+  checks again. A `.mov` the browser leaves untyped is sent as `video/quicktime`.
+- Frames: 36 (default) to 72, in steps of 4, sent as `frame_count`.
+- Upload: `POST /admin/media/uploads` (purpose `yacht_spin_video`), PUT to `upload_url` with
+  progress, then `PUT /admin/yachts/{id}/spin` `{ media_id, frame_count }`. While the attempt is
+  `pending` or `processing`, `GET …/spin` is polled every 4 s until it goes live or fails.
+- New yacht: the video waits in the form and is uploaded after `POST /admin/yachts` returns the
+  yacht's id. If that fails, the yacht page says so (`?notice=no-spin`) and the video can be added
+  in Edit yacht.
+- Replacing: the live view stays up (`live`) while the new video (`attempt`) processes. A failed
+  attempt shows its error and leaves the live view alone. Upload is disabled while one processes.
+- Starting frame (1-based, in filming order) and reverse rotation: `PATCH …/spin`. Remove:
+  `DELETE …/spin`.
+- Video upload uses the same storage CORS rule as photos.
+- Preview (`components/spin-viewer.tsx`, `src/lib/spin-frames.ts`): when the viewer opens it asks
+  once for the frame links with `GET /yachts/{slug}/spin?size=` (`small` at 767px wide or less,
+  `large` otherwise). For a hidden or inactive yacht the public endpoint answers 404, so the admin
+  preview frames are used instead. Every frame is downloaded and decoded first, with progress, and
+  turning is enabled only once all are ready. Frames are then drawn on a canvas from memory, so
+  dragging makes no requests. A failed frame is retried three times; if frames still fail, the
+  links are fetched once more (they're signed for about an hour) and the missing frames loaded
+  again. Changing the starting view reuses the frames already in memory. Leaving the page cancels
+  any downloads still running and frees the frames.
