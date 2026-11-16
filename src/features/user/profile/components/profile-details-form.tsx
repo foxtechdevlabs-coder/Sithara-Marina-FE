@@ -87,9 +87,9 @@ export function ProfileDetailsForm({ profile, className }: ProfileDetailsFormPro
       return;
     }
     const message = !PROFILE_PHOTO_TYPES.some((type) => type === file.type)
-      ? "Choose a JPG or PNG image."
+      ? "Choose a JPG, PNG or WebP image."
       : file.size > PROFILE_PHOTO_MAX_BYTES
-        ? "Choose an image smaller than 5 MB."
+        ? "Choose an image of 2 MB or less."
         : null;
     if (message) {
       setErrors((current) => ({ ...current, photo: message }));

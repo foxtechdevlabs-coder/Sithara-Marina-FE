@@ -19,7 +19,17 @@ export function AccountSidebar() {
   return (
     <div className="border-rule border bg-white px-4 pt-6 pb-5">
       <div className="px-2.5">
-        <UserRound aria-hidden="true" strokeWidth={1.25} className="text-navy-ink size-6" />
+        {profile?.avatar_url ? (
+          // A signed, 1-hour link from GET /auth/me (re-read on each navigation).
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={profile.avatar_url}
+            alt=""
+            className="border-rule size-10 rounded-full border object-cover"
+          />
+        ) : (
+          <UserRound aria-hidden="true" strokeWidth={1.25} className="text-navy-ink size-6" />
+        )}
         {/* Reserves its height while loading, so the navigation does not jump. */}
         <p className="text-navy-ink mt-3 min-h-7 truncate text-[1.375rem] leading-tight">
           {profile?.fullName}

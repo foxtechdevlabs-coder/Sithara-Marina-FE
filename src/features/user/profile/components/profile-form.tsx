@@ -3,7 +3,7 @@
 import { ArrowRight, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useId, useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 
 import {
   AccountHeading,
@@ -26,11 +26,15 @@ import { useApiQuery } from "@/hooks/use-api-query";
 import { isApiError } from "@/services/http/api-error";
 import { getBackendErrorDetails } from "@/services/http/backend-error";
 import {
+  AVATAR_TYPES,
+  avatarProblem,
   getMyProfile,
   getProfileExtras,
+  removeMyAvatar,
   requestEmailChange,
   updateMyProfile,
   updateProfileExtras,
+  uploadMyAvatar,
   type AccountUser,
   type ProfileExtras,
 } from "@/services/user/profile.service";
@@ -38,8 +42,6 @@ import { emailSchema } from "@/validation/email";
 
 import { PHONE_FORMAT_HINT, toE164 } from "../utils/phone";
 
-const PHOTO_TYPES = ["image/jpeg", "image/png"];
-const PHOTO_MAX_BYTES = 5 * 1024 * 1024;
 /** PATCH /me: `name` up to 255 characters. */
 const NAME_MAX = 255;
 
@@ -132,11 +134,20 @@ function ProfileForm({
   const router = useRouter();
   const [values, setValues] = useState<Values>(() => toValues(profile));
   const [errors, setErrors] = useState<FieldErrors>({});
-  const [photoName, setPhotoName] = useState<string | null>(null);
+  /** "uploading" / "removing" while the photo request runs; saved at once, not with the form. */
+  const [photoBusy, setPhotoBusy] = useState<"uploading" | "removing" | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photoNotice, setPhotoNotice] = useState<string | null>(null);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const isSubmitting = useRef(false);
   const currentEmail = profile.user.email;
+  const avatarUrl = photoPreview ?? profile.user.avatar_url ?? null;
+
+  // Release the local preview's object URL when it is replaced or the form unmounts.
+  useEffect(() => {
+    if (!photoPreview) return;
+    return () => URL.revokeObjectURL(photoPreview);
+  }, [photoPreview]);
 
   const set = (name: keyof Values) => (event: ChangeEvent<HTMLInputElement>) => {
     setValues((current) => ({ ...current, [name]: event.target.value }));
@@ -144,23 +155,65 @@ function ProfileForm({
     setStatus({ kind: "idle" });
   };
 
-  const onPhoto = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+  const setAvatar = (avatar_url: string | null) =>
+    onSaved({ ...profile, user: { ...profile.user, avatar_url } });
+
+  // The photo is saved as soon as it is chosen (POST /me/avatar/uploads → PUT → PUT /me/avatar).
+  const onPhoto = async (event: ChangeEvent<HTMLInputElement>) => {
+    const input = event.target;
+    const file = input.files?.[0];
+    input.value = ""; // choosing the same file again still triggers a change
     setErrors((current) => ({ ...current, photo: undefined }));
-    if (!file) {
-      setPhotoName(null);
-      setPhotoPreview(null);
+    setPhotoNotice(null);
+    if (!file || photoBusy) return;
+    const problem = avatarProblem(file);
+    if (problem) {
+      setErrors((current) => ({ ...current, photo: problem }));
       return;
     }
-    if (!PHOTO_TYPES.includes(file.type) || file.size > PHOTO_MAX_BYTES) {
-      event.target.value = "";
-      setPhotoName(null);
-      setPhotoPreview(null);
-      setErrors((current) => ({ ...current, photo: "Please choose a JPG or PNG under 5 MB." }));
-      return;
-    }
-    setPhotoName(file.name);
+
+    setPhotoBusy("uploading");
     setPhotoPreview(URL.createObjectURL(file));
+    try {
+      setAvatar(await uploadMyAvatar(file));
+      setPhotoNotice("Your profile photo has been updated.");
+    } catch (error) {
+      const readable =
+        isApiError(error) && error.code === "INVALID_MEDIA"
+          ? getBackendErrorDetails(error).messages[0]
+          : undefined;
+      setErrors((current) => ({
+        ...current,
+        photo:
+          readable ??
+          accountErrorMessage(error, "We couldn’t upload your photo just now. Please try again."),
+      }));
+    } finally {
+      setPhotoPreview(null);
+      setPhotoBusy(null);
+    }
+  };
+
+  const onRemovePhoto = async () => {
+    if (photoBusy) return;
+    setErrors((current) => ({ ...current, photo: undefined }));
+    setPhotoNotice(null);
+    setPhotoBusy("removing");
+    try {
+      await removeMyAvatar();
+      setAvatar(null);
+      setPhotoNotice("Your profile photo has been removed.");
+    } catch (error) {
+      setErrors((current) => ({
+        ...current,
+        photo: accountErrorMessage(
+          error,
+          "We couldn’t remove your photo just now. Please try again.",
+        ),
+      }));
+    } finally {
+      setPhotoBusy(null);
+    }
   };
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -250,8 +303,6 @@ function ProfileForm({
   const onCancel = () => {
     setValues(toValues(profile));
     setErrors({});
-    setPhotoName(null);
-    setPhotoPreview(null);
     setStatus({ kind: "idle" });
   };
 
@@ -296,12 +347,13 @@ function ProfileForm({
   return (
     <form onSubmit={(event) => void onSubmit(event)} noValidate className="mt-8 max-w-[56rem]">
       <div className="flex items-start gap-5">
-        {photoPreview ? (
+        {avatarUrl ? (
+          // A signed, short-lived link (or a local preview): not for next/image.
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={photoPreview}
-            alt="Profile photo preview"
-            className="border-rule mt-2 size-12 shrink-0 rounded-full border object-cover"
+            src={avatarUrl}
+            alt="Your profile photo"
+            className={`border-rule mt-2 size-12 shrink-0 rounded-full border object-cover ${photoBusy ? "opacity-60" : ""}`}
           />
         ) : (
           <UserRound
@@ -314,23 +366,46 @@ function ProfileForm({
           <p className={labelClass} id={`${id}-photo-label`}>
             Profile photo · optional
           </p>
-          {/* No photo upload endpoint yet: the file is checked here but not sent. */}
-          <label className="border-rule text-navy-ink focus-within:outline-navy-ink flex h-[50px] cursor-pointer items-center border px-4 text-[13px] focus-within:outline-2 focus-within:outline-offset-2">
-            <span className="truncate">{photoName ?? "Choose a JPG or PNG"}</span>
+          <label
+            className={`border-rule text-navy-ink focus-within:outline-navy-ink flex h-[50px] items-center border px-4 text-[13px] focus-within:outline-2 focus-within:outline-offset-2 ${photoBusy ? "cursor-wait opacity-70" : "cursor-pointer"}`}
+          >
+            <span className="truncate">
+              {photoBusy === "uploading"
+                ? "Uploading…"
+                : avatarUrl
+                  ? "Choose a new photo"
+                  : "Choose a JPG, PNG or WebP"}
+            </span>
             <input
               type="file"
-              accept="image/jpeg,image/png"
-              onChange={onPhoto}
+              accept={AVATAR_TYPES.join(",")}
+              onChange={(event) => void onPhoto(event)}
+              disabled={photoBusy !== null}
               aria-labelledby={`${id}-photo-label`}
               aria-describedby={errors.photo ? `${id}-photo-error` : undefined}
               className="sr-only"
             />
           </label>
+          {profile.user.avatar_url && !photoBusy ? (
+            <button
+              type="button"
+              onClick={() => void onRemovePhoto()}
+              className={`${textButtonClass} mt-2`}
+            >
+              Remove photo
+            </button>
+          ) : null}
+          {photoBusy === "removing" ? (
+            <p className="text-body mt-2 text-[12px]">Removing…</p>
+          ) : null}
           {errors.photo ? (
-            <p id={`${id}-photo-error`} className={fieldErrorClass}>
+            <p id={`${id}-photo-error`} role="alert" className={fieldErrorClass}>
               {errors.photo}
             </p>
           ) : null}
+          <p role="status" className="text-body mt-1.5 text-[12px] empty:hidden">
+            {photoNotice}
+          </p>
         </div>
       </div>
 
