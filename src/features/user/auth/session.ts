@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from "react";
 
 import { userRoutes } from "@/constants/routes";
+import { clearMyProfile } from "@/features/user/account/my-profile";
 import { isApiError } from "@/services/http/api-error";
 import { registerAuthHandlers } from "@/services/http/auth-handlers";
 import {
@@ -12,6 +13,7 @@ import {
   type AuthUser,
   type RefreshResponse,
 } from "@/services/user/auth.service";
+import { clearMockAccountData } from "@/services/user/profile.service";
 
 import { saveAuthFlash } from "./utils/auth-flash";
 
@@ -80,8 +82,19 @@ export function readAuthSession(): AuthSession | null {
   return cachedSession;
 }
 
+/**
+ * Data kept in the browser for the signed-in customer only: the shared
+ * profile and the TEMPORARY mock account details. Dropped whenever the
+ * customer changes, so the next customer in this tab never sees it.
+ */
+function forgetCustomerData(): void {
+  clearMyProfile();
+  clearMockAccountData();
+}
+
 /** Stores the session returned by login or email verification. */
 export function saveAuthSession(response: Omit<AuthResponse, "user"> & { user?: AuthUser }): void {
+  forgetCustomerData(); // possibly another customer than the one before
   write({
     accessToken: response.access_token,
     refreshToken: response.refresh_token,
@@ -90,6 +103,7 @@ export function saveAuthSession(response: Omit<AuthResponse, "user"> & { user?: 
 }
 
 export function clearAuthSession(): void {
+  forgetCustomerData();
   write(null);
 }
 

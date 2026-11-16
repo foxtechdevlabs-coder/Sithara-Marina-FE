@@ -3,7 +3,11 @@ import { z } from "zod";
 import { apiClient } from "@/services/http/api-client";
 import { ApiError } from "@/services/http/api-error";
 
-import { readMockAccount, updateMockAccount } from "./mocks/customer-account.store";
+import {
+  readMockAccount,
+  resetMockAccount,
+  updateMockAccount,
+} from "./mocks/customer-account.store";
 import { mockResponse } from "./mocks/mock-response";
 
 /*
@@ -158,6 +162,15 @@ const profileExtrasSchema = z.object({
     postal_code: z.string().nullable(),
   }),
 });
+
+/**
+ * Forgets the mock (this-tab-only) country, billing details and notification
+ * preferences. They are tied to no account, so they are cleared whenever the
+ * signed-in customer changes.
+ */
+export function clearMockAccountData(): void {
+  resetMockAccount();
+}
 
 export function getProfileExtras(signal?: AbortSignal): Promise<ProfileExtras> {
   return mockResponse(profileExtrasSchema, readMockAccount().profile_extras, signal);

@@ -56,6 +56,13 @@ Kept in this browser tab only (`src/services/user/mocks/`, `sessionStorage`), cl
 | Notification preferences             | `/account/notifications`, `/account/setup` | No endpoint in the OpenAPI document         |
 | Country / region and billing details | `/account/profile`, `/account/setup`       | `PATCH /me` accepts only `name` and `phone` |
 
+- **Cleared when the customer changes:** sign-in, sign-out and an expired session drop this data
+  (`forgetCustomerData` in `src/features/user/auth/session.ts`), so it never reaches the next
+  customer on the same tab. It starts empty (no prefilled country).
+- **Never presented as saved to the account:** the pages and confirmation screens say these details
+  are kept in this browser tab only (`src/features/user/account/utils/device-only.ts`). Remove that
+  wording together with the mock store once the endpoints exist.
+
 ## 3. Missing backend APIs — PROPOSALS ONLY
 
 > **These endpoints do not exist.** They are suggestions for the backend team, written to match

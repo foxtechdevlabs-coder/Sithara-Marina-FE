@@ -16,6 +16,7 @@ import {
   secondaryButtonClass,
 } from "@/features/user/account/components/account-ui";
 import { QueryFallback } from "@/features/user/account/components/query-fallback";
+import { DEVICE_ONLY_PREFERENCES_NOTE } from "@/features/user/account/utils/device-only";
 import { useApiQuery } from "@/hooks/use-api-query";
 import {
   getNotificationPreferences,
@@ -133,8 +134,10 @@ function PreferencesForm({
         ))}
       </div>
 
-      <p role="status" className="text-body mt-7 min-h-5 text-[13px]">
-        {status === "saved" ? "Your preferences have been saved." : null}
+      {/* TEMPORARY: no endpoint stores these preferences yet. */}
+      <p className="text-body mt-7 text-[12px] leading-snug">{DEVICE_ONLY_PREFERENCES_NOTE}</p>
+      <p role="status" className="text-body mt-3 min-h-5 text-[13px]">
+        {status === "saved" ? "Your choices are kept in this browser tab." : null}
       </p>
       {status === "failed" ? (
         <p role="alert" className={fieldErrorClass}>
@@ -148,7 +151,7 @@ function PreferencesForm({
           className={primaryButtonClass}
           style={primaryButtonStyle}
         >
-          {status === "saving" ? "Saving…" : "Save preferences"}
+          {status === "saving" ? "Saving…" : "Keep these choices"}
         </button>
         <button
           type="button"

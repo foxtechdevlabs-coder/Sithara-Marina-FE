@@ -19,16 +19,21 @@ import {
   textButtonClass,
 } from "@/features/user/account/components/account-ui";
 import { QueryFallback } from "@/features/user/account/components/query-fallback";
+import {
+  fetchMyProfile,
+  publishMyProfile,
+  updatePublishedProfile,
+} from "@/features/user/account/my-profile";
 import { accountErrorMessage } from "@/features/user/account/utils/account-error";
+import { DEVICE_ONLY_DETAILS_NOTE } from "@/features/user/account/utils/device-only";
 import { updateSessionUser } from "@/features/user/auth/session";
 import { userRoutes } from "@/constants/routes";
-import { useApiQuery } from "@/hooks/use-api-query";
+import { useApiQuery, type ApiQuery } from "@/hooks/use-api-query";
 import { isApiError } from "@/services/http/api-error";
 import { getBackendErrorDetails } from "@/services/http/backend-error";
 import {
   AVATAR_TYPES,
   avatarProblem,
-  getMyProfile,
   getProfileExtras,
   removeMyAvatar,
   requestEmailChange,
@@ -40,6 +45,7 @@ import {
 } from "@/services/user/profile.service";
 import { emailSchema } from "@/validation/email";
 
+import { withAvatarUrl } from "../utils/avatar";
 import { PHONE_FORMAT_HINT, toE164 } from "../utils/phone";
 
 /** PATCH /me: `name` up to 255 characters. */
@@ -93,7 +99,7 @@ const orNull = (value: string) => value.trim() || null;
 const isSameEmail = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
 
 async function loadProfile(signal: AbortSignal): Promise<ProfileData> {
-  const [user, extras] = await Promise.all([getMyProfile(signal), getProfileExtras(signal)]);
+  const [user, extras] = await Promise.all([fetchMyProfile(), getProfileExtras(signal)]);
   return { user, extras };
 }
 
@@ -128,7 +134,8 @@ function ProfileForm({
   onSaved,
 }: {
   profile: ProfileData;
-  onSaved: (profile: ProfileData) => void;
+  /** Accepts a functional update, applied to the newest data. */
+  onSaved: ApiQuery<ProfileData>["setData"];
 }) {
   const id = useId();
   const router = useRouter();
@@ -155,8 +162,14 @@ function ProfileForm({
     setStatus({ kind: "idle" });
   };
 
-  const setAvatar = (avatar_url: string | null) =>
-    onSaved({ ...profile, user: { ...profile.user, avatar_url } });
+  // Applied to the newest data, not to `profile` as it was when the request
+  // started: a name or phone saved during the upload must not be undone.
+  const setAvatar = (avatarUrl: string | null) => {
+    onSaved((current) => withAvatarUrl<ProfileData>(avatarUrl)(current ?? profile));
+    updatePublishedProfile(
+      (user) => withAvatarUrl<{ user: AccountUser }>(avatarUrl)({ user }).user,
+    );
+  };
 
   // The photo is saved as soon as it is chosen (POST /me/avatar/uploads → PUT → PUT /me/avatar).
   const onPhoto = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -241,6 +254,7 @@ function ProfileForm({
         },
       });
       onSaved({ user: saved, extras });
+      publishMyProfile(saved);
       updateSessionUser({
         id: saved.id,
         fullName: saved.fullName,
@@ -427,6 +441,10 @@ function ProfileForm({
         })}
         {field("country", "Country / region", { autoComplete: "country-name" })}
       </div>
+      {/* TEMPORARY: no endpoint stores country or billing details yet. */}
+      <p className="text-body mt-3 max-w-[40rem] text-[12px] leading-snug">
+        {DEVICE_ONLY_DETAILS_NOTE}
+      </p>
 
       <Link href={userRoutes.accountProfileEmail} className={`${textButtonClass} mt-6`}>
         Change email address

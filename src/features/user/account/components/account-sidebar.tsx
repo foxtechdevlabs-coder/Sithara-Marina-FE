@@ -1,20 +1,22 @@
 "use client";
 
 import { UserRound } from "lucide-react";
-import { usePathname } from "next/navigation";
+import { useEffect } from "react";
 
-import { useApiQuery } from "@/hooks/use-api-query";
-import { getMyProfile } from "@/services/user/profile.service";
+import { fetchMyProfile, useMyProfile } from "../my-profile";
 
 import { AccountNavList } from "./account-nav-list";
 import { SignOutButton } from "./sign-out-button";
 
 /** Desktop sidebar: who is signed in, the account sections and Sign out. */
 export function AccountSidebar() {
-  // Reloaded on each navigation, so a saved name or email shows at once (the
-  // previous answer stays on screen while it loads).
-  const pathname = usePathname();
-  const profile = useApiQuery(getMyProfile, `my-profile:${pathname}`).data;
+  // Loaded once (sharing the page's own GET /auth/me when both start together);
+  // pages publish every newer answer and saved change, so it stays current
+  // without a request on each navigation.
+  const profile = useMyProfile();
+  useEffect(() => {
+    void fetchMyProfile().catch(() => {}); // the page shows its own error
+  }, []);
 
   return (
     <div className="border-rule border bg-white px-4 pt-6 pb-5">

@@ -8,6 +8,10 @@ import {
   primaryButtonStyle,
   secondaryButtonClass,
 } from "@/features/user/account/components/account-ui";
+import {
+  DEVICE_ONLY_DETAILS_NOTE,
+  DEVICE_ONLY_PREFERENCES_NOTE,
+} from "@/features/user/account/utils/device-only";
 
 /*
  * Where the profile, security and notification forms land after a save
@@ -41,8 +45,8 @@ export function ProfileSaved() {
           </>
         }
       >
-        Your contact and billing preferences are ready for your next journey. Existing booking
-        records remain available in your booking history.
+        Your name, phone number and email are saved to your account. Existing booking records remain
+        available in your booking history. {DEVICE_ONLY_DETAILS_NOTE}
       </ConfirmationPanel>
     </>
   );
@@ -81,17 +85,20 @@ export function PasswordUpdated() {
   );
 }
 
-/** Figma C64 "Your preferences, saved." */
+/**
+ * Figma C64 "Your preferences, saved." TEMPORARY wording: no endpoint stores
+ * the preferences yet, so the page says they are kept in this tab only.
+ */
 export function PreferencesSaved() {
   return (
     <>
       <AccountHeading
         heading="Your preferences,"
-        headingSerif="saved."
-        subtitle="Your communication preferences have been updated."
+        headingSerif="noted."
+        subtitle="Your choices are kept in this browser tab for now."
       />
       <ConfirmationPanel
-        status="Preferences saved"
+        status="Kept in this tab"
         title="Thoughtfully in touch."
         actions={
           <>
@@ -108,8 +115,7 @@ export function PreferencesSaved() {
           </>
         }
       >
-        Your essential charter updates will continue. Optional messages follow your selected
-        preferences.
+        Your essential charter updates will continue. {DEVICE_ONLY_PREFERENCES_NOTE}
       </ConfirmationPanel>
     </>
   );
