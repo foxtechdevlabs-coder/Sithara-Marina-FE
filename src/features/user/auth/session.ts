@@ -13,7 +13,6 @@ import {
   type AuthUser,
   type RefreshResponse,
 } from "@/services/user/auth.service";
-import { clearMockAccountData } from "@/services/user/profile.service";
 
 import { saveAuthFlash } from "./utils/auth-flash";
 
@@ -84,12 +83,11 @@ export function readAuthSession(): AuthSession | null {
 
 /**
  * Data kept in the browser for the signed-in customer only: the shared
- * profile and the TEMPORARY mock account details. Dropped whenever the
- * customer changes, so the next customer in this tab never sees it.
+ * profile. Dropped whenever the customer changes, so the next customer in this
+ * tab never sees it.
  */
 function forgetCustomerData(): void {
   clearMyProfile();
-  clearMockAccountData();
 }
 
 /** Stores the session returned by login or email verification. */

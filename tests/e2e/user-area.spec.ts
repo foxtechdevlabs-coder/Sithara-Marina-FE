@@ -373,22 +373,18 @@ test.describe("customer account", () => {
     await expect(page.getByText("Please enter your full name.")).toBeVisible();
   });
 
-  test("profile page says country and billing stay in this tab, with nothing prefilled", async ({
-    page,
-  }) => {
+  test("profile page starts with no country or billing details", async ({ page }) => {
     await page.goto("/account/profile");
     await expect(page.getByLabel("Country / region")).toHaveValue("");
-    await expect(
-      page.getByText("Country and billing details are kept in this browser tab only for now."),
-    ).toBeVisible();
+    await expect(page.getByText("kept in this browser tab")).toHaveCount(0);
   });
 
-  test("notification choices are not presented as saved to the account", async ({ page }) => {
+  test("notification preferences show the two switches, with reminders on by default", async ({
+    page,
+  }) => {
     await page.goto("/account/notifications");
-    await expect(page.getByText(/kept in this browser tab only for now/)).toBeVisible();
-    await page.getByRole("button", { name: "Keep these choices" }).click();
-    await expect(page).toHaveURL("/account/notifications/saved");
-    await expect(page.getByText("Kept in this tab")).toBeVisible();
+    await expect(page.getByLabel("Email me a reminder the day before my charter")).toBeChecked();
+    await expect(page.getByLabel("Send occasional inspiration and offers")).not.toBeChecked();
   });
 
   test("the page and the sidebar share one GET /auth/me", async ({ page }) => {

@@ -9,24 +9,26 @@ import { PHONE_FORMAT_HINT } from "@/features/user/profile/utils/phone";
 describe("setupInitialValues", () => {
   it("starts from the server's profile", () => {
     expect(
-      setupInitialValues(
-        { fullName: "Ajin R.", email: "new@example.test", phone: "+919876543210" },
-        null,
-        true,
-      ),
+      setupInitialValues({
+        fullName: "Ajin R.",
+        email: "new@example.test",
+        phone: "+919876543210",
+        country: null,
+        notification_preferences: { offers_and_updates: true },
+      }),
     ).toEqual({
       fullName: "Ajin R.",
       email: "new@example.test",
       phone: "+919876543210",
       country: "",
-      storiesAndOffers: true,
+      offersAndUpdates: true,
     });
   });
 
-  it("shows a missing phone as an empty field", () => {
+  it("shows a missing phone as an empty field and keeps the country code", () => {
     expect(
-      setupInitialValues({ fullName: "A", email: "a@b.test", phone: null }, "India", false),
-    ).toMatchObject({ phone: "", country: "India" });
+      setupInitialValues({ fullName: "A", email: "a@b.test", phone: null, country: "IN" }),
+    ).toMatchObject({ phone: "", country: "IN", offersAndUpdates: false });
   });
 });
 

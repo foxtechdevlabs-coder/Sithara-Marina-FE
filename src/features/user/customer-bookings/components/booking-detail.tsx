@@ -33,7 +33,7 @@ import { CANCELLATION_STATUS_LABELS } from "@/features/user/cancellations/utils/
 import { userRoutes } from "@/constants/routes";
 import { useApiQuery } from "@/hooks/use-api-query";
 import {
-  getMyBooking,
+  getMyBookingByIdOrReference,
   type BookingDetail as Booking,
 } from "@/services/user/customer-bookings.service";
 
@@ -70,9 +70,13 @@ const onBoard = (booking: Booking) =>
 /**
  * A booking in the account (GET /me/bookings/{ref}): Figma C19 "Every detail,
  * for your journey." while it is ahead, C35 "A journey worth remembering." after.
+ * `bookingRef` is the reference, or the booking's id when opened from a notification.
  */
 export function BookingDetail({ bookingRef }: { bookingRef: string }) {
-  const query = useApiQuery((signal) => getMyBooking(bookingRef, signal), bookingRef);
+  const query = useApiQuery(
+    (signal) => getMyBookingByIdOrReference(bookingRef, signal),
+    bookingRef,
+  );
   const yacht = useYachtInfo(query.data?.yacht.slug);
 
   if (!query.data) {

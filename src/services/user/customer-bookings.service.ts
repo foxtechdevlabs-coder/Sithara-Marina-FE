@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { apiClient } from "@/services/http/api-client";
 
-import { bookingStatusSchema } from "./booking.service";
+import { bookingStatusSchema, getBooking } from "./booking.service";
 
 /*
  * The signed-in customer's bookings (account area). Amounts are paise.
@@ -167,4 +167,20 @@ export function getMyBooking(reference: string, signal?: AbortSignal): Promise<B
     signal,
     schema: bookingDetailSchema,
   });
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Like `getMyBooking`, but also takes the booking's id (UUID), which is what
+ * customer notifications carry: the id is first turned into the reference with
+ * GET /bookings/{id} (same 404 for another customer's booking).
+ */
+export async function getMyBookingByIdOrReference(
+  idOrReference: string,
+  signal?: AbortSignal,
+): Promise<BookingDetail> {
+  if (!UUID.test(idOrReference)) return getMyBooking(idOrReference, signal);
+  const { reference } = await getBooking(idOrReference, null, signal);
+  return getMyBooking(reference, signal);
 }
