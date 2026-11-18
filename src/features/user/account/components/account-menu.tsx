@@ -4,7 +4,8 @@ import Link from "next/link";
 
 import { userRoutes } from "@/constants/routes";
 import { useApiQuery } from "@/hooks/use-api-query";
-import { getMyProfile } from "@/services/user/profile.service";
+
+import { fetchMyProfile } from "../my-profile";
 
 import { AccountNavList } from "./account-nav-list";
 import { AccountHeading, Card, textButtonClass } from "./account-ui";
@@ -12,7 +13,7 @@ import { SignOutButton } from "./sign-out-button";
 
 /** Figma C66 "Account navigation": every account section on one page (the mobile menu). */
 export function AccountMenu() {
-  const profile = useApiQuery(getMyProfile, "my-profile").data;
+  const profile = useApiQuery(fetchMyProfile, "my-profile").data;
 
   return (
     <>

@@ -33,6 +33,20 @@ export function readMockAccount(): MockAccount {
   return account;
 }
 
+/**
+ * Forgets everything kept here. Called whenever the signed-in customer changes
+ * (sign-in, sign-out, expired session): the data belongs to no account, so the
+ * next customer in this tab must never see it.
+ */
+export function resetMockAccount(): void {
+  account = null;
+  try {
+    sessionStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // Storage unavailable: only the in-memory copy existed.
+  }
+}
+
 export function updateMockAccount(change: (draft: MockAccount) => void): MockAccount {
   const current = readMockAccount();
   change(current);

@@ -6,12 +6,13 @@ import { useRouter } from "next/navigation";
 import { useId, useState, type FormEvent } from "react";
 
 import { userRoutes } from "@/constants/routes";
-import { updateSessionUser, useAuthSession } from "@/features/user/auth/session";
+import { updateSessionUser } from "@/features/user/auth/session";
 import { PHONE_FORMAT_HINT, toE164 } from "@/features/user/profile/utils/phone";
 import { useApiQuery } from "@/hooks/use-api-query";
 import { cx } from "@/lib/cx";
+import { isApiError } from "@/services/http/api-error";
+import { getBackendErrorDetails } from "@/services/http/backend-error";
 import {
-  getMyProfile,
   getNotificationPreferences,
   getProfileExtras,
   updateMyProfile,
@@ -19,7 +20,9 @@ import {
   updateProfileExtras,
 } from "@/services/user/profile.service";
 
+import { fetchMyProfile, publishMyProfile } from "../my-profile";
 import { accountErrorMessage } from "../utils/account-error";
+import { setupInitialValues, validateSetup, type SetupField } from "../utils/setup-form";
 
 import {
   AccountHeading,
@@ -38,7 +41,7 @@ import { QueryFallback } from "./query-fallback";
 /** The account (GET /auth/me), plus the TEMPORARY mock country and offers preference. */
 function loadSetup(signal: AbortSignal) {
   return Promise.all([
-    getMyProfile(signal),
+    fetchMyProfile(),
     getProfileExtras(signal),
     getNotificationPreferences(signal),
   ]);
@@ -51,7 +54,7 @@ interface Values {
   country: string;
   storiesAndOffers: boolean;
 }
-type FieldErrors = Partial<Record<"fullName" | "phone", string>>;
+type FieldErrors = Partial<Record<SetupField, string>>;
 
 /**
  * Figma C58 "Make your account your own.": the first stop after the email is
@@ -59,7 +62,6 @@ type FieldErrors = Partial<Record<"fullName" | "phone", string>>;
  */
 export function AccountSetup() {
   const query = useApiQuery(loadSetup, "account-setup");
-  const user = useAuthSession()?.user;
 
   return (
     <>
@@ -71,14 +73,11 @@ export function AccountSetup() {
       <StatusChip className="mt-7 lg:mt-8">Email verified</StatusChip>
       {query.data ? (
         <SetupForm
-          initial={{
-            // The verified session's own name and email come first.
-            fullName: user?.fullName ?? query.data[0].fullName,
-            email: user?.email ?? query.data[0].email,
-            phone: query.data[0].phone ?? "",
-            country: query.data[1].country ?? "",
-            storiesAndOffers: query.data[2].stories_and_offers,
-          }}
+          initial={setupInitialValues(
+            query.data[0],
+            query.data[1].country,
+            query.data[2].stories_and_offers,
+          )}
         />
       ) : (
         <QueryFallback query={query} loadingLabel="Loading your details" />
@@ -102,9 +101,7 @@ function SetupForm({ initial }: { initial: Values }) {
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const found: FieldErrors = {};
-    if (!values.fullName.trim()) found.fullName = "Please enter your full name.";
-    if (values.phone.trim() && !toE164(values.phone)) found.phone = PHONE_FORMAT_HINT;
+    const found: FieldErrors = validateSetup(values);
     setErrors(found);
     if (Object.keys(found).length > 0 || status === "saving") return;
 
@@ -114,6 +111,7 @@ function SetupForm({ initial }: { initial: Values }) {
         name: values.fullName.trim(),
         phone: values.phone.trim() ? toE164(values.phone) : null,
       });
+      publishMyProfile(saved);
       updateSessionUser({
         id: saved.id,
         fullName: saved.fullName,
@@ -127,6 +125,14 @@ function SetupForm({ initial }: { initial: Values }) {
       ]);
       router.push(userRoutes.account);
     } catch (error) {
+      if (isApiError(error) && error.status === 400) {
+        // Validation messages name the field ("phone must be …"); raw text is not shown.
+        const text = getBackendErrorDetails(error).messages.join(" ");
+        setErrors({
+          ...(/phone/i.test(text) ? { phone: PHONE_FORMAT_HINT } : {}),
+          ...(/name/i.test(text) ? { fullName: "Please check your full name." } : {}),
+        });
+      }
       setFailure(
         accountErrorMessage(error, "We couldn’t save your details just now. Please try again."),
       );
@@ -201,6 +207,12 @@ function SetupForm({ initial }: { initial: Values }) {
           </label>
         </fieldset>
       </div>
+
+      {/* TEMPORARY: no endpoint stores the country or the offers preference yet. */}
+      <p className="text-body mt-5 max-w-[46rem] text-[12px] leading-snug">
+        The country and the stories-and-offers choice are kept in this browser tab only for now.
+        They are not yet saved to your account, and are cleared when you sign out or close the tab.
+      </p>
 
       <AccountNotice label="Your journeys, together" className="mt-10 max-w-[46rem] lg:mt-12">
         Bookings made with your verified email appear in your account. You can update these details

@@ -6,7 +6,8 @@
 
 /** Profile fields `PATCH /me` does not accept (it takes `name` and `phone` only). */
 export const MOCK_PROFILE_EXTRAS = {
-  country: "India" as string | null,
+  // Empty: a prefilled value would look like data the customer gave us.
+  country: null as string | null,
   billing: {
     address: null as string | null,
     city: null as string | null,

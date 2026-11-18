@@ -40,7 +40,10 @@ test("signed-in home shows the search bar until the user logs out", async ({ pag
 
   // Logout is inside the header menu.
   await page.getByRole("button", { name: "Open menu" }).click();
-  await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Logout" }).click();
+  await page
+    .getByRole("navigation", { name: "Main" })
+    .getByRole("button", { name: "Logout" })
+    .click();
   await expect(page.getByRole("link", { name: "Sign in" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Explore the yachts" }).first()).toBeVisible();
   // The logout request was aborted above, so revocation could not be confirmed.
@@ -369,9 +372,51 @@ test.describe("customer account", () => {
     await page.getByRole("button", { name: "Save profile" }).click();
     await expect(page.getByText("Please enter your full name.")).toBeVisible();
   });
+
+  test("profile page says country and billing stay in this tab, with nothing prefilled", async ({
+    page,
+  }) => {
+    await page.goto("/account/profile");
+    await expect(page.getByLabel("Country / region")).toHaveValue("");
+    await expect(
+      page.getByText("Country and billing details are kept in this browser tab only for now."),
+    ).toBeVisible();
+  });
+
+  test("notification choices are not presented as saved to the account", async ({ page }) => {
+    await page.goto("/account/notifications");
+    await expect(page.getByText(/kept in this browser tab only for now/)).toBeVisible();
+    await page.getByRole("button", { name: "Keep these choices" }).click();
+    await expect(page).toHaveURL("/account/notifications/saved");
+    await expect(page.getByText("Kept in this tab")).toBeVisible();
+  });
+
+  test("the page and the sidebar share one GET /auth/me", async ({ page }) => {
+    let calls = 0;
+    page.on("request", (request) => {
+      if (new URL(request.url()).pathname === "/auth/me" && request.method() === "GET") calls++;
+    });
+    await page.goto("/account/profile");
+    await expect(page.getByLabel("Full name")).toHaveValue("Ajin Raj");
+    expect(calls).toBe(1);
+  });
 });
 
 test("account pages send signed-out visitors to sign in and back", async ({ page }) => {
   await page.goto("/account/profile");
   await expect(page).toHaveURL("/login?next=%2Faccount%2Fprofile");
+});
+
+test("an email-change link opened while signed out survives the sign-in redirect", async ({
+  page,
+}) => {
+  await page.goto("/account/profile/email?email=new%40example.test#token=id.secret");
+  await expect(page).toHaveURL(
+    `/login?next=${encodeURIComponent("/account/profile/email?email=new%40example.test")}`,
+  );
+  // The token waits in this tab for after sign-in; it is never put in the URL.
+  const pending = await page.evaluate(() =>
+    sessionStorage.getItem("sithara-marina:pending-email-change"),
+  );
+  expect(JSON.parse(pending ?? "{}")).toMatchObject({ token: "id.secret" });
 });

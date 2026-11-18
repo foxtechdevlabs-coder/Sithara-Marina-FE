@@ -41,6 +41,6 @@ export const customerProfileSchema = profileDetailsSchema.extend({
 
 export type CustomerProfile = z.infer<typeof customerProfileSchema>;
 
-/** Profile photo rules: JPG or PNG, at most 5 MB. */
-export const PROFILE_PHOTO_TYPES = ["image/jpeg", "image/png"] as const;
-export const PROFILE_PHOTO_MAX_BYTES = 5 * 1024 * 1024;
+/** Profile photo rules (POST /me/avatar/uploads): JPEG, PNG or WebP, at most 2 MB. */
+export const PROFILE_PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
+export const PROFILE_PHOTO_MAX_BYTES = 2 * 1024 * 1024;
