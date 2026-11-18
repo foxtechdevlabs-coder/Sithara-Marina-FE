@@ -32,6 +32,7 @@ import {
 } from "@/services/user/enquiries.service";
 import { getYacht } from "@/services/user/yachts.service";
 import { emailSchema } from "@/validation/email";
+import { keepOnly, phoneCharacters } from "@/lib/input-filters";
 
 /* ------------------------------------------------------------------ */
 /* Colours and contact details                                         */
@@ -58,7 +59,14 @@ const destinationOptions = [
   "The Maldives",
   "Surprise me",
 ];
-const occasionOptions = ["Honeymoon", "Anniversary", "Birthday", "Family holiday", "Wedding", "Corporate"];
+const occasionOptions = [
+  "Honeymoon",
+  "Anniversary",
+  "Birthday",
+  "Family holiday",
+  "Wedding",
+  "Corporate",
+];
 const luxuryOptions = [
   "Private chef tasting menu",
   "Scuba & snorkelling",
@@ -114,7 +122,8 @@ function enquiryErrorMessage(error: unknown): string {
       const wait = error.retryAfterSeconds;
       return `You’ve sent several enquiries in a short time. Please wait ${wait !== undefined ? formatWait(wait) : "a minute"} and try again.`;
     }
-    if (error.status === 401) return "Your sign-in has expired. Please sign in again and resend your enquiry.";
+    if (error.status === 401)
+      return "Your sign-in has expired. Please sign in again and resend your enquiry.";
     if (error.status === 403) {
       return "Staff accounts can’t send customer enquiries. Please sign out and try again.";
     }
@@ -236,7 +245,9 @@ function DestinationsCombobox({
             const place = text.trim();
             return place && place.length <= ENQUIRY_DESTINATION_MAX_LENGTH ? place : null;
           }}
-          placeholder={full ? "That’s the most we can take" : "Type a place, e.g. Lakshadweep or Marari beach"}
+          placeholder={
+            full ? "That’s the most we can take" : "Type a place, e.g. Lakshadweep or Marari beach"
+          }
           emptyText="Press Enter to add this place"
           disabled={full}
           className={fieldClass}
@@ -314,7 +325,8 @@ function ChipsWithOther({
   const inputRef = useRef<HTMLInputElement>(null);
   /** Set once Enter, Escape or leaving the field has dealt with the entry. */
   const done = useRef(false);
-  const same = (a: string, b: string) => a.trim().toLocaleLowerCase() === b.trim().toLocaleLowerCase();
+  const same = (a: string, b: string) =>
+    a.trim().toLocaleLowerCase() === b.trim().toLocaleLowerCase();
 
   useEffect(() => {
     if (editing) inputRef.current?.focus();
@@ -322,7 +334,9 @@ function ChipsWithOther({
 
   const choose = (item: string) => {
     if (multiple) {
-      onSelectedChange(selected.includes(item) ? selected.filter((x) => x !== item) : [...selected, item]);
+      onSelectedChange(
+        selected.includes(item) ? selected.filter((x) => x !== item) : [...selected, item],
+      );
     } else {
       onSelectedChange(selected[0] === item ? [] : [item]);
     }
@@ -403,7 +417,9 @@ function ChipsWithOther({
                 onClick={() => remove(item)}
                 className={cx(
                   "flex size-[28px] shrink-0 items-center justify-center transition-colors focus-visible:outline-2",
-                  active ? "text-white/75 hover:text-white focus-visible:outline-white" : "text-[#7a7f85] hover:text-[#0d1b2a] focus-visible:outline-[#0d1b2a]",
+                  active
+                    ? "text-white/75 hover:text-white focus-visible:outline-white"
+                    : "text-[#7a7f85] hover:text-[#0d1b2a] focus-visible:outline-[#0d1b2a]",
                 )}
               >
                 <X aria-hidden="true" strokeWidth={1.5} className="size-[15px]" />
@@ -757,7 +773,11 @@ export default function PlanCharter({
     setFieldErrors((current) => (current[key] ? { ...current, [key]: undefined } : current));
   const errorText = (key: FieldKey) =>
     fieldErrors[key] ? (
-      <p id={`${key}-error`} role="alert" className="mt-[8px] text-[13px] leading-[18px] text-[#b42318]">
+      <p
+        id={`${key}-error`}
+        role="alert"
+        className="mt-[8px] text-[13px] leading-[18px] text-[#b42318]"
+      >
         {fieldErrors[key]}
       </p>
     ) : null;
@@ -783,7 +803,8 @@ export default function PlanCharter({
 
     const phone = phoneSchema.safeParse(text("phone"));
     if (!phone.success) {
-      errors.phone = phone.error.issues[0]?.message ?? "Enter your phone number with its country code.";
+      errors.phone =
+        phone.error.issues[0]?.message ?? "Enter your phone number with its country code.";
     }
 
     const startDate = text("start");
@@ -834,7 +855,8 @@ export default function PlanCharter({
       children,
       contact_method: contactMethod,
     };
-    const fits = new TextEncoder().encode(JSON.stringify(context)).length <= ENQUIRY_CONTEXT_MAX_BYTES;
+    const fits =
+      new TextEncoder().encode(JSON.stringify(context)).length <= ENQUIRY_CONTEXT_MAX_BYTES;
 
     // Only CreateEnquiryDto's own fields, and only those the customer filled in.
     const request: CreateEnquiryRequest = {
@@ -875,7 +897,10 @@ export default function PlanCharter({
       <section className="mx-auto grid w-full max-w-[1728px] gap-[56px] px-5 pt-[56px] pb-[96px] lg:px-[100px] lg:pt-[72px] xl:grid-cols-[minmax(0,1fr)_444px] xl:gap-[78px]">
         {sent ? (
           <div role="status" className="max-w-[640px]">
-            <p className="text-[12px] leading-[16px] tracking-[0.18em] uppercase" style={{ color: MUTED }}>
+            <p
+              className="text-[12px] leading-[16px] tracking-[0.18em] uppercase"
+              style={{ color: MUTED }}
+            >
               Enquiry received
             </p>
             <p
@@ -889,7 +914,10 @@ export default function PlanCharter({
               proposal. Nothing has been booked or charged.
             </p>
             <div className="mt-[28px] border px-[24px] py-[20px]" style={{ borderColor: BORDER }}>
-              <p className="text-[12px] leading-[16px] tracking-[0.18em] uppercase" style={{ color: MUTED }}>
+              <p
+                className="text-[12px] leading-[16px] tracking-[0.18em] uppercase"
+                style={{ color: MUTED }}
+              >
                 Your reference
               </p>
               <p className="mt-[6px] text-[26px] leading-[32px] tracking-[0.02em]">
@@ -1166,6 +1194,7 @@ export default function PlanCharter({
                   placeholder="+919876543210"
                   aria-invalid={Boolean(fieldErrors.phone)}
                   aria-describedby={fieldErrors.phone ? "phone-error" : undefined}
+                  onInput={keepOnly(phoneCharacters)}
                   onChange={() => clearError("phone")}
                   className={cx(fieldClass, "mt-[8px] aria-[invalid=true]:!border-[#b42318]")}
                   style={{ borderColor: BORDER }}

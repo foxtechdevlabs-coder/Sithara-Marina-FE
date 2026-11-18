@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import { BODY, NAVY } from "@/components/admin/admin-theme";
 import {
@@ -43,6 +43,7 @@ import {
   smallPrimary,
 } from "./booking-ui";
 import { charterText, requestStatusLabel } from "./cancellation-requests";
+import { amountCharacters } from "@/lib/input-filters";
 
 /** "2 days 4 hours", "45 minutes", from minutes. */
 export function durationWords(minutes: number): string {
@@ -278,6 +279,14 @@ function DecisionForm({
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState("");
+  const confirmButton = useRef<HTMLButtonElement>(null);
+
+  // The confirmation opens below the form: bring it into view and onto its button.
+  useEffect(() => {
+    if (!confirming) return;
+    confirmButton.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+    confirmButton.current?.focus({ preventScroll: true });
+  }, [confirming]);
 
   const amount = parseRupees(amountText);
   const errors: { amount?: string; reason?: string } = {};
@@ -343,7 +352,7 @@ function DecisionForm({
       </h2>
       <div className="mt-[12px]">
         <SegmentTabs
-          label="Decision"
+          label="Approve or decline"
           value={action}
           onChange={(v) => {
             setAction(v);
@@ -401,7 +410,7 @@ function DecisionForm({
                 id="cr-amount"
                 inputMode="decimal"
                 value={amountText}
-                onChange={(e) => setAmountText(e.currentTarget.value)}
+                onChange={(e) => setAmountText(amountCharacters(e.currentTarget.value))}
                 className={input}
                 {...errorProps("cr-amount", errors.amount)}
               />
@@ -450,6 +459,7 @@ function DecisionForm({
           </p>
           <div className="mt-[12px] flex flex-wrap gap-[10px]">
             <button
+              ref={confirmButton}
               type="button"
               disabled={busy}
               onClick={() => void decide()}
@@ -484,7 +494,7 @@ function DecisionForm({
       {!confirming && (
         <div className="mt-[20px] flex flex-wrap gap-[14px]">
           <button type="submit" className={cx(smallPrimary, "min-w-[150px]")} style={PRIMARY_STYLE}>
-            {action === "approve" ? "Review approval" : "Review decline"}
+            {action === "approve" ? "Approve cancellation" : "Decline request"}
           </button>
           <Link
             href={adminRoutes.cancellationRequests}

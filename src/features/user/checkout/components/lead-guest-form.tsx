@@ -2,6 +2,7 @@
 
 import { BODY, fieldErrorClass, inputClass, labelClass, MUTED } from "./checkout-ui";
 import { FULL_NAME_MAX_LENGTH, SPECIAL_REQUESTS_MAX_LENGTH } from "../utils/contact-schema";
+import { phoneCharacters } from "@/lib/input-filters";
 
 /** What PATCH /checkout/sessions/{id} lets the lead guest change. Email is fixed. */
 export interface GuestValues {
@@ -54,7 +55,13 @@ export function LeadGuestForm({
         disabled={disabled}
         aria-invalid={Boolean(errors[key])}
         aria-describedby={errors[key] ? `guest-${key}-error` : undefined}
-        onChange={(event) => set(key)(event.currentTarget.value)}
+        onChange={(event) =>
+          set(key)(
+            key === "phone"
+              ? phoneCharacters(event.currentTarget.value)
+              : event.currentTarget.value,
+          )
+        }
         className={`${inputClass} mt-[12px] read-only:bg-[#f6f8fb]`}
         {...props}
       />
@@ -86,7 +93,11 @@ export function LeadGuestForm({
             aria-describedby="guest-email-hint"
             className={`${inputClass} mt-[12px] bg-[#f6f8fb]`}
           />
-          <p id="guest-email-hint" className="mt-[8px] text-[13px] leading-[18px]" style={{ color: MUTED }}>
+          <p
+            id="guest-email-hint"
+            className="mt-[8px] text-[13px] leading-[18px]"
+            style={{ color: MUTED }}
+          >
             {readOnly
               ? "Your confirmation is sent here."
               : "Verified for this checkout. Your confirmation is sent here."}

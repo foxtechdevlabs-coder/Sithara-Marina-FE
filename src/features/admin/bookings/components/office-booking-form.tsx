@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, ArrowRight, Minus, Plus } from "lucide-react";
+import { ArrowLeft, ArrowRight, Plus } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
@@ -16,6 +16,7 @@ import {
   SelectBox,
 } from "@/components/admin/form-parts";
 import { searchYachts } from "@/components/admin/lookups";
+import { PhoneInput } from "@/components/admin/phone-input";
 import { SearchSelect } from "@/components/admin/search-select";
 import { adminRoutes } from "@/constants/routes";
 import { useAdminQuery } from "@/features/admin/fleet/hooks/use-admin-query";
@@ -25,7 +26,6 @@ import {
   createOfficeBooking,
   getYachtCalendar,
   issuePaymentLink,
-  listYachtAddons,
   quoteOfficeBooking,
   recordOfficePayment,
   searchCustomers,
@@ -54,9 +54,11 @@ import {
   smallPrimary,
 } from "./booking-ui";
 import { LinkFailure, PaymentChoice, type OfflinePaymentInput } from "./payment-choice";
+import { digitsOnly } from "@/lib/input-filters";
 
 const E164 = /^\+[1-9]\d{6,14}$/;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PAST_DATE = "The departure date can't be in the past. Choose today or a later date.";
 const normalisePhone = (phone: string) => phone.replace(/[\s()-]/g, "");
 
 interface Contact {
@@ -88,7 +90,6 @@ export function OfficeBookingForm() {
   const [date, setDate] = useState("");
   const [slotKey, setSlotKey] = useState("");
   const [guests, setGuests] = useState("");
-  const [addons, setAddons] = useState<Record<string, number>>({});
   const [note, setNote] = useState("");
 
   /** Set by the first review: from then on, field errors follow the fields as they change. */
@@ -99,14 +100,14 @@ export function OfficeBookingForm() {
   /** The booking, once created (pending) while sending a payment link. */
   const [created, setCreated] = useState<BookingDetail | null>(null);
 
+  /** A past date is refused at once, while typing, not only on review. */
+  const pastDate = Boolean(date) && date < today;
   const calendar = useAdminQuery(
     (signal) =>
-      yachtId && date ? getYachtCalendar(yachtId, date, date, signal) : Promise.resolve(null),
+      yachtId && date && !pastDate
+        ? getYachtCalendar(yachtId, date, date, signal)
+        : Promise.resolve(null),
     `free:${yachtId}:${date}`,
-  );
-  const addonList = useAdminQuery(
-    (signal) => (yachtId ? listYachtAddons(yachtId, signal) : Promise.resolve([])),
-    `addons:${yachtId}`,
   );
 
   const windows = (calendar.data?.free_windows ?? []).filter((w) => w.date === date);
@@ -135,19 +136,15 @@ export function OfficeBookingForm() {
 
   function selection(): Pick<
     OfficeBookingInput,
-    "yacht_id" | "slot_type_id" | "date" | "start_time" | "guests" | "addons"
+    "yacht_id" | "slot_type_id" | "date" | "start_time" | "guests"
   > | null {
     if (!slot) return null;
-    const chosen = Object.entries(addons)
-      .filter(([, qty]) => qty > 0)
-      .map(([addon_id, quantity]) => ({ addon_id, quantity }));
     return {
       yacht_id: yachtId,
       slot_type_id: slot.slot_type_id,
       date,
       start_time: slot.start_time,
       guests: Number(guests),
-      ...(chosen.length ? { addons: chosen } : {}),
     };
   }
 
@@ -159,10 +156,11 @@ export function OfficeBookingForm() {
     if (!EMAIL.test(contact.email.trim())) next.email = "Enter a valid email address.";
     const phone = normalisePhone(contact.phone);
     if (!phone) next.phone = "Enter a phone number.";
-    else if (!E164.test(phone)) next.phone = "Use the international format, e.g. +919876543210.";
+    else if (!E164.test(phone))
+      next.phone = "Choose the country code and enter the rest of the number, e.g. 98765 43210.";
     if (!yachtId) next.yacht = "Choose a yacht.";
     if (!date) next.date = "Choose the departure date.";
-    else if (date < today) next.date = "The departure date can't be in the past.";
+    else if (pastDate) next.date = PAST_DATE;
     if (!slot) next.slot = "Choose a free slot.";
     const count = Number(guests);
     if (!Number.isInteger(count) || count < 1) next.guests = "Enter the number of guests.";
@@ -268,7 +266,11 @@ export function OfficeBookingForm() {
     }
   }
 
-  const errors: Record<string, string> = submitted ? validate() : {};
+  const errors: Record<string, string> = submitted
+    ? validate()
+    : pastDate
+      ? { date: PAST_DATE }
+      : {};
 
   /* Step 2: payment ------------------------------------------------- */
 
@@ -306,7 +308,7 @@ export function OfficeBookingForm() {
       value: "",
       label: !yachtId
         ? "Choose a yacht first"
-        : !date
+        : !date || pastDate
           ? "Choose a date first"
           : calendar.loading
             ? "Checking free slots…"
@@ -402,15 +404,18 @@ export function OfficeBookingForm() {
             error={errors.email}
             placeholder="name@example.com"
           />
-          <TextField
-            id="field-phone"
-            label="Phone"
-            type="tel"
-            value={contact.phone}
-            onChange={setField("phone")}
-            error={errors.phone}
-            placeholder="+91 98765 43210"
-          />
+          <div>
+            <Label htmlFor="field-phone" required>
+              Phone
+            </Label>
+            <PhoneInput
+              id="field-phone"
+              value={contact.phone}
+              onChange={setField("phone")}
+              error={errors.phone}
+            />
+            <FieldError id="field-phone" message={errors.phone} />
+          </div>
 
           <div>
             <Label htmlFor="field-yacht" required>
@@ -423,7 +428,6 @@ export function OfficeBookingForm() {
                 setYachtId(v);
                 setYacht(option?.data ?? null);
                 setSlotKey("");
-                setAddons({});
               }}
               load={searchYachts({ status: "active" })}
               placeholder="Search active yachts by name"
@@ -460,7 +464,7 @@ export function OfficeBookingForm() {
               value={slotKey}
               onChange={setSlotKey}
               options={slotOptions}
-              disabled={!yachtId || !date || calendar.loading}
+              disabled={!yachtId || !date || pastDate || calendar.loading}
               invalid={errors.slot}
             />
             <FieldError
@@ -483,28 +487,16 @@ export function OfficeBookingForm() {
             </Label>
             <input
               id="field-guests"
-              type="number"
+              type="text"
               inputMode="numeric"
               min={1}
               max={yacht?.capacity ?? undefined}
               value={guests}
-              onChange={(e) => setGuests(e.currentTarget.value)}
+              onChange={(e) => setGuests(digitsOnly(e.currentTarget.value))}
               className={input}
               {...errorProps("field-guests", errors.guests)}
             />
             <FieldError id="field-guests" message={errors.guests} />
-          </div>
-
-          <div className="lg:col-span-2">
-            <Label as="p">Add-ons</Label>
-            <AddonPicker
-              loading={addonList.loading && Boolean(yachtId)}
-              error={addonList.error ? bookingErrorMessage(addonList.error) : ""}
-              options={yachtId ? (addonList.data ?? []) : []}
-              noYacht={!yachtId}
-              value={addons}
-              onChange={setAddons}
-            />
           </div>
 
           <div className="lg:col-span-2 lg:max-w-[281px]">
@@ -590,84 +582,6 @@ function TextField({
       />
       <FieldError id={id} message={error} />
     </div>
-  );
-}
-
-function AddonPicker({
-  loading,
-  error,
-  options,
-  noYacht,
-  value,
-  onChange,
-}: {
-  loading: boolean;
-  error: string;
-  options: {
-    id: string;
-    name: string;
-    price: number;
-    min_quantity: number;
-    max_quantity: number;
-  }[];
-  noYacht: boolean;
-  value: Record<string, number>;
-  onChange: (value: Record<string, number>) => void;
-}) {
-  const note = (text: string) => (
-    <p className={`${input} flex items-center lg:max-w-[281px]`} style={{ color: MUTED }}>
-      {text}
-    </p>
-  );
-  if (noYacht) return note("Choose a yacht to see its add-ons");
-  if (loading) return note("Loading add-ons…");
-  if (error) return note(`Couldn't load add-ons. ${error}`);
-  if (!options.length) return note("This yacht has no add-ons");
-
-  const set = (id: string, qty: number) => onChange({ ...value, [id]: qty });
-  return (
-    <ul className="grid gap-[10px] lg:grid-cols-2">
-      {options.map((a) => {
-        const qty = value[a.id] ?? 0;
-        const min = Math.max(1, a.min_quantity);
-        return (
-          <li
-            key={a.id}
-            className="flex min-h-[52px] items-center justify-between gap-[12px] border border-[#dcdad5] bg-white px-[14px] py-[8px]"
-          >
-            <span className="text-[13px] leading-[18px]">
-              {a.name}
-              <span className="block text-[11px]" style={{ color: BODY }}>
-                {formatRupees(a.price)} each + GST
-              </span>
-            </span>
-            <span className="flex shrink-0 items-center gap-[6px]">
-              <button
-                type="button"
-                aria-label={`Fewer ${a.name}`}
-                disabled={qty === 0}
-                onClick={() => set(a.id, qty <= min ? 0 : qty - 1)}
-                className="flex size-[30px] items-center justify-center border border-[#dcdad5] disabled:opacity-40"
-              >
-                <Minus aria-hidden="true" className="size-[12px]" />
-              </button>
-              <span aria-live="polite" className="w-[24px] text-center text-[13px]">
-                {qty}
-              </span>
-              <button
-                type="button"
-                aria-label={`More ${a.name}`}
-                disabled={qty >= a.max_quantity}
-                onClick={() => set(a.id, qty === 0 ? min : qty + 1)}
-                className="flex size-[30px] items-center justify-center border border-[#dcdad5] disabled:opacity-40"
-              >
-                <Plus aria-hidden="true" className="size-[12px]" />
-              </button>
-            </span>
-          </li>
-        );
-      })}
-    </ul>
   );
 }
 

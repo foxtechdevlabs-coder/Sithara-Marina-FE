@@ -42,6 +42,7 @@ import {
 
 import { moneyErrorMessage, paymentReference } from "../utils/money-format";
 import { DARK_STYLE } from "./payment-detail";
+import { amountCharacters } from "@/lib/input-filters";
 
 type Mode = "partial" | "full";
 
@@ -298,7 +299,7 @@ function Form({ payment: p, onStale }: { payment: PaymentDetail; onStale: () => 
                 inputMode="decimal"
                 value={mode === "full" ? rupeesInput(p.refundable_amount) : amountText}
                 readOnly={mode === "full"}
-                onChange={(e) => setAmountText(e.currentTarget.value)}
+                onChange={(e) => setAmountText(amountCharacters(e.currentTarget.value))}
                 placeholder="0"
                 className={cx(input, "pl-[32px]", mode === "full" && "bg-[#fbfaf8]")}
                 {...errorProps("refund-amount", errors.amount)}

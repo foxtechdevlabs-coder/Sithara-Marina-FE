@@ -12,6 +12,7 @@ import {
   type ProfileField,
 } from "@/features/user/profile/types/profile.schema";
 import { cx } from "@/lib/cx";
+import { keepOnly, phoneCharacters } from "@/lib/input-filters";
 
 type FieldErrors = Partial<Record<ProfileField | "photo", string>>;
 
@@ -224,6 +225,7 @@ export function ProfileDetailsForm({ profile, className }: ProfileDetailsFormPro
               autoComplete="tel"
               placeholder="+91 9XXXX XXXXX"
               defaultValue={profile.phone}
+              onInput={keepOnly(phoneCharacters)}
               className={inputClass}
             />
           )}

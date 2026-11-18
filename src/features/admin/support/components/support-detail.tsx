@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 
 import { LoadState, OUTLINE_STYLE, PRIMARY_STYLE } from "@/components/admin/form-parts";
 import { adminRoutes } from "@/constants/routes";
@@ -21,7 +22,7 @@ import { getSupportRequest } from "@/services/admin/support.service";
 
 import {
   categoryLabel,
-  replyLink,
+  gmailReplyLink,
   supportErrorMessage,
   supportStatusLabel,
 } from "../utils/support-format";
@@ -96,12 +97,7 @@ export function SupportDetail({ requestId }: { requestId: string }) {
                     {r.customer.name}
                   </Link>,
                 ],
-                [
-                  "Email",
-                  <a key="e" href={replyLink(r)} className={link}>
-                    {r.customer.email}
-                  </a>,
-                ],
+                ["Email", r.customer.email],
                 [
                   "Booking",
                   r.booking_id ? (
@@ -116,16 +112,24 @@ export function SupportDetail({ requestId }: { requestId: string }) {
             />
           </Card>
           <InfoPanel title="Replying">
-            Replies go by email from your own mail app, quoting {r.reference} in the subject. The
-            customer’s name and email are as they were when the request was sent.
+            Reply in Gmail opens a new email to the customer, quoting {r.reference} in the subject.
+            Using another mail app? Copy the email address. The customer’s name and email are as
+            they were when the request was sent.
           </InfoPanel>
         </div>
       </div>
 
       <div className="mt-[24px] flex flex-wrap gap-[14px]">
-        <a href={replyLink(r)} className={cx(smallPrimary, "min-w-[170px]")} style={PRIMARY_STYLE}>
-          Reply by email
+        <a
+          href={gmailReplyLink(r)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={cx(smallPrimary, "min-w-[170px]")}
+          style={PRIMARY_STYLE}
+        >
+          Reply in Gmail<span className="sr-only"> (opens in a new tab)</span>
         </a>
+        <CopyEmail email={r.customer.email} />
         {r.booking_id && (
           <Link
             href={adminRoutes.booking(r.booking_id)}
@@ -151,5 +155,27 @@ export function SupportDetail({ requestId }: { requestId: string }) {
         </Link>
       </div>
     </div>
+  );
+}
+
+/** Copies the customer's address, for a mail app the links don't open. */
+function CopyEmail({ email }: { email: string }) {
+  const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
+  return (
+    <button
+      type="button"
+      onClick={() =>
+        navigator.clipboard.writeText(email).then(
+          () => setState("copied"),
+          () => setState("failed"),
+        )
+      }
+      className={cx(smallOutline, "min-w-[150px]")}
+      style={OUTLINE_STYLE}
+    >
+      <span aria-live="polite">
+        {state === "copied" ? "Email copied" : state === "failed" ? email : "Copy email"}
+      </span>
+    </button>
   );
 }

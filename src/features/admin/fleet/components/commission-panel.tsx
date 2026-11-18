@@ -18,6 +18,7 @@ import { setCommission, type Yacht } from "@/services/admin/fleet.service";
 
 import { fleetErrorMessage } from "../utils/fleet-error-message";
 import { parseRate } from "../utils/yacht-form";
+import { percentCharacters } from "@/lib/input-filters";
 
 /**
  * Commission on a partner yacht's bookings: PUT /admin/yachts/{id}/commission
@@ -121,7 +122,7 @@ export function CommissionPanel({
             placeholder="12.5"
             value={value}
             onChange={(e) => {
-              setValue(e.currentTarget.value);
+              setValue(percentCharacters(e.currentTarget.value));
               setError("");
             }}
             {...errorProps("commission-rate", error)}

@@ -28,6 +28,7 @@ import {
   textLinkClass,
 } from "./checkout-ui";
 import { QuoteSummary, useQuote } from "./quote-summary";
+import { keepOnly, phoneCharacters } from "@/lib/input-filters";
 
 interface ContactStepProps {
   draft: CheckoutDraft;
@@ -184,6 +185,7 @@ export function ContactStep({ draft, saved }: ContactStepProps) {
             autoComplete="tel"
             placeholder="+919876543210"
             defaultValue={saved?.phone}
+            onInput={keepOnly(phoneCharacters)}
             aria-invalid={Boolean(fieldErrors.phone)}
             aria-describedby={fieldErrors.phone ? "phone-error" : undefined}
             className={`${inputClass} mt-[12px]`}

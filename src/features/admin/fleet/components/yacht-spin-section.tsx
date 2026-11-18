@@ -37,6 +37,7 @@ import {
   spinErrorMessage,
 } from "../utils/yacht-spin";
 import { SpinViewer, type SpinSize } from "./spin-viewer";
+import { digitsOnly } from "@/lib/input-filters";
 
 /** How often to ask whether a video has finished processing. */
 const POLL_MS = 4_000;
@@ -457,13 +458,13 @@ function SpinAdjust({
         </Label>
         <input
           id="spin-first-frame"
-          type="number"
+          type="text"
           inputMode="numeric"
           min={1}
           max={live.frame_count}
           value={first}
           disabled={disabled || saving}
-          onChange={(e) => setFirst(e.currentTarget.value)}
+          onChange={(e) => setFirst(digitsOnly(e.currentTarget.value))}
           className={input}
           aria-invalid={!valid || undefined}
         />

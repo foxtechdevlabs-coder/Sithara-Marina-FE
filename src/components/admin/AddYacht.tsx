@@ -81,6 +81,7 @@ import {
   errorProps,
   input,
 } from "./form-parts";
+import { yearsCharacters } from "@/lib/input-filters";
 
 /* ------------------------------------------------------------------ */
 /* Options                                                             */
@@ -943,11 +944,12 @@ function YachtEditor({
                   <Label htmlFor="built">Built / refit</Label>
                   <input
                     id="built"
+                    inputMode="numeric"
                     className={input}
                     placeholder="2019 / 2024"
                     value={form.built}
                     onChange={(e) => {
-                      set("built", e.currentTarget.value);
+                      set("built", yearsCharacters(e.currentTarget.value));
                       clearError("built");
                     }}
                     {...errorProps("built", errors["built"])}

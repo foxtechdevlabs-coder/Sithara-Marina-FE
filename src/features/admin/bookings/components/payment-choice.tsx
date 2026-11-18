@@ -28,6 +28,7 @@ import {
   rupeesInput,
 } from "../utils/booking-format";
 import { formGrid, InfoPanel, SegmentTabs, smallOutline, smallPrimary } from "./booking-ui";
+import { amountCharacters } from "@/lib/input-filters";
 
 export type PaymentMode = "offline" | "link";
 
@@ -259,7 +260,7 @@ export function PaymentChoice({
                   id="pay-amount"
                   inputMode="decimal"
                   value={amount}
-                  onChange={(e) => setAmount(e.currentTarget.value)}
+                  onChange={(e) => setAmount(amountCharacters(e.currentTarget.value))}
                   className={`${input} pl-[32px]`}
                   {...errorProps("pay-amount", errors.amount)}
                 />

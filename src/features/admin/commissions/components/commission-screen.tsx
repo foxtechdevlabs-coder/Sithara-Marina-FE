@@ -46,6 +46,7 @@ import {
   previewText,
   ruleRows,
 } from "../utils/commission-format";
+import { percentCharacters } from "@/lib/input-filters";
 
 /** What a rule applies to: a partner's default rate (yachtId null), or one of its yachts. */
 interface Selection {
@@ -393,7 +394,7 @@ function CommissionEditor({
                 id="rule-rate"
                 inputMode="decimal"
                 value={rate}
-                onChange={(e) => setRate(e.currentTarget.value)}
+                onChange={(e) => setRate(percentCharacters(e.currentTarget.value))}
                 placeholder={target.kind === "yacht" ? "Uses the partner’s rate" : "e.g. 15"}
                 className={cx(input, "pr-[36px]")}
                 {...errorProps("rule-rate", errors.rate)}
