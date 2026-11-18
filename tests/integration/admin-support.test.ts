@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   categoryLabel,
   messagePreview,
-  replyLink,
+  gmailReplyLink,
 } from "@/features/admin/support/utils/support-format";
 
 // Support requests against a stubbed `fetch` (/admin/support-requests).
@@ -82,8 +82,9 @@ describe("support wording", () => {
     expect(categoryLabel(null)).toBe("No category");
     expect(messagePreview("a  b\n\nc")).toBe("a b c");
     expect(messagePreview("x".repeat(200), 10)).toBe(`${"x".repeat(9)}…`);
-    expect(replyLink(request)).toBe(
-      "mailto:anu%40example.com?subject=Re%3A%20Change%20of%20guest%20count%20%5BSUP-2026-0001%5D",
-    );
+    const gmail = new URL(gmailReplyLink(request));
+    expect(gmail.origin + gmail.pathname).toBe("https://mail.google.com/mail/");
+    expect(gmail.searchParams.get("to")).toBe("anu@example.com");
+    expect(gmail.searchParams.get("su")).toBe("Re: Change of guest count [SUP-2026-0001]");
   });
 });

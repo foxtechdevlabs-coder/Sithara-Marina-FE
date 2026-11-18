@@ -12,6 +12,7 @@ import {
   type ProfileField,
 } from "@/features/user/profile/types/profile.schema";
 import { cx } from "@/lib/cx";
+import { keepOnly, phoneCharacters } from "@/lib/input-filters";
 
 type FieldErrors = Partial<Record<ProfileField | "photo", string>>;
 
@@ -87,9 +88,9 @@ export function ProfileDetailsForm({ profile, className }: ProfileDetailsFormPro
       return;
     }
     const message = !PROFILE_PHOTO_TYPES.some((type) => type === file.type)
-      ? "Choose a JPG or PNG image."
+      ? "Choose a JPG, PNG or WebP image."
       : file.size > PROFILE_PHOTO_MAX_BYTES
-        ? "Choose an image smaller than 5 MB."
+        ? "Choose an image of 2 MB or less."
         : null;
     if (message) {
       setErrors((current) => ({ ...current, photo: message }));
@@ -224,6 +225,7 @@ export function ProfileDetailsForm({ profile, className }: ProfileDetailsFormPro
               autoComplete="tel"
               placeholder="+91 9XXXX XXXXX"
               defaultValue={profile.phone}
+              onInput={keepOnly(phoneCharacters)}
               className={inputClass}
             />
           )}

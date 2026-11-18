@@ -47,6 +47,7 @@ import {
   localDate,
   normalisePhone,
 } from "../utils/customer-format";
+import { phoneCharacters } from "@/lib/input-filters";
 
 const TITLE = "A personal view.";
 
@@ -223,7 +224,7 @@ function CustomerForm({
               value={phone}
               autoComplete="off"
               placeholder="+91 98765 43210"
-              onChange={(e) => setPhone(e.currentTarget.value)}
+              onChange={(e) => setPhone(phoneCharacters(e.currentTarget.value))}
               className={input}
               {...errorProps("customer-phone", errors.phone)}
             />
@@ -439,7 +440,7 @@ export function NewCustomer() {
               type="tel"
               value={phone}
               placeholder="+91 98765 43210"
-              onChange={(e) => setPhone(e.currentTarget.value)}
+              onChange={(e) => setPhone(phoneCharacters(e.currentTarget.value))}
               className={input}
               {...errorProps("new-phone", errors.phone)}
             />

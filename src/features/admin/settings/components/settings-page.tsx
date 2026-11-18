@@ -28,6 +28,7 @@ import {
   settingsFormFromSettings,
   type SettingsFormValues,
 } from "../utils/settings-form";
+import { percentCharacters, phoneCharacters } from "@/lib/input-filters";
 
 const PAGE = "px-[20px] pt-[20px] pb-[48px] lg:pt-[33px] lg:pr-[47px] lg:pb-[60px] lg:pl-[46px]";
 const tab = "flex h-[48px] w-[148px] items-center justify-center text-[11px]";
@@ -111,11 +112,11 @@ function SettingsForm({
     setNotice("");
   }
 
-  const text = (key: keyof SettingsFormValues, id: string) => ({
+  const text = (key: keyof SettingsFormValues, id: string, filter?: (text: string) => string) => ({
     id,
     value: form[key] as string,
     onChange: (e: { currentTarget: { value: string } }) =>
-      change(id, { [key]: e.currentTarget.value }),
+      change(id, { [key]: filter ? filter(e.currentTarget.value) : e.currentTarget.value }),
     className: input,
     ...errorProps(id, errors[id]),
   });
@@ -180,7 +181,11 @@ function SettingsForm({
           <Label htmlFor="settings-gst" hint="guests can't get a price until this is set">
             Tax rate (%)
           </Label>
-          <input {...text("gstRate", "settings-gst")} inputMode="decimal" autoComplete="off" />
+          <input
+            {...text("gstRate", "settings-gst", percentCharacters)}
+            inputMode="decimal"
+            autoComplete="off"
+          />
           <FieldError id="settings-gst" message={errors["settings-gst"]} />
         </div>
         <div className="sm:col-span-2">
@@ -208,7 +213,7 @@ function SettingsForm({
         <div>
           <Label htmlFor="settings-phone">Contact phone</Label>
           <input
-            {...text("contactPhone", "settings-phone")}
+            {...text("contactPhone", "settings-phone", phoneCharacters)}
             type="tel"
             maxLength={30}
             autoComplete="off"

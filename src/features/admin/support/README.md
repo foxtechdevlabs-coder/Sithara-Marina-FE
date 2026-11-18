@@ -12,8 +12,9 @@ entry sits under Operations, below Customers.
 - `GET /admin/support-requests/{id}`: one request.
 
 The backend only lets staff read requests: there's no reply, assign or close endpoint. Staff reply
-from their own mail app with "Reply by email", which opens a new email with the reference in the
-subject. Requests link to the customer and, when given, the booking.
+with "Reply in Gmail", which opens a new Gmail email in a new tab with the reference in the
+subject, or copy the customer's address into another mail app. There's no mailto: link: it does
+nothing on a computer without a mail app set up. Requests link to the customer and, when given, the booking.
 
 ```
 support/

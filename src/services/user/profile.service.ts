@@ -1,8 +1,13 @@
 import { z } from "zod";
 
 import { apiClient } from "@/services/http/api-client";
+import { ApiError } from "@/services/http/api-error";
 
-import { readMockAccount, updateMockAccount } from "./mocks/customer-account.store";
+import {
+  readMockAccount,
+  resetMockAccount,
+  updateMockAccount,
+} from "./mocks/customer-account.store";
 import { mockResponse } from "./mocks/mock-response";
 
 /*
@@ -21,6 +26,11 @@ const accountUserSchema = z.object({
   email: z.string(),
   phone: z.string().nullable().optional(),
   role: z.enum(["customer", "admin", "super_admin"]),
+  /**
+   * Profile photo (512×512), or null. A signed link valid for 1 hour: read it
+   * from GET /auth/me each time and never store it.
+   */
+  avatar_url: z.string().nullable().optional(),
 });
 export type AccountUser = z.infer<typeof accountUserSchema>;
 
@@ -52,6 +62,80 @@ export function updateMyProfile(request: UpdateProfileRequest): Promise<AccountU
   return apiClient.patch("/me", { body: request, schema: accountUserSchema });
 }
 
+// ── Profile photo ───────────────────────────────────────────────────────────
+
+/** What POST /me/avatar/uploads accepts: JPEG, PNG or WebP, up to 2 MB (exact bytes). */
+export const AVATAR_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
+export const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
+
+/** Why this file can't be a profile photo, or null. */
+export function avatarProblem(file: File): string | null {
+  if (!(AVATAR_TYPES as readonly string[]).includes(file.type)) {
+    return "Please choose a JPG, PNG or WebP image.";
+  }
+  if (file.size > AVATAR_MAX_BYTES) return "Please choose an image of 2 MB or less.";
+  if (file.size === 0) return "This file is empty. Please choose another image.";
+  return null;
+}
+
+const avatarUploadTicketSchema = z.object({
+  media_id: z.string(),
+  /** PUT the raw file here with the same Content-Type. */
+  upload_url: z.string(),
+  expires_in: z.number(),
+});
+
+/** AvatarResponseDto: `avatar_url` is nullable in the spec. */
+const avatarResponseSchema = z.object({ avatar_url: z.string().nullable() });
+
+/** PUTs the raw file (not a form) to the signed storage link. No bearer token. */
+async function putToSignedUrl(url: string, file: File, signal?: AbortSignal): Promise<void> {
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: "PUT",
+      headers: { "Content-Type": file.type },
+      body: file,
+      signal,
+    });
+  } catch (cause) {
+    if (signal?.aborted) throw new ApiError("Upload cancelled", { kind: "aborted", cause });
+    throw new ApiError("Upload failed: network error", { kind: "network", cause });
+  }
+  if (!response.ok) {
+    throw new ApiError(`Upload failed (${response.status})`, {
+      kind: "http",
+      status: response.status,
+    });
+  }
+}
+
+/**
+ * Uploads and sets the profile photo; returns the new (1-hour) `avatar_url`.
+ * POST /me/avatar/uploads → PUT the file to `upload_url` → PUT /me/avatar.
+ * The server crops it to a 512×512 square. 400 `INVALID_MEDIA` comes with a
+ * readable message (e.g. "The image is smaller than 32 pixels on a side").
+ */
+export async function uploadMyAvatar(file: File, signal?: AbortSignal): Promise<string | null> {
+  const ticket = await apiClient.post("/me/avatar/uploads", {
+    body: { content_type: file.type, size_bytes: file.size },
+    schema: avatarUploadTicketSchema,
+    signal,
+  });
+  await putToSignedUrl(ticket.upload_url, file, signal);
+  const { avatar_url } = await apiClient.put("/me/avatar", {
+    body: { media_id: ticket.media_id },
+    schema: avatarResponseSchema,
+    signal,
+  });
+  return avatar_url;
+}
+
+/** DELETE /me/avatar (204): removes the profile photo. */
+export async function removeMyAvatar(): Promise<void> {
+  await apiClient.delete("/me/avatar");
+}
+
 // ── Profile details without an endpoint (TEMPORARY, mock) ───────────────────
 
 /**
@@ -78,6 +162,15 @@ const profileExtrasSchema = z.object({
     postal_code: z.string().nullable(),
   }),
 });
+
+/**
+ * Forgets the mock (this-tab-only) country, billing details and notification
+ * preferences. They are tied to no account, so they are cleared whenever the
+ * signed-in customer changes.
+ */
+export function clearMockAccountData(): void {
+  resetMockAccount();
+}
 
 export function getProfileExtras(signal?: AbortSignal): Promise<ProfileExtras> {
   return mockResponse(profileExtrasSchema, readMockAccount().profile_extras, signal);

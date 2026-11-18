@@ -59,6 +59,7 @@ import {
   smallPrimary,
   StatusTag,
 } from "./booking-ui";
+import { amountCharacters, phoneCharacters } from "@/lib/input-filters";
 
 type Tab = "overview" | "payments" | "history";
 
@@ -499,7 +500,7 @@ function EditDetails({
           required: !contactLocked,
           locked: contactLocked,
         })}
-        {field("edit-phone", "Contact", phone, setPhone, {
+        {field("edit-phone", "Contact", phone, (v) => setPhone(phoneCharacters(v)), {
           type: "tel",
           error: errors.phone,
           locked: contactLocked,
@@ -792,7 +793,7 @@ function PriceOverride({
             id="override-amount"
             inputMode="decimal"
             value={amount}
-            onChange={(e) => setAmount(e.currentTarget.value)}
+            onChange={(e) => setAmount(amountCharacters(e.currentTarget.value))}
             className={input}
             {...errorProps("override-amount", errors.amount)}
           />

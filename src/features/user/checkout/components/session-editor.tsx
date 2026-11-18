@@ -25,6 +25,7 @@ import {
   secondaryButtonClass,
   textLinkClass,
 } from "./checkout-ui";
+import { keepOnly, phoneCharacters } from "@/lib/input-filters";
 
 interface SessionEditorProps {
   session: CheckoutSession;
@@ -150,6 +151,7 @@ export function SessionEditor({ session, checkoutToken, onSaved, onCancel }: Ses
           type="tel"
           autoComplete="tel"
           defaultValue={session.contact.phone}
+          onInput={keepOnly(phoneCharacters)}
           className={`${inputClass} mt-[12px]`}
         />
       </div>

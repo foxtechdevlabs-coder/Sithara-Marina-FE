@@ -20,7 +20,7 @@ import { useApiQuery } from "@/hooks/use-api-query";
 import { listMyCancellationRequests } from "@/services/user/cancellations.service";
 import { getMyBooking, listMyBookings } from "@/services/user/customer-bookings.service";
 import { listMyEnquiries } from "@/services/user/enquiries.service";
-import { getMyProfile } from "@/services/user/profile.service";
+import { fetchMyProfile } from "@/features/user/account/my-profile";
 
 import { isCancelled } from "../utils/booking-view";
 
@@ -31,7 +31,7 @@ import { CancelledJourneyCard, PastJourneyCard } from "./past-journey-cards";
 /** Upcoming: the bookings, the greeting's name, a ready proposal, pending cancellation requests. */
 async function loadUpcoming(signal: AbortSignal) {
   const [profile, bookings, enquiries, pendingRequests] = await Promise.all([
-    getMyProfile(signal),
+    fetchMyProfile(),
     listMyBookings("upcoming", signal),
     listMyEnquiries(signal),
     listMyCancellationRequests("pending", signal),

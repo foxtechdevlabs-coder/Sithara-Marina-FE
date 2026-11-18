@@ -42,6 +42,7 @@ import {
 } from "../utils/partner-form";
 import { AgreementPanel } from "./agreement-panel";
 import { PartnerYachts } from "./partner-yachts";
+import { percentCharacters, phoneCharacters } from "@/lib/input-filters";
 
 const NOT_FOUND = "This partner";
 
@@ -134,11 +135,11 @@ function PartnerForm({
     if (created) window.history.replaceState(null, "", window.location.pathname);
   }, [created]);
 
-  const set = (key: keyof PartnerFormValues, id: string) => ({
+  const set = (key: keyof PartnerFormValues, id: string, filter?: (text: string) => string) => ({
     id,
     value: form[key],
     onChange: (e: { currentTarget: { value: string } }) => {
-      const { value } = e.currentTarget;
+      const value = filter ? filter(e.currentTarget.value) : e.currentTarget.value;
       setForm((f) => ({ ...f, [key]: value }));
       setErrors((current) => {
         const next = { ...current };
@@ -246,7 +247,12 @@ function PartnerForm({
         </div>
         <div>
           <Label htmlFor="partner-phone">Phone</Label>
-          <input {...set("phone", "partner-phone")} type="tel" maxLength={30} autoComplete="off" />
+          <input
+            {...set("phone", "partner-phone", phoneCharacters)}
+            type="tel"
+            maxLength={30}
+            autoComplete="off"
+          />
           <FieldError id="partner-phone" message={errors["partner-phone"]} />
         </div>
         <div>
@@ -270,7 +276,10 @@ function PartnerForm({
           <Label htmlFor="partner-commission" hint="for new bookings on yachts with no rate">
             Default commission (%)
           </Label>
-          <input {...set("commission", "partner-commission")} inputMode="decimal" />
+          <input
+            {...set("commission", "partner-commission", percentCharacters)}
+            inputMode="decimal"
+          />
           <FieldError id="partner-commission" message={errors["partner-commission"]} />
         </div>
       </div>

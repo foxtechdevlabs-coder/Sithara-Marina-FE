@@ -16,12 +16,15 @@ import {
   primaryButtonStyle,
   secondaryButtonClass,
 } from "@/features/user/account/components/account-ui";
+import { publishMyProfile } from "@/features/user/account/my-profile";
 import { accountErrorMessage } from "@/features/user/account/utils/account-error";
 import { takeTokenFromUrl } from "@/features/user/auth/components/verify-email-page";
 import { updateSessionUser } from "@/features/user/auth/session";
 import { cx } from "@/lib/cx";
 import { requestEmailChange, verifyEmailChange } from "@/services/user/profile.service";
 import { emailSchema } from "@/validation/email";
+
+import { takePendingEmailChangeToken } from "../utils/pending-email-change";
 
 type FieldErrors = Partial<Record<"email" | "link", string>>;
 type Status =
@@ -83,6 +86,7 @@ export function EmailChange({
     setStatus({ kind: "verifying" });
     try {
       const user = await verifyEmailChange(token);
+      publishMyProfile(user);
       updateSessionUser({
         id: user.id,
         fullName: user.fullName,
@@ -110,7 +114,8 @@ export function EmailChange({
     verifyRef.current = verify;
   });
   useEffect(() => {
-    const token = takeTokenFromUrl();
+    // From the link itself, or kept while the customer signed in first.
+    const token = takeTokenFromUrl() ?? takePendingEmailChangeToken();
     if (token) void verifyRef.current(token);
   }, []);
 

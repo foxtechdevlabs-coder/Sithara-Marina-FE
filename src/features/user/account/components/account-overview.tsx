@@ -11,8 +11,8 @@ import {
 import { useApiQuery } from "@/hooks/use-api-query";
 import { listMyBookings } from "@/services/user/customer-bookings.service";
 import { listMyEnquiries } from "@/services/user/enquiries.service";
-import { getMyProfile } from "@/services/user/profile.service";
 
+import { fetchMyProfile } from "../my-profile";
 import { formatDayMonth, formatLongDate, formatTimeRange, guests } from "../utils/account-format";
 
 import {
@@ -30,7 +30,7 @@ import { QueryFallback } from "./query-fallback";
 
 async function loadOverview(signal: AbortSignal) {
   const [profile, upcoming, past, enquiries] = await Promise.all([
-    getMyProfile(signal),
+    fetchMyProfile(),
     listMyBookings("upcoming", signal),
     listMyBookings("past", signal),
     listMyEnquiries(signal).catch((err) => {
@@ -160,7 +160,8 @@ function OverviewBody({ data }: { data: Awaited<ReturnType<typeof loadOverview>>
       {proposal ? (
         <>
           <AccountNotice label="A proposal ready for you">
-            Your {proposal.yacht?.name ?? "charter"} proposal, {proposal.reference}, is ready to review.
+            Your {proposal.yacht?.name ?? "charter"} proposal, {proposal.reference}, is ready to
+            review.
           </AccountNotice>
           <Link
             href={userRoutes.accountEnquiry(proposal.reference)}

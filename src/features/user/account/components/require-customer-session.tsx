@@ -1,12 +1,15 @@
 "use client";
 
-import type { Route } from "next";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useSyncExternalStore, type ReactNode } from "react";
 
 import { Spinner } from "@/components/ui/spinner";
 import { userRoutes } from "@/constants/routes";
+import { takeTokenFromUrl } from "@/features/user/auth/components/verify-email-page";
 import { useAuthSession } from "@/features/user/auth/session";
+import { savePendingEmailChangeToken } from "@/features/user/profile/utils/pending-email-change";
+
+import { signInRedirectFor } from "../utils/sign-in-redirect";
 
 const noopSubscribe = () => () => {};
 
@@ -35,7 +38,13 @@ export function RequireCustomerSession({ children }: { children: ReactNode }) {
     }
     // Signing out from the account pages navigates on its own.
     if (!isHydrated || wasSignedIn.current) return;
-    router.replace(`${userRoutes.login}?next=${encodeURIComponent(pathname)}` as Route);
+    // An email-change link opened while signed out: keep its token for after
+    // sign-in (it is also removed from the address bar here).
+    if (pathname === userRoutes.accountProfileEmail) {
+      const token = takeTokenFromUrl();
+      if (token) savePendingEmailChangeToken(token);
+    }
+    router.replace(signInRedirectFor(pathname, window.location.search));
   }, [session, isHydrated, pathname, router]);
 
   if (!session) {
