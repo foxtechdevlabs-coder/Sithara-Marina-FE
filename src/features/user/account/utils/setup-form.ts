@@ -1,5 +1,6 @@
+import { notificationPreferencesOf, type AccountUser } from "@/services/user/profile.service";
+
 import { PHONE_FORMAT_HINT, toE164 } from "@/features/user/profile/utils/phone";
-import type { AccountUser } from "@/services/user/profile.service";
 
 /** PATCH /me: `name` up to 255 characters. */
 const NAME_MAX = 255;
@@ -22,18 +23,16 @@ export function validateSetup(values: {
 /**
  * The setup form's starting values. The server's profile (GET /auth/me) is the
  * source of truth: the copy kept with the session can be older, e.g. after a
- * change made in another tab.
+ * change made in another tab. `country` is the 2-letter code ("" when not set).
  */
 export function setupInitialValues(
-  user: Pick<AccountUser, "fullName" | "email" | "phone">,
-  country: string | null,
-  storiesAndOffers: boolean,
+  user: Pick<AccountUser, "fullName" | "email" | "phone" | "country" | "notification_preferences">,
 ) {
   return {
     fullName: user.fullName,
     email: user.email,
     phone: user.phone ?? "",
-    country: country ?? "",
-    storiesAndOffers,
+    country: user.country ?? "",
+    offersAndUpdates: notificationPreferencesOf(user).offers_and_updates,
   };
 }

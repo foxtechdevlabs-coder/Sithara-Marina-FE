@@ -3,16 +3,9 @@ import { z } from "zod";
 import { apiClient } from "@/services/http/api-client";
 import { ApiError } from "@/services/http/api-error";
 
-import {
-  readMockAccount,
-  resetMockAccount,
-  updateMockAccount,
-} from "./mocks/customer-account.store";
-import { mockResponse } from "./mocks/mock-response";
-
 /*
- * The signed-in customer: profile, password, email address and (mock)
- * notification preferences. Every call needs the customer's bearer token,
+ * The signed-in customer: profile (name, phone, country, billing details,
+ * notification preferences), password and email address. Every call needs the customer's bearer token,
  * which `apiClient` attaches (and refreshes once on a 401). Error codes are on
  * `ApiError.code`; each function lists the ones the backend documents.
  */
@@ -31,6 +24,31 @@ const accountUserSchema = z.object({
    * from GET /auth/me each time and never store it.
    */
   avatar_url: z.string().nullable().optional(),
+  /** ISO 3166-1 alpha-2 code such as "IN", or null when not set. */
+  country: z.string().nullable().optional(),
+  /** Missing keys mean the defaults (see `notificationPreferencesOf`). */
+  notification_preferences: z
+    .object({
+      charter_reminders: z.boolean().optional(),
+      offers_and_updates: z.boolean().optional(),
+    })
+    .nullable()
+    .optional(),
+  /** The saved billing details, or null when not set. */
+  billing: z
+    .object({
+      name: z.string().nullable().optional(),
+      company_name: z.string().nullable().optional(),
+      gstin: z.string().nullable().optional(),
+      address_line1: z.string().nullable().optional(),
+      address_line2: z.string().nullable().optional(),
+      city: z.string().nullable().optional(),
+      state: z.string().nullable().optional(),
+      postal_code: z.string().nullable().optional(),
+      country: z.string().nullable().optional(),
+    })
+    .nullable()
+    .optional(),
 });
 export type AccountUser = z.infer<typeof accountUserSchema>;
 
@@ -55,9 +73,55 @@ export interface UpdateProfileRequest {
   name?: string;
   /** International format (E.164, e.g. "+919876543210"); null removes it. */
   phone?: string | null;
+  /** 2-letter ISO 3166-1 code such as "IN"; null clears it. */
+  country?: string | null;
+  /** Send only the key being changed; the other keys keep their value. */
+  notification_preferences?: Partial<NotificationPreferences>;
+  /** Always the full object (it replaces the saved one); null removes it. */
+  billing?: BillingDetails | null;
 }
 
-/** PATCH /me. 400 for a blank name, a phone not in E.164 format, or any other field. */
+/** Customer-controlled emails. Booking, payment, refund and cancellation emails always go. */
+export interface NotificationPreferences {
+  /** The reminder email the day before the charter. On by default. */
+  charter_reminders: boolean;
+  /** Marketing consent. Off by default. */
+  offers_and_updates: boolean;
+}
+
+/** The saved preferences, with the backend defaults for anything it left out. */
+export function notificationPreferencesOf(
+  user: Pick<AccountUser, "notification_preferences">,
+): NotificationPreferences {
+  const saved = user.notification_preferences;
+  return {
+    charter_reminders: saved?.charter_reminders ?? true,
+    offers_and_updates: saved?.offers_and_updates ?? false,
+  };
+}
+
+/**
+ * Required: name, address_line1, city, postal_code, country. For India ("IN"):
+ * `state` is required, `postal_code` is a 6-digit PIN and `gstin` is optional
+ * (it is only allowed for India).
+ */
+export interface BillingDetails {
+  name: string;
+  company_name: string | null;
+  gstin: string | null;
+  address_line1: string;
+  address_line2: string | null;
+  city: string;
+  state: string | null;
+  postal_code: string;
+  country: string;
+}
+
+/**
+ * PATCH /me. Everything is optional. 400 (and nothing saved) for a blank name,
+ * a phone not in E.164 format, an invalid country, billing or preference, or any
+ * other field.
+ */
 export function updateMyProfile(request: UpdateProfileRequest): Promise<AccountUser> {
   return apiClient.patch("/me", { body: request, schema: accountUserSchema });
 }
@@ -136,53 +200,6 @@ export async function removeMyAvatar(): Promise<void> {
   await apiClient.delete("/me/avatar");
 }
 
-// ── Profile details without an endpoint (TEMPORARY, mock) ───────────────────
-
-/**
- * Country and billing details. PATCH /me does not accept them and no other
- * endpoint stores them, so they stay in this browser tab only (mock).
- * See docs/missing-customer-apis.md.
- */
-export interface ProfileExtras {
-  country: string | null;
-  billing: {
-    address: string | null;
-    city: string | null;
-    state: string | null;
-    postal_code: string | null;
-  };
-}
-
-const profileExtrasSchema = z.object({
-  country: z.string().nullable(),
-  billing: z.object({
-    address: z.string().nullable(),
-    city: z.string().nullable(),
-    state: z.string().nullable(),
-    postal_code: z.string().nullable(),
-  }),
-});
-
-/**
- * Forgets the mock (this-tab-only) country, billing details and notification
- * preferences. They are tied to no account, so they are cleared whenever the
- * signed-in customer changes.
- */
-export function clearMockAccountData(): void {
-  resetMockAccount();
-}
-
-export function getProfileExtras(signal?: AbortSignal): Promise<ProfileExtras> {
-  return mockResponse(profileExtrasSchema, readMockAccount().profile_extras, signal);
-}
-
-export function updateProfileExtras(extras: Partial<ProfileExtras>): Promise<ProfileExtras> {
-  const account = updateMockAccount((draft) => {
-    draft.profile_extras = { ...draft.profile_extras, ...extras };
-  });
-  return mockResponse(profileExtrasSchema, account.profile_extras);
-}
-
 // ── Password ────────────────────────────────────────────────────────────────
 
 export interface ChangePasswordRequest {
@@ -230,31 +247,4 @@ export function requestEmailChange(newEmail: string): Promise<EmailChangeRespons
  */
 export function verifyEmailChange(token: string): Promise<AccountUser> {
   return apiClient.post("/me/email/verify", { body: { token }, schema: accountUserSchema });
-}
-
-// ── Notification preferences (TEMPORARY, mock) ──────────────────────────────
-
-/*
- * No notification-preference endpoint exists (see docs/missing-customer-apis.md),
- * so these stay in this browser tab only.
- */
-
-const notificationPreferencesSchema = z.object({
-  proposal_emails: z.boolean(),
-  whatsapp_updates: z.boolean(),
-  stories_and_offers: z.boolean(),
-});
-export type NotificationPreferences = z.infer<typeof notificationPreferencesSchema>;
-
-export function getNotificationPreferences(signal?: AbortSignal): Promise<NotificationPreferences> {
-  return mockResponse(notificationPreferencesSchema, readMockAccount().preferences, signal);
-}
-
-export function updateNotificationPreferences(
-  request: Partial<NotificationPreferences>,
-): Promise<NotificationPreferences> {
-  const account = updateMockAccount((draft) => {
-    draft.preferences = { ...draft.preferences, ...request };
-  });
-  return mockResponse(notificationPreferencesSchema, account.preferences);
 }

@@ -9,26 +9,28 @@ All calls go through `src/services/http/api-client.ts` (bearer token attached au
 refresh-and-retry on a 401, then the customer is sent to sign in). Services live in
 `src/services/user/`; components never call `fetch`.
 
-| Feature (route)                                                     | Endpoint(s)                                                                                                       | Service function(s)                                            |
-| ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| Overview `/account`                                                 | `GET /auth/me`, `GET /me/bookings?timeframe=upcoming\|past`, `GET /me/enquiries`                                  | `getMyProfile`, `listMyBookings`, `listMyEnquiries`            |
-| Sidebar / account menu                                              | `GET /auth/me`                                                                                                    | `getMyProfile`                                                 |
-| Profile details `/account/profile`                                  | `GET /auth/me`, `PATCH /me` (`name`, `phone` only)                                                                | `getMyProfile`, `updateMyProfile`                              |
-| Profile setup `/account/setup`                                      | `GET /auth/me`, `PATCH /me`                                                                                       | same                                                           |
-| Security `/account/security`                                        | `POST /me/password` (stores the returned access token)                                                            | `changeMyPassword`                                             |
-| Email change `/account/profile/email`                               | `POST /me/email/change`, `POST /me/email/verify`                                                                  | `requestEmailChange`, `verifyEmailChange`                      |
-| Profile photo `/account/profile` (+ sidebar)                        | `POST /me/avatar/uploads`, PUT to `upload_url`, `PUT /me/avatar`, `DELETE /me/avatar`; `avatar_url` on `/auth/me` | `uploadMyAvatar`, `removeMyAvatar`                             |
-| My bookings `/account/bookings[?tab=past]`                          | `GET /me/bookings`, `GET /me/bookings/{ref}` (cancelled ones), `GET /me/cancellation-requests?status=pending`     | `listMyBookings`, `getMyBooking`, `listMyCancellationRequests` |
-| Booking detail `/account/bookings/{ref}`                            | `GET /me/bookings/{ref}`, `GET /yachts/{slug}` (photo, departure city, capacity)                                  | `getMyBooking`, `getYacht`                                     |
-| Invoice `/account/bookings/{ref}/invoice`                           | `GET /me/bookings/{ref}` → `GET /bookings/{id}/invoice` (UUID; PDF via `download_url`)                            | `getMyBooking`, `getBookingInvoice`                            |
-| Cancellation request + review `/account/bookings/{ref}/cancel`      | `GET /me/bookings/{ref}/cancellation-preview`, `POST /me/bookings/{ref}/cancellation-requests`                    | `getCancellationPreview`, `requestCancellation`                |
-| Request received / status `…/cancel/received`, `…/cancel/confirmed` | `GET /me/bookings/{ref}` (`cancellation_request`, `cancellation`, `refunds`)                                      | `getMyBooking`                                                 |
-| Refund `/account/bookings/{ref}/refund`                             | `GET /me/bookings/{ref}` (`refunds`, `refunded_amount`, `refund_pending_amount`)                                  | `getMyBooking`                                                 |
-| My enquiries `/account/enquiries`                                   | `GET /me/enquiries`                                                                                               | `listMyEnquiries`                                              |
-| Enquiry detail `/account/enquiries/{ref}` (new page)                | `GET /me/enquiries/{ref}`                                                                                         | `getMyEnquiry`                                                 |
-| Proposal `/account/proposals/{id}` (new page)                       | `GET /me/proposals/{id}`, `POST /me/proposals/{id}/accept`, `POST /me/proposals/{id}/reject`                      | `getMyProposal`, `acceptProposal`, `rejectProposal`            |
-| Help & support `/account/help`                                      | `POST /me/support-requests`, `GET /me/support-requests`, `GET /me/bookings` (related journey)                     | `createSupportRequest`, `listMySupportRequests`                |
-| Message received `/account/help/sent?ref=`                          | `GET /me/support-requests/{reference}`                                                                            | `getMySupportRequest`                                          |
+| Feature (route)                                                     | Endpoint(s)                                                                                                       | Service function(s)                                                              |
+| ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Overview `/account`                                                 | `GET /auth/me`, `GET /me/bookings?timeframe=upcoming\|past`, `GET /me/enquiries`                                  | `getMyProfile`, `listMyBookings`, `listMyEnquiries`                              |
+| Sidebar / account menu                                              | `GET /auth/me`                                                                                                    | `getMyProfile`                                                                   |
+| Profile details `/account/profile`                                  | `GET /auth/me`, `PATCH /me` (name, phone, country, billing)                                                       | `getMyProfile`, `updateMyProfile`                                                |
+| Profile setup `/account/setup`                                      | `GET /auth/me`, `PATCH /me`                                                                                       | same                                                                             |
+| Security `/account/security`                                        | `POST /me/password` (stores the returned access token)                                                            | `changeMyPassword`                                                               |
+| Email change `/account/profile/email`                               | `POST /me/email/change`, `POST /me/email/verify`                                                                  | `requestEmailChange`, `verifyEmailChange`                                        |
+| Profile photo `/account/profile` (+ sidebar)                        | `POST /me/avatar/uploads`, PUT to `upload_url`, `PUT /me/avatar`, `DELETE /me/avatar`; `avatar_url` on `/auth/me` | `uploadMyAvatar`, `removeMyAvatar`                                               |
+| My bookings `/account/bookings[?tab=past]`                          | `GET /me/bookings`, `GET /me/bookings/{ref}` (cancelled ones), `GET /me/cancellation-requests?status=pending`     | `listMyBookings`, `getMyBooking`, `listMyCancellationRequests`                   |
+| Booking detail `/account/bookings/{ref}`                            | `GET /me/bookings/{ref}`, `GET /yachts/{slug}` (photo, departure city, capacity)                                  | `getMyBooking`, `getYacht`                                                       |
+| Invoice `/account/bookings/{ref}/invoice`                           | `GET /me/bookings/{ref}` → `GET /bookings/{id}/invoice` (UUID; PDF via `download_url`)                            | `getMyBooking`, `getBookingInvoice`                                              |
+| Cancellation request + review `/account/bookings/{ref}/cancel`      | `GET /me/bookings/{ref}/cancellation-preview`, `POST /me/bookings/{ref}/cancellation-requests`                    | `getCancellationPreview`, `requestCancellation`                                  |
+| Request received / status `…/cancel/received`, `…/cancel/confirmed` | `GET /me/bookings/{ref}` (`cancellation_request`, `cancellation`, `refunds`)                                      | `getMyBooking`                                                                   |
+| Refund `/account/bookings/{ref}/refund`                             | `GET /me/bookings/{ref}` (`refunds`, `refunded_amount`, `refund_pending_amount`)                                  | `getMyBooking`                                                                   |
+| My enquiries `/account/enquiries`                                   | `GET /me/enquiries`                                                                                               | `listMyEnquiries`                                                                |
+| Enquiry detail `/account/enquiries/{ref}` (new page)                | `GET /me/enquiries/{ref}`                                                                                         | `getMyEnquiry`                                                                   |
+| Proposal `/account/proposals/{id}` (new page)                       | `GET /me/proposals/{id}`, `POST /me/proposals/{id}/accept`, `POST /me/proposals/{id}/reject`                      | `getMyProposal`, `acceptProposal`, `rejectProposal`                              |
+| Help & support `/account/help`                                      | `POST /me/support-requests`, `GET /me/support-requests`, `GET /me/bookings` (related journey)                     | `createSupportRequest`, `listMySupportRequests`                                  |
+| Message received `/account/help/sent?ref=`                          | `GET /me/support-requests/{reference}`                                                                            | `getMySupportRequest`                                                            |
+| Notification inbox (header bell, every page while signed in)        | `GET /me/notifications`, `GET /me/notifications/unread-count`, `POST /me/notifications/read`                      | `listMyNotifications`, `getMyUnreadNotificationCount`, `markMyNotificationsRead` |
+| Booking opened from a notification `/account/bookings/{id}`         | `GET /bookings/{id}` (id → reference), then `GET /me/bookings/{ref}`                                              | `getMyBookingByIdOrReference`                                                    |
 
 Notes on how the UI uses them:
 
@@ -45,55 +47,30 @@ Notes on how the UI uses them:
   is composed from the chosen category and booking reference (e.g. "My booking or arrival ·
   SM-2026-0042"). A repeat within 5 minutes (`created: false`) shows that earlier request.
 - **Lists** request `limit=100` (the backend maximum) and show the first page only.
+- **Notifications.** No push for customers: the badge polls the unread count every 60 s (visible
+  tab only), on returning to the tab and on each page change; the panel loads 20 at a time with
+  "Show older notifications". See `src/features/user/notifications/README.md`.
 
-## 2. Still on TEMPORARY mock data
+## 2. Country, billing and notification preferences: integrated
 
-Kept in this browser tab only (`src/services/user/mocks/`, `sessionStorage`), clearly separated in
-`profile.service.ts` under "TEMPORARY (mock)":
+Read with `GET /auth/me`, saved with `PATCH /me` (`updateMyProfile`); one PATCH can carry
+`name`, `phone`, `country`, `billing` and `notification_preferences` together. A 400 saves nothing.
+There is no mock data left.
 
-| Feature                              | Route                                      | Why                                         |
-| ------------------------------------ | ------------------------------------------ | ------------------------------------------- |
-| Notification preferences             | `/account/notifications`, `/account/setup` | No endpoint in the OpenAPI document         |
-| Country / region and billing details | `/account/profile`, `/account/setup`       | `PATCH /me` accepts only `name` and `phone` |
+| Field                      | Behaviour in the UI                                                                                                                                                                                                                                                                                                      |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `country`                  | 2-letter ISO code ("IN"), chosen from a list of country names; `null` clears it. `/account/profile`, `/account/setup`                                                                                                                                                                                                    |
+| `notification_preferences` | `charter_reminders` (on by default) and `offers_and_updates` (off by default). Only the changed key is sent. No switches for booking, payment, refund or cancellation emails. `/account/notifications`, `/account/setup`                                                                                                 |
+| `billing`                  | The Figma form's Address, City, State and Postal code. Sent as the full object, or `null` when all four are empty. `name` is the full name and `country` the form's Country / region; saved company name, address line 2 and GSTIN (no field in the design) are sent back unchanged. India: state required, 6-digit PIN. |
 
-- **Cleared when the customer changes:** sign-in, sign-out and an expired session drop this data
-  (`forgetCustomerData` in `src/features/user/auth/session.ts`), so it never reaches the next
-  customer on the same tab. It starts empty (no prefilled country).
-- **Never presented as saved to the account:** the pages and confirmation screens say these details
-  are kept in this browser tab only (`src/features/user/account/utils/device-only.ts`). Remove that
-  wording together with the mock store once the endpoints exist.
+Rules live in `src/features/user/profile/utils/billing.ts`.
 
 ## 3. Missing backend APIs — PROPOSALS ONLY
 
 > **These endpoints do not exist.** They are suggestions for the backend team, written to match
 > the conventions of the existing `/me` API. Nothing in the frontend calls them.
 
-### 3.1 Notification preferences
-
-- **Routes:** `/account/notifications`, `/account/setup` ("Stories and offers")
-- **Proposed:** `GET /me/notification-preferences`, `PATCH /me/notification-preferences`
-- **PATCH body (all optional):**
-  ```json
-  { "proposal_emails": true, "whatsapp_updates": false, "stories_and_offers": false }
-  ```
-- **Response (both):** the same object with every field present.
-- **Why:** the Figma screens C55 / C64 / C58 let customers choose optional channels (WhatsApp
-  consent, marketing). Consent must be stored server-side to be honoured by the messages the
-  backend sends.
-
-### 3.2 Country and billing details
-
-- **Route:** `/account/profile` (C52 "Billing details · optional"), `/account/setup`
-- **Proposed:** extend `PATCH /me` (and the `UserDto` it returns, and `GET /auth/me`) with:
-  ```json
-  {
-    "country": "India",
-    "billing": { "address": "…", "city": "Kochi", "state": "Kerala", "postal_code": "682001" }
-  }
-  ```
-  (all nullable; `null` clears a value)
-- **Why:** the invoice shows the customer's name, email and phone only; GST invoices for
-  customers who need a billing address can't carry one today.
+(Notification preferences, country and billing details were proposed here and are now delivered; see §2.)
 
 ### 3.3 Profile photo — now integrated
 
@@ -116,6 +93,12 @@ never stored in the session.
   `cancellation_request` in `GET /me/bookings/{ref}`.
 - **Why:** customers quote a reference to the concierge. Until then the screen names the booking
   reference and the request date instead.
+
+### 3.6 Customer notification inbox — now integrated
+
+Delivered as `GET /me/notifications`, `GET /me/notifications/unread-count` and
+`POST /me/notifications/read` (see §1). Notifications carry the booking's id (UUID), not its
+reference, so the booking page also accepts an id (`getMyBookingByIdOrReference`).
 
 ## 4. Questions for the backend team
 

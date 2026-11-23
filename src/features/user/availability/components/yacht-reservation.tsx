@@ -378,7 +378,8 @@ export function YachtReservation({
   // In the API's order; a package is named as its first bookable slot names it.
   const packageNames = new Map<string, string>();
   for (const slot of allSlots) {
-    if (!packageNames.has(slot.slot_type_id)) packageNames.set(slot.slot_type_id, slot.slot_type_name);
+    if (!packageNames.has(slot.slot_type_id))
+      packageNames.set(slot.slot_type_id, slot.slot_type_name);
   }
   const packages = [...packageNames].map(([id, name]) => ({
     id,
@@ -423,7 +424,12 @@ export function YachtReservation({
    * left to the backend's quote, which has the final say.
    */
   const typedProblem = startTime
-    ? startTimeProblem({ start: startTime, durationMinutes: packageMinutes, windows: allSlots, range: startRange })
+    ? startTimeProblem({
+        start: startTime,
+        durationMinutes: packageMinutes,
+        windows: allSlots,
+        range: startRange,
+      })
     : null;
 
   // A new answer for this date drops a package it no longer offers. The chosen time is not
@@ -677,7 +683,10 @@ export function YachtReservation({
                             }
                           >
                             <span
-                              className={cx("block text-[18px] leading-[24px]", full && "line-through")}
+                              className={cx(
+                                "block text-[18px] leading-[24px]",
+                                full && "line-through",
+                              )}
                             >
                               {durationLabel(option)}
                             </span>
@@ -746,7 +755,10 @@ export function YachtReservation({
                         </ul>
                         {(() => {
                           const overlapping = takenTimes.filter(
-                            (slot) => slot.state === "booked" || slot.state === "held" || slot.state === "blocked",
+                            (slot) =>
+                              slot.state === "booked" ||
+                              slot.state === "held" ||
+                              slot.state === "blocked",
                           );
                           const passed = takenTimes.filter((slot) => slot.state === "past");
                           // Free, but with no price for that time: it can't be booked online.
@@ -756,19 +768,28 @@ export function YachtReservation({
                           return (
                             <>
                               {overlapping.length > 0 && (
-                                <p className="mt-[10px] text-[13px] leading-[18px]" style={{ color: MUTED }}>
+                                <p
+                                  className="mt-[10px] text-[13px] leading-[18px]"
+                                  style={{ color: MUTED }}
+                                >
                                   Not available for this package, as a charter starting then would
                                   overlap another charter or the yacht’s turnaround time:{" "}
                                   {list(overlapping)}.
                                 </p>
                               )}
                               {passed.length > 0 && (
-                                <p className="mt-[6px] text-[13px] leading-[18px]" style={{ color: MUTED }}>
+                                <p
+                                  className="mt-[6px] text-[13px] leading-[18px]"
+                                  style={{ color: MUTED }}
+                                >
                                   Already passed: {list(passed)}.
                                 </p>
                               )}
                               {unpriced.length > 0 && (
-                                <p className="mt-[6px] text-[13px] leading-[18px]" style={{ color: MUTED }}>
+                                <p
+                                  className="mt-[6px] text-[13px] leading-[18px]"
+                                  style={{ color: MUTED }}
+                                >
                                   Not bookable online: {list(unpriced)}.
                                 </p>
                               )}
@@ -890,7 +911,7 @@ export function YachtReservation({
     <div className="min-w-0 xl:col-start-2 xl:row-span-3 xl:row-start-1">
       <aside
         aria-label={`Your private charter on ${name}`}
-        className="px-[24px] py-[32px] text-white sm:px-[33px] xl:sticky xl:top-[24px]"
+        className="px-[24px] py-[32px] text-white sm:px-[33px] xl:sticky xl:top-[calc(var(--site-header-h)+24px)]"
         style={{ backgroundColor: CARD }}
       >
         <p className="text-[12px] leading-[16px] tracking-[0.18em] text-white/75 uppercase">
