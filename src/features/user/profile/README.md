@@ -17,7 +17,7 @@ profile/
 - The account sidebar and mobile "My account" bar live in `src/features/user/account`
   (`account-shell.tsx`). `src/components/user/account-nav.tsx` is the earlier sidebar and is not
   rendered.
-- `src/services/user/profile.service.ts` returns **mock data** (see `src/services/user/mocks`)
-  until the account API exists; each function keeps the Zod schema the real response must match.
+- `src/services/user/profile.service.ts` talks to `GET /auth/me` and `PATCH /me` (name, phone, country,
+  billing, notification preferences). `utils/billing.ts` holds the billing rules.
 
 See [docs/folder-structure.md](../../../../docs/folder-structure.md).

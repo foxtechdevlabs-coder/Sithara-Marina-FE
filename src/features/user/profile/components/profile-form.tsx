@@ -25,7 +25,6 @@ import {
   updatePublishedProfile,
 } from "@/features/user/account/my-profile";
 import { accountErrorMessage } from "@/features/user/account/utils/account-error";
-import { DEVICE_ONLY_DETAILS_NOTE } from "@/features/user/account/utils/device-only";
 import { updateSessionUser } from "@/features/user/auth/session";
 import { userRoutes } from "@/constants/routes";
 import { useApiQuery, type ApiQuery } from "@/hooks/use-api-query";
@@ -34,19 +33,26 @@ import { getBackendErrorDetails } from "@/services/http/backend-error";
 import {
   AVATAR_TYPES,
   avatarProblem,
-  getProfileExtras,
   removeMyAvatar,
   requestEmailChange,
   updateMyProfile,
-  updateProfileExtras,
   uploadMyAvatar,
   type AccountUser,
-  type ProfileExtras,
 } from "@/services/user/profile.service";
 import { emailSchema } from "@/validation/email";
 
 import { withAvatarUrl } from "../utils/avatar";
+import {
+  billingErrorsFromMessages,
+  billingValuesOf,
+  toBillingRequest,
+  validateBilling,
+  type BillingField,
+  type BillingValues,
+} from "../utils/billing";
 import { PHONE_FORMAT_HINT, toE164 } from "../utils/phone";
+
+import { CountrySelect } from "./country-select";
 
 /** PATCH /me: `name` up to 255 characters. */
 const NAME_MAX = 255;
@@ -55,33 +61,24 @@ interface Values {
   fullName: string;
   email: string;
   phone: string;
+  /** 2-letter ISO code, or "". */
   country: string;
-  address: string;
-  city: string;
-  state: string;
-  postalCode: string;
 }
-type FieldErrors = Partial<Record<keyof Values | "photo", string>>;
+type FieldErrors = Partial<Record<keyof Values | BillingField | "photo", string>>;
 
 interface ProfileData {
   user: AccountUser;
-  /** TEMPORARY (mock): no endpoint stores country or billing details. */
-  extras: ProfileExtras;
 }
 
-const toValues = ({ user, extras }: ProfileData): Values => ({
+const toValues = ({ user }: ProfileData): Values => ({
   fullName: user.fullName,
   email: user.email,
   phone: user.phone ?? "",
-  country: extras.country ?? "",
-  address: extras.billing.address ?? "",
-  city: extras.billing.city ?? "",
-  state: extras.billing.state ?? "",
-  postalCode: extras.billing.postal_code ?? "",
+  country: user.country ?? "",
 });
 
-function validate(values: Values): FieldErrors {
-  const errors: FieldErrors = {};
+function validate(values: Values, billing: BillingValues): FieldErrors {
+  const errors: FieldErrors = validateBilling(billing, values.country);
   if (!values.fullName.trim()) errors.fullName = "Please enter your full name.";
   else if (values.fullName.trim().length > NAME_MAX)
     errors.fullName = `Please use up to ${NAME_MAX} characters.`;
@@ -89,24 +86,18 @@ function validate(values: Values): FieldErrors {
   if (!email.success)
     errors.email = email.error.issues[0]?.message ?? "Enter a valid email address.";
   if (values.phone.trim() && !toE164(values.phone)) errors.phone = PHONE_FORMAT_HINT;
-  if (values.postalCode && !/^[A-Za-z0-9 -]{3,10}$/.test(values.postalCode.trim()))
-    errors.postalCode = "Please check the postal code.";
   return errors;
 }
 
-const orNull = (value: string) => value.trim() || null;
-
 const isSameEmail = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
 
-async function loadProfile(signal: AbortSignal): Promise<ProfileData> {
-  const [user, extras] = await Promise.all([fetchMyProfile(), getProfileExtras(signal)]);
-  return { user, extras };
+async function loadProfile(): Promise<ProfileData> {
+  return { user: await fetchMyProfile() };
 }
 
 /**
- * Figma C52 "Your details, kept personal.": name and phone (PATCH /me), the
- * email address (its own verification flow) and — TEMPORARY, kept in this
- * browser only — country and billing details, which no endpoint stores yet.
+ * Figma C52 "Your details, kept personal.": name, phone, country and billing
+ * details (one PATCH /me) and the email address (its own verification flow).
  */
 export function ProfileDetails() {
   const query = useApiQuery(loadProfile, "my-profile");
@@ -140,6 +131,9 @@ function ProfileForm({
   const id = useId();
   const router = useRouter();
   const [values, setValues] = useState<Values>(() => toValues(profile));
+  const [billing, setBilling] = useState<BillingValues>(() =>
+    billingValuesOf(profile.user.billing),
+  );
   const [errors, setErrors] = useState<FieldErrors>({});
   /** "uploading" / "removing" while the photo request runs; saved at once, not with the form. */
   const [photoBusy, setPhotoBusy] = useState<"uploading" | "removing" | null>(null);
@@ -158,6 +152,12 @@ function ProfileForm({
 
   const set = (name: keyof Values) => (event: ChangeEvent<HTMLInputElement>) => {
     setValues((current) => ({ ...current, [name]: event.target.value }));
+    setErrors((current) => ({ ...current, [name]: undefined }));
+    setStatus({ kind: "idle" });
+  };
+
+  const setBillingField = (name: BillingField) => (event: ChangeEvent<HTMLInputElement>) => {
+    setBilling((current) => ({ ...current, [name]: event.target.value }));
     setErrors((current) => ({ ...current, [name]: undefined }));
     setStatus({ kind: "idle" });
   };
@@ -232,7 +232,7 @@ function ProfileForm({
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (isSubmitting.current) return; // one save, however often it is submitted
-    const found = validate(values);
+    const found = validate(values, billing);
     setErrors(found);
     if (Object.keys(found).length > 0) return;
 
@@ -243,17 +243,14 @@ function ProfileForm({
       saved = await updateMyProfile({
         name: values.fullName.trim(),
         phone: values.phone.trim() ? toE164(values.phone) : null,
+        country: values.country || null,
+        billing: toBillingRequest(billing, {
+          fullName: values.fullName,
+          country: values.country,
+          saved: profile.user.billing,
+        }),
       });
-      const extras = await updateProfileExtras({
-        country: orNull(values.country),
-        billing: {
-          address: orNull(values.address),
-          city: orNull(values.city),
-          state: orNull(values.state),
-          postal_code: orNull(values.postalCode),
-        },
-      });
-      onSaved({ user: saved, extras });
+      onSaved({ user: saved });
       publishMyProfile(saved);
       updateSessionUser({
         id: saved.id,
@@ -264,13 +261,13 @@ function ProfileForm({
     } catch (error) {
       isSubmitting.current = false;
       if (isApiError(error) && error.status === 400) {
-        // Validation messages name the field ("phone must be …").
+        // Validation messages name the field ("phone must be …"); nothing was saved.
         const text = getBackendErrorDetails(error).messages.join(" ");
-        setErrors({
-          ...(/phone/i.test(text) ? { phone: PHONE_FORMAT_HINT } : {}),
-          ...(/name/i.test(text) ? { fullName: "Please check your full name." } : {}),
+        setErrors(billingErrorsFromMessages(text));
+        setStatus({
+          kind: "failed",
+          message: "Nothing was saved. Please check the highlighted details and try again.",
         });
-        setStatus({ kind: "failed", message: "Please check your name and phone number." });
         return;
       }
       setStatus({
@@ -316,6 +313,7 @@ function ProfileForm({
 
   const onCancel = () => {
     setValues(toValues(profile));
+    setBilling(billingValuesOf(profile.user.billing));
     setErrors({});
     setStatus({ kind: "idle" });
   };
@@ -351,6 +349,38 @@ function ProfileForm({
         />
         {error ? (
           <p id={`${id}-${name}-error`} className={fieldErrorClass}>
+            {error}
+          </p>
+        ) : null}
+      </div>
+    );
+  };
+
+  const billingField = (
+    name: BillingField,
+    label: string,
+    options: { required?: boolean; placeholder?: string; autoComplete?: string } = {},
+  ) => {
+    const error = errors[name];
+    return (
+      <div>
+        <label htmlFor={`${id}-b-${name}`} className={labelClass}>
+          {label}
+          {options.required ? " *" : null}
+        </label>
+        <input
+          id={`${id}-b-${name}`}
+          type="text"
+          value={billing[name]}
+          onChange={setBillingField(name)}
+          placeholder={options.placeholder}
+          autoComplete={options.autoComplete}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? `${id}-b-${name}-error` : undefined}
+          className={inputClass}
+        />
+        {error ? (
+          <p id={`${id}-b-${name}-error`} className={fieldErrorClass}>
             {error}
           </p>
         ) : null}
@@ -439,12 +469,28 @@ function ProfileForm({
           type: "tel",
           placeholder: "+91 98765 43210",
         })}
-        {field("country", "Country / region", { autoComplete: "country-name" })}
+        <div>
+          <label htmlFor={`${id}-country`} className={labelClass}>
+            Country / region
+          </label>
+          <CountrySelect
+            id={`${id}-country`}
+            value={values.country}
+            aria-invalid={errors.country ? true : undefined}
+            aria-describedby={errors.country ? `${id}-country-error` : undefined}
+            onChange={(code) => {
+              setValues((current) => ({ ...current, country: code }));
+              setErrors((current) => ({ ...current, country: undefined }));
+              setStatus({ kind: "idle" });
+            }}
+          />
+          {errors.country ? (
+            <p id={`${id}-country-error`} className={fieldErrorClass}>
+              {errors.country}
+            </p>
+          ) : null}
+        </div>
       </div>
-      {/* TEMPORARY: no endpoint stores country or billing details yet. */}
-      <p className="text-body mt-3 max-w-[40rem] text-[12px] leading-snug">
-        {DEVICE_ONLY_DETAILS_NOTE}
-      </p>
 
       <Link href={userRoutes.accountProfileEmail} className={`${textButtonClass} mt-6`}>
         Change email address
@@ -456,13 +502,13 @@ function ProfileForm({
         Billing details <span className="text-body">· optional</span>
       </CardTitle>
       <div className="mt-6 grid gap-x-5 gap-y-7 sm:grid-cols-2 lg:gap-y-9">
-        {field("address", "Address", {
+        {billingField("addressLine1", "Address", {
           placeholder: "Your billing address",
           autoComplete: "street-address",
         })}
-        {field("city", "City", { autoComplete: "address-level2" })}
-        {field("state", "State", { autoComplete: "address-level1" })}
-        {field("postalCode", "Postal code", {
+        {billingField("city", "City", { autoComplete: "address-level2" })}
+        {billingField("state", "State", { autoComplete: "address-level1" })}
+        {billingField("postalCode", "Postal code", {
           placeholder: "Your postal code",
           autoComplete: "postal-code",
         })}

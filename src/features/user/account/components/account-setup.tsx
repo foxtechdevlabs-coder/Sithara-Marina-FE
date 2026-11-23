@@ -12,13 +12,8 @@ import { useApiQuery } from "@/hooks/use-api-query";
 import { cx } from "@/lib/cx";
 import { isApiError } from "@/services/http/api-error";
 import { getBackendErrorDetails } from "@/services/http/backend-error";
-import {
-  getNotificationPreferences,
-  getProfileExtras,
-  updateMyProfile,
-  updateNotificationPreferences,
-  updateProfileExtras,
-} from "@/services/user/profile.service";
+import { CountrySelect } from "@/features/user/profile/components/country-select";
+import { updateMyProfile } from "@/services/user/profile.service";
 
 import { fetchMyProfile, publishMyProfile } from "../my-profile";
 import { accountErrorMessage } from "../utils/account-error";
@@ -38,21 +33,13 @@ import {
 } from "./account-ui";
 import { QueryFallback } from "./query-fallback";
 
-/** The account (GET /auth/me), plus the TEMPORARY mock country and offers preference. */
-function loadSetup(signal: AbortSignal) {
-  return Promise.all([
-    fetchMyProfile(),
-    getProfileExtras(signal),
-    getNotificationPreferences(signal),
-  ]);
-}
-
 interface Values {
   fullName: string;
   email: string;
   phone: string;
+  /** 2-letter ISO code, or "". */
   country: string;
-  storiesAndOffers: boolean;
+  offersAndUpdates: boolean;
 }
 type FieldErrors = Partial<Record<SetupField, string>>;
 
@@ -61,7 +48,7 @@ type FieldErrors = Partial<Record<SetupField, string>>;
  * verified. No sidebar yet; the details can be changed later in Profile details.
  */
 export function AccountSetup() {
-  const query = useApiQuery(loadSetup, "account-setup");
+  const query = useApiQuery(fetchMyProfile, "account-setup");
 
   return (
     <>
@@ -72,13 +59,7 @@ export function AccountSetup() {
       />
       <StatusChip className="mt-7 lg:mt-8">Email verified</StatusChip>
       {query.data ? (
-        <SetupForm
-          initial={setupInitialValues(
-            query.data[0],
-            query.data[1].country,
-            query.data[2].stories_and_offers,
-          )}
-        />
+        <SetupForm initial={setupInitialValues(query.data)} />
       ) : (
         <QueryFallback query={query} loadingLabel="Loading your details" />
       )}
@@ -94,7 +75,7 @@ function SetupForm({ initial }: { initial: Values }) {
   const [status, setStatus] = useState<"idle" | "saving" | "failed">("idle");
   const [failure, setFailure] = useState("");
 
-  const set = (name: "fullName" | "phone" | "country") => (value: string) => {
+  const set = (name: "fullName" | "phone") => (value: string) => {
     setValues((current) => ({ ...current, [name]: value }));
     setErrors((current) => ({ ...current, [name]: undefined }));
   };
@@ -110,6 +91,8 @@ function SetupForm({ initial }: { initial: Values }) {
       const saved = await updateMyProfile({
         name: values.fullName.trim(),
         phone: values.phone.trim() ? toE164(values.phone) : null,
+        country: values.country || null,
+        notification_preferences: { offers_and_updates: values.offersAndUpdates },
       });
       publishMyProfile(saved);
       updateSessionUser({
@@ -118,11 +101,6 @@ function SetupForm({ initial }: { initial: Values }) {
         email: saved.email,
         role: saved.role,
       });
-      // TEMPORARY (mock): no endpoint stores the country or the offers preference.
-      await Promise.all([
-        updateProfileExtras({ country: values.country.trim() || null }),
-        updateNotificationPreferences({ stories_and_offers: values.storiesAndOffers }),
-      ]);
       router.push(userRoutes.account);
     } catch (error) {
       if (isApiError(error) && error.status === 400) {
@@ -141,7 +119,7 @@ function SetupForm({ initial }: { initial: Values }) {
   };
 
   const textField = (
-    name: "fullName" | "phone" | "country",
+    name: "fullName" | "phone",
     label: string,
     autoComplete: string,
     type = "text",
@@ -186,9 +164,19 @@ function SetupForm({ initial }: { initial: Values }) {
           />
         </div>
         {textField("phone", "Phone · optional", "tel", "tel")}
-        {textField("country", "Country / region", "country-name")}
+        <div>
+          <label htmlFor={`${id}-country`} className={labelClass}>
+            Country / region
+          </label>
+          <CountrySelect
+            id={`${id}-country`}
+            value={values.country}
+            disabled={status === "saving"}
+            onChange={(code) => setValues((current) => ({ ...current, country: code }))}
+          />
+        </div>
         <fieldset>
-          <legend className={labelClass}>Stories and offers · optional</legend>
+          <legend className={labelClass}>Offers and updates · optional</legend>
           <label
             htmlFor={`${id}-stories`}
             className="border-rule text-navy-ink has-focus-visible:outline-navy-ink flex min-h-[46px] cursor-pointer items-center gap-2.5 border px-3 py-3 text-[13px] leading-snug has-focus-visible:outline-2 has-focus-visible:outline-offset-2"
@@ -196,10 +184,10 @@ function SetupForm({ initial }: { initial: Values }) {
             <input
               id={`${id}-stories`}
               type="checkbox"
-              checked={values.storiesAndOffers}
+              checked={values.offersAndUpdates}
               disabled={status === "saving"}
               onChange={(event) =>
-                setValues((current) => ({ ...current, storiesAndOffers: event.target.checked }))
+                setValues((current) => ({ ...current, offersAndUpdates: event.target.checked }))
               }
               className="accent-navy-ink size-3.5 shrink-0"
             />
@@ -207,12 +195,6 @@ function SetupForm({ initial }: { initial: Values }) {
           </label>
         </fieldset>
       </div>
-
-      {/* TEMPORARY: no endpoint stores the country or the offers preference yet. */}
-      <p className="text-body mt-5 max-w-[46rem] text-[12px] leading-snug">
-        The country and the stories-and-offers choice are kept in this browser tab only for now.
-        They are not yet saved to your account, and are cleared when you sign out or close the tab.
-      </p>
 
       <AccountNotice label="Your journeys, together" className="mt-10 max-w-[46rem] lg:mt-12">
         Bookings made with your verified email appear in your account. You can update these details

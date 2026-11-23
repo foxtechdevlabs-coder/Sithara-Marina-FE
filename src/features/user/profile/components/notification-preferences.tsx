@@ -16,14 +16,20 @@ import {
   secondaryButtonClass,
 } from "@/features/user/account/components/account-ui";
 import { QueryFallback } from "@/features/user/account/components/query-fallback";
-import { DEVICE_ONLY_PREFERENCES_NOTE } from "@/features/user/account/utils/device-only";
+import { fetchMyProfile, publishMyProfile } from "@/features/user/account/my-profile";
+import { accountErrorMessage } from "@/features/user/account/utils/account-error";
 import { useApiQuery } from "@/hooks/use-api-query";
 import {
-  getNotificationPreferences,
-  updateNotificationPreferences,
+  notificationPreferencesOf,
+  updateMyProfile,
+  type AccountUser,
   type NotificationPreferences,
 } from "@/services/user/profile.service";
 
+/*
+ * Only the two emails the customer controls get a switch. Booking, payment,
+ * refund and cancellation emails always go, so they have none.
+ */
 const OPTIONS: readonly {
   key: keyof NotificationPreferences;
   group: string;
@@ -31,20 +37,14 @@ const OPTIONS: readonly {
   label: string;
 }[] = [
   {
-    key: "proposal_emails",
-    group: "Personal proposals",
+    key: "charter_reminders",
+    group: "Charter reminders",
     optional: false,
-    label: "Email me about my enquiries and proposals",
+    label: "Email me a reminder the day before my charter",
   },
   {
-    key: "whatsapp_updates",
-    group: "WhatsApp charter updates",
-    optional: true,
-    label: "I agree to receive updates about my charter",
-  },
-  {
-    key: "stories_and_offers",
-    group: "Stories and offers",
+    key: "offers_and_updates",
+    group: "Offers and updates",
     optional: true,
     label: "Send occasional inspiration and offers",
   },
@@ -52,7 +52,7 @@ const OPTIONS: readonly {
 
 /** Figma C55 "Stay close to your journey.": the optional message channels. */
 export function NotificationSettings() {
-  const query = useApiQuery(getNotificationPreferences, "notification-preferences");
+  const query = useApiQuery(fetchMyProfile, "notification-preferences");
 
   return (
     <>
@@ -64,12 +64,12 @@ export function NotificationSettings() {
       <Card title="Essential charter updates" className="mt-8 lg:mt-10">
         <MetaLines
           lines={[
-            "Booking confirmations, payment status and important changes to your charter are sent to your registered contact details.",
+            "Booking confirmations, payment and refund updates and cancellation notices are always sent to your registered contact details.",
           ]}
         />
       </Card>
       {query.data ? (
-        <PreferencesForm saved={query.data} onSaved={query.setData} />
+        <PreferencesForm user={query.data} />
       ) : (
         <QueryFallback query={query} loadingLabel="Loading your preferences" />
       )}
@@ -77,30 +77,38 @@ export function NotificationSettings() {
   );
 }
 
-type Status = "idle" | "saving" | "saved" | "failed";
+type Status = "idle" | "saving" | "failed";
 
-function PreferencesForm({
-  saved,
-  onSaved,
-}: {
-  saved: NotificationPreferences;
-  onSaved: (preferences: NotificationPreferences) => void;
-}) {
+function PreferencesForm({ user }: { user: AccountUser }) {
   const id = useId();
   const router = useRouter();
+  const saved = notificationPreferencesOf(user);
   const [values, setValues] = useState(saved);
   const [status, setStatus] = useState<Status>("idle");
+  const [failure, setFailure] = useState("");
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (status === "saving") return;
+
+    // PATCH only the keys that changed.
+    const changed: Partial<NotificationPreferences> = {};
+    for (const { key } of OPTIONS) {
+      if (values[key] !== saved[key]) changed[key] = values[key];
+    }
+    if (Object.keys(changed).length === 0) {
+      router.push(userRoutes.accountNotificationsSaved);
+      return;
+    }
+
     setStatus("saving");
     try {
-      const result = await updateNotificationPreferences(values);
-      onSaved(result);
-      setValues(result);
-      setStatus("saved");
+      publishMyProfile(await updateMyProfile({ notification_preferences: changed }));
       router.push(userRoutes.accountNotificationsSaved);
-    } catch {
+    } catch (error) {
+      setFailure(
+        accountErrorMessage(error, "We couldn’t save your preferences just now. Please try again."),
+      );
       setStatus("failed");
     }
   };
@@ -122,6 +130,7 @@ function PreferencesForm({
                 id={`${id}-${option.key}`}
                 type="checkbox"
                 checked={values[option.key]}
+                disabled={status === "saving"}
                 onChange={(event) => {
                   setValues((current) => ({ ...current, [option.key]: event.target.checked }));
                   setStatus("idle");
@@ -134,24 +143,19 @@ function PreferencesForm({
         ))}
       </div>
 
-      {/* TEMPORARY: no endpoint stores these preferences yet. */}
-      <p className="text-body mt-7 text-[12px] leading-snug">{DEVICE_ONLY_PREFERENCES_NOTE}</p>
-      <p role="status" className="text-body mt-3 min-h-5 text-[13px]">
-        {status === "saved" ? "Your choices are kept in this browser tab." : null}
-      </p>
       {status === "failed" ? (
-        <p role="alert" className={fieldErrorClass}>
-          We couldn’t save your preferences just now. Please try again.
+        <p role="alert" className={`${fieldErrorClass} mt-7`}>
+          {failure}
         </p>
       ) : null}
-      <div className={`${buttonRowClass} mt-3`}>
+      <div className={`${buttonRowClass} mt-7`}>
         <button
           type="submit"
           disabled={status === "saving"}
           className={primaryButtonClass}
           style={primaryButtonStyle}
         >
-          {status === "saving" ? "Saving…" : "Keep these choices"}
+          {status === "saving" ? "Saving…" : "Save my choices"}
         </button>
         <button
           type="button"

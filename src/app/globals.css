@@ -96,6 +96,25 @@
     -webkit-text-size-adjust: 100%;
   }
 
+  /* Height of the fixed customer header (`SiteHeader`): its spacer and sticky offsets use it. */
+  :root {
+    --site-header-h: 6rem;
+  }
+  @media (width >= 40rem) {
+    :root {
+      --site-header-h: 7.5rem;
+    }
+  }
+  @media (width >= 64rem) {
+    :root {
+      --site-header-h: 7rem;
+    }
+  }
+  /* Anchor jumps and scrollIntoView stop below the fixed header (customer pages only). */
+  html:has(#site-header) {
+    scroll-padding-top: var(--site-header-h);
+  }
+
   body {
     @apply bg-surface text-ink font-sans antialiased;
   }

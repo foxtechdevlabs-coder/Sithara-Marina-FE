@@ -66,7 +66,9 @@ const yachtFacts = (yacht: YachtDetail | undefined) => {
           yacht.length_ft !== null
             ? `${feetToMetres(yacht.length_ft)}m ${(yacht.type ?? "yacht").toLowerCase()}`
             : yacht.type,
-          yacht.suites !== null ? `${yacht.suites} ${yacht.suites === 1 ? "suite" : "suites"}` : null,
+          yacht.suites !== null
+            ? `${yacht.suites} ${yacht.suites === 1 ? "suite" : "suites"}`
+            : null,
           yacht.crew.length ? `${yacht.crew.length} crew` : null,
         ]
           .filter(Boolean)
@@ -221,7 +223,7 @@ export function ReviewPayFrame({
           {children}
         </div>
         <aside className="hidden min-w-0 xl:block">
-          <div className="sticky top-[24px]">{aside}</div>
+          <div className="sticky top-[calc(var(--site-header-h)+24px)]">{aside}</div>
         </aside>
       </div>
     </div>
@@ -243,7 +245,8 @@ export function useSections(initial: SectionKey[]) {
     });
   return {
     isOpen: (key: SectionKey) => open.has(key),
-    toggle: (key: SectionKey) => change((next) => (next.has(key) ? next.delete(key) : next.add(key))),
+    toggle: (key: SectionKey) =>
+      change((next) => (next.has(key) ? next.delete(key) : next.add(key))),
     /** Opens a section and brings it into view, e.g. to show a problem in it. */
     reveal: (key: SectionKey) => {
       change((next) => next.add(key));
@@ -376,7 +379,13 @@ export function AccordionGroup({ children }: { children: ReactNode }) {
   );
 }
 
-export function NextSectionButton({ onClick, children }: { onClick: () => void; children: string }) {
+export function NextSectionButton({
+  onClick,
+  children,
+}: {
+  onClick: () => void;
+  children: string;
+}) {
   return (
     <button
       type="button"
@@ -469,7 +478,10 @@ export function CharterDetails({ charter, guestControl, changeHref }: CharterDet
         </div>
       </div>
 
-      <dl className="mt-[32px] grid grid-cols-1 border-t sm:grid-cols-2 lg:grid-cols-3" style={{ borderColor: HAIRLINE }}>
+      <dl
+        className="mt-[32px] grid grid-cols-1 border-t sm:grid-cols-2 lg:grid-cols-3"
+        style={{ borderColor: HAIRLINE }}
+      >
         {facts.map((fact) => (
           <div
             key={fact.label}
@@ -512,16 +524,25 @@ export function PaymentSummary({ price }: { price: PriceView }) {
       <dl className="text-[15px] leading-[22px]">
         {price.charter !== null && row("Charter", price.charter)}
         {price.addons.map((addon) =>
-          row(addon.quantity > 1 ? `${addon.name} × ${addon.quantity}` : addon.name, addon.amount, true),
+          row(
+            addon.quantity > 1 ? `${addon.name} × ${addon.quantity}` : addon.name,
+            addon.amount,
+            true,
+          ),
         )}
         {price.addonsTotal !== null && row("Add-ons", price.addonsTotal)}
         <div className="my-[6px] border-t" style={{ borderColor: HAIRLINE }} />
         {row("Taxable amount", price.taxable)}
         {row(taxName(price), price.tax)}
       </dl>
-      <div className="mt-[10px] flex items-baseline justify-between gap-6 border-t pt-[18px]" style={{ borderColor: INK }}>
+      <div
+        className="mt-[10px] flex items-baseline justify-between gap-6 border-t pt-[18px]"
+        style={{ borderColor: INK }}
+      >
         <p className="text-[16px]">Total charter amount</p>
-        <p className="text-[22px] leading-[28px] tabular-nums">{money(price.total, price.currency)}</p>
+        <p className="text-[22px] leading-[28px] tabular-nums">
+          {money(price.total, price.currency)}
+        </p>
       </div>
       <div className="mt-[24px] flex flex-wrap items-center justify-between gap-x-6 gap-y-2 bg-[#0d1b2a] px-[24px] py-[22px] text-white">
         <div>
@@ -530,7 +551,9 @@ export function PaymentSummary({ price }: { price: PriceView }) {
             Including {price.taxLabel}. Nothing more to pay later.
           </p>
         </div>
-        <p className="text-[30px] leading-[36px] tabular-nums">{money(price.total, price.currency)}</p>
+        <p className="text-[30px] leading-[36px] tabular-nums">
+          {money(price.total, price.currency)}
+        </p>
       </div>
     </div>
   );
@@ -581,18 +604,29 @@ export function BookingCard({ charter, price, settings, unavailable, pay }: Book
         {charter.image && (
           // Backend photos come from signed storage URLs, so they are not optimised by Next.
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={charter.image} alt={charter.yachtName} className="absolute inset-0 size-full object-cover" />
+          <img
+            src={charter.image}
+            alt={charter.yachtName}
+            className="absolute inset-0 size-full object-cover"
+          />
         )}
         {(charter.location || charter.cruisingArea) && (
-          <span className="absolute bottom-[14px] left-[14px] max-w-[calc(100%-28px)] truncate bg-white px-[10px] py-[5px] text-[12px] capitalize" style={{ color: INK }}>
+          <span
+            className="absolute bottom-[14px] left-[14px] max-w-[calc(100%-28px)] truncate bg-white px-[10px] py-[5px] text-[12px] capitalize"
+            style={{ color: INK }}
+          >
             {[charter.location, charter.cruisingArea?.split(" · ")[0]].filter(Boolean).join(" · ")}
           </span>
         )}
       </div>
 
       <div className="px-[24px] pt-[26px] pb-[28px] sm:px-[28px]">
-        <p className="text-[30px] leading-[36px] tracking-[-0.6px] break-words">{charter.yachtName}</p>
-        {charter.specs && <p className="mt-[6px] text-[13px] leading-[19px] text-white/65">{charter.specs}</p>}
+        <p className="text-[30px] leading-[36px] tracking-[-0.6px] break-words">
+          {charter.yachtName}
+        </p>
+        {charter.specs && (
+          <p className="mt-[6px] text-[13px] leading-[19px] text-white/65">{charter.specs}</p>
+        )}
 
         <dl className="mt-[24px] border-b border-white/15 pb-[16px] text-[14px] leading-[20px]">
           {facts.map(([label, value]) => line(label, value))}
@@ -601,12 +635,17 @@ export function BookingCard({ charter, price, settings, unavailable, pay }: Book
         {price ? (
           <>
             <dl className="border-b border-white/15 py-[16px] text-[14px] leading-[20px]">
-              {line(price.addonsTotal !== null ? "Charter and add-ons" : "Charter", money(price.taxable, price.currency))}
+              {line(
+                price.addonsTotal !== null ? "Charter and add-ons" : "Charter",
+                money(price.taxable, price.currency),
+              )}
               {line(taxName(price), money(price.tax, price.currency))}
             </dl>
             <div className="flex items-baseline justify-between gap-6 py-[18px]">
               <p className="text-[17px]">Charter total</p>
-              <p className="text-[22px] leading-[28px] tabular-nums">{money(price.total, price.currency)}</p>
+              <p className="text-[22px] leading-[28px] tabular-nums">
+                {money(price.total, price.currency)}
+              </p>
             </div>
             <div className="bg-[#13243a] px-[20px] py-[18px]">
               <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
@@ -649,7 +688,10 @@ export function BookingCard({ charter, price, settings, unavailable, pay }: Book
             {phone ? (
               <>
                 Call{" "}
-                <a href={`tel:${phone.replace(/[^\d+]/g, "")}`} className="text-white underline underline-offset-2">
+                <a
+                  href={`tel:${phone.replace(/[^\d+]/g, "")}`}
+                  className="text-white underline underline-offset-2"
+                >
                   {phone}
                 </a>
               </>
@@ -694,7 +736,8 @@ export function Consent({
   const contact = settings?.contact_email;
   const askConcierge = (
     <>
-      Ask our concierge{contact ? (
+      Ask our concierge
+      {contact ? (
         <>
           {" "}
           at{" "}
@@ -736,13 +779,19 @@ export function Consent({
         />
         <span className="min-w-0 flex-1">
           {label}{" "}
-          <span className="ml-[6px] text-[11px] tracking-[0.18em] whitespace-nowrap uppercase" style={{ color: MUTED }}>
+          <span
+            className="ml-[6px] text-[11px] tracking-[0.18em] whitespace-nowrap uppercase"
+            style={{ color: MUTED }}
+          >
             Required
           </span>
         </span>
       </label>
       {open && (
-        <div className="mt-[12px] ml-[30px] border-l-2 pl-[16px] text-[14px] leading-[22px] whitespace-pre-line" style={{ borderColor: HAIRLINE, color: BODY }}>
+        <div
+          className="mt-[12px] ml-[30px] border-l-2 pl-[16px] text-[14px] leading-[22px] whitespace-pre-line"
+          style={{ borderColor: HAIRLINE, color: BODY }}
+        >
           {detail}
         </div>
       )}
@@ -822,7 +871,9 @@ export function PayAction({ price, label, disabled, onPay, status, secondary }: 
   useEffect(() => {
     const node = ref.current;
     if (!node || typeof IntersectionObserver === "undefined") return;
-    const observer = new IntersectionObserver(([entry]) => setInView(Boolean(entry?.isIntersecting)));
+    const observer = new IntersectionObserver(([entry]) =>
+      setInView(Boolean(entry?.isIntersecting)),
+    );
     observer.observe(node);
     return () => observer.disconnect();
   }, []);
@@ -862,7 +913,10 @@ export function PayAction({ price, label, disabled, onPay, status, secondary }: 
       </div>
 
       {!inView && (
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t bg-white/95 px-5 py-[12px] backdrop-blur xl:hidden" style={{ borderColor: HAIRLINE }}>
+        <div
+          className="fixed inset-x-0 bottom-0 z-30 border-t bg-white/95 px-5 py-[12px] backdrop-blur xl:hidden"
+          style={{ borderColor: HAIRLINE }}
+        >
           <div className="mx-auto flex max-w-[720px] items-center justify-between gap-[16px]">
             <div className="min-w-0">
               <p className="text-[11px] tracking-[0.18em] uppercase" style={{ color: MUTED }}>
@@ -885,7 +939,13 @@ export function PayAction({ price, label, disabled, onPay, status, secondary }: 
 }
 
 /** Problems above the pay button. */
-export function PayNotice({ children, tone = "alert" }: { children: ReactNode; tone?: "alert" | "info" }) {
+export function PayNotice({
+  children,
+  tone = "alert",
+}: {
+  children: ReactNode;
+  tone?: "alert" | "info";
+}) {
   return (
     <p
       role={tone === "alert" ? "alert" : undefined}
