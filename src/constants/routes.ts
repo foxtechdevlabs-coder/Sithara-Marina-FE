@@ -82,6 +82,9 @@ export const userRoutes = {
   accountSetup: "/account/setup",
 
   planCharter: "/plan-your-charter",
+  privacy: "/privacy",
+  /** A section of the home page, by its heading's id (e.g. "about-heading"). */
+  homeSection: (headingId: string) => `/#${id(headingId)}` as Route,
   /** The custom quote page with this yacht (and optionally a guest count) already chosen. */
   planCharterFor: (slug: string, yachtId = "", guests = "") =>
     `/plan-your-charter${withQuery({ yacht: slug, yacht_id: yachtId, guests })}` as Route,

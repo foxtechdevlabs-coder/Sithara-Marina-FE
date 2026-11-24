@@ -10,6 +10,7 @@ import { FaqSection } from "@/features/user/home/components/faq-section";
 import { FeaturedYachtSection } from "@/features/user/home/components/featured-yacht-section";
 import { GuestsSection } from "@/features/user/home/components/guests-section";
 import { HeroSection } from "@/features/user/home/components/hero-section";
+import { HomeSectionScroll } from "@/features/user/home/components/home-section-scroll";
 import { JournalSection } from "@/features/user/home/components/journal-section";
 import { JourneyCtaSection } from "@/features/user/home/components/journey-cta-section";
 import { KeralaLineArt } from "@/features/user/home/components/kerala-line-art";
@@ -87,6 +88,8 @@ export default async function HomePage() {
   return (
     <>
       {faqs.length > 0 && <JsonLd data={generateFaqSchema(faqs)} id="home-faq-schema" />}
+      {/* Footer links like "/#journal-heading" land on their section below the header. */}
+      <HomeSectionScroll />
       <HeroSection />
       <BrandTextSection />
       <AboutSection />

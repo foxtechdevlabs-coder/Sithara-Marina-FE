@@ -32,6 +32,7 @@ import {
 } from "@/services/user/enquiries.service";
 import { getYacht } from "@/services/user/yachts.service";
 import { emailSchema } from "@/validation/email";
+import { FULL_NAME_INVALID_MESSAGE, isValidFullName } from "@/validation/full-name";
 import { keepOnly, phoneCharacters } from "@/lib/input-filters";
 
 /* ------------------------------------------------------------------ */
@@ -109,6 +110,15 @@ type FieldKey =
   | "message"
   | "consent";
 type FieldErrors = Partial<Record<FieldKey, string>>;
+
+/** Why a typed full name can't be sent, or undefined when it can (trimmed first). */
+function fullNameProblem(value: string): string | undefined {
+  const name = value.trim();
+  if (!name) return "Enter your full name.";
+  if (name.length > ENQUIRY_NAME_MAX_LENGTH) return "That name is too long.";
+  if (!isValidFullName(name)) return FULL_NAME_INVALID_MESSAGE;
+  return undefined;
+}
 
 /** Customer text for a failed POST /enquiries. Raw server messages are never shown. */
 function enquiryErrorMessage(error: unknown): string {
@@ -790,8 +800,8 @@ export default function PlanCharter({
     const errors: FieldErrors = {};
 
     const fullName = text("fullName");
-    if (!fullName) errors.fullName = "Enter your full name.";
-    else if (fullName.length > ENQUIRY_NAME_MAX_LENGTH) errors.fullName = "That name is too long.";
+    const nameProblem = fullNameProblem(fullName);
+    if (nameProblem) errors.fullName = nameProblem;
 
     // A signed-in customer's enquiry uses their account email, so none is sent.
     let email: string | undefined;
@@ -1148,6 +1158,13 @@ export default function PlanCharter({
                   aria-invalid={Boolean(fieldErrors.fullName)}
                   aria-describedby={fieldErrors.fullName ? "fullName-error" : undefined}
                   onChange={() => clearError("fullName")}
+                  // Checked when the field is left too; an untouched empty field waits for submit.
+                  onBlur={(event) => {
+                    const value = event.currentTarget.value;
+                    if (!value.trim()) return;
+                    const problem = fullNameProblem(value);
+                    if (problem) setFieldErrors((current) => ({ ...current, fullName: problem }));
+                  }}
                   className={cx(fieldClass, "mt-[8px] aria-[invalid=true]:!border-[#b42318]")}
                   style={{ borderColor: BORDER }}
                 />

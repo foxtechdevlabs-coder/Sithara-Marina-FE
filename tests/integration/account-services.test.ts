@@ -304,6 +304,8 @@ describe("new enquiry", () => {
     await expect(createEnquiry({ ...base, occasion: "x".repeat(101) })).rejects.toThrow();
     await expect(createEnquiry({ ...base, yacht_id: "astra-one" })).rejects.toThrow();
     await expect(createEnquiry({ ...base, phone: "9876543210" })).rejects.toThrow();
+    await expect(createEnquiry({ ...base, full_name: "4466646464646664" })).rejects.toThrow();
+    await expect(createEnquiry({ ...base, full_name: "   " })).rejects.toThrow();
     expect(calls).toHaveLength(0);
   });
 
