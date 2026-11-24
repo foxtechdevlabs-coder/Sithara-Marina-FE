@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { apiClient } from "@/services/http/api-client";
+import { fullNameSchema } from "@/validation/full-name";
 
 /*
  * A customer's enquiries and the proposals sent for them. Contract: the
@@ -163,7 +164,8 @@ const optionalText = (max: number) => z.string().trim().min(1).max(max).optional
  * Every request is checked against it before it leaves the browser.
  */
 export const createEnquiryRequestSchema = z.strictObject({
-  full_name: z.string().trim().min(1).max(ENQUIRY_NAME_MAX_LENGTH),
+  // A real name (at least one letter): numbers alone never reach the backend.
+  full_name: fullNameSchema.pipe(z.string().max(ENQUIRY_NAME_MAX_LENGTH)),
   /** Required for a guest. A signed-in customer leaves it out (if sent, it must be theirs). */
   email: z.email().optional(),
   /** E.164. */
