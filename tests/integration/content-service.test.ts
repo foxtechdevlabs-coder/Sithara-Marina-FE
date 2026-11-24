@@ -12,6 +12,9 @@ const HOME = {
   featured_yachts: [
     { id: "y1", name: "Astra One", slug: "astra-one", capacity: 12, image_url: null, starting_price: 600000 },
   ],
+  spin_showcase: [
+    { id: "y1", name: "Astra One", slug: "astra-one", capacity: 12, frame_count: 36, poster_url: "https://cdn.test/001.webp" },
+  ],
   banners: [{ id: "b1", title: "Monsoon", subtitle: null, image_url: null, link_url: "/yachts" }],
   sections: [{ slug: "our-story", title: "Our story", summary: null }],
   pages: [{ slug: "our-story", title: "Our story" }],

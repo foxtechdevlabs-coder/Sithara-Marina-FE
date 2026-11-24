@@ -65,8 +65,27 @@ export type HomeSection = z.infer<typeof homeSectionSchema>;
 const pageLinkSchema = z.object({ slug: z.string(), title: z.string() });
 export type ContentPageLink = z.infer<typeof pageLinkSchema>;
 
+/** HomeSpinShowcaseDto: a yacht the admin chose for the home page 360° carousel. */
+const homeSpinShowcaseSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  slug: z.string(),
+  /** Maximum guests. */
+  capacity: z.number(),
+  /** Load the frames from GET /yachts/{slug}/spin. */
+  frame_count: z.number(),
+  /** The first frame (1600 px), to show until the frames load; a one-hour link. */
+  poster_url: z.string().nullable(),
+});
+export type HomeSpinShowcase = z.infer<typeof homeSpinShowcaseSchema>;
+
 const homeContentSchema = z.object({
   featured_yachts: z.array(featuredYachtSchema),
+  /**
+   * The 360° carousel, in the admin's order. Hidden, inactive and spin-less
+   * yachts are already left out, and the list stops at the showcase limit.
+   */
+  spin_showcase: z.array(homeSpinShowcaseSchema).default([]),
   banners: z.array(bannerSchema),
   sections: z.array(homeSectionSchema),
   /** Every published content page. */
@@ -74,9 +93,17 @@ const homeContentSchema = z.object({
 });
 export type HomeContent = z.infer<typeof homeContentSchema>;
 
-/** GET /content/home: the home page's featured yachts, banners, sections and published pages. */
+/**
+ * GET /content/home: the home page's featured yachts, 360° carousel, banners,
+ * sections and published pages.
+ */
 export function getHomeContent(signal?: AbortSignal): Promise<HomeContent> {
-  return apiClient.get("/content/home", { ...PUBLIC, ...CACHED, signal, schema: homeContentSchema });
+  return apiClient.get("/content/home", {
+    ...PUBLIC,
+    ...CACHED,
+    signal,
+    schema: homeContentSchema,
+  });
 }
 
 // ── Pages ───────────────────────────────────────────────────────────────────

@@ -13,8 +13,15 @@ import { HeroSection } from "@/features/user/home/components/hero-section";
 import { JournalSection } from "@/features/user/home/components/journal-section";
 import { JourneyCtaSection } from "@/features/user/home/components/journey-cta-section";
 import { KeralaLineArt } from "@/features/user/home/components/kerala-line-art";
+import { toShowcaseSlides, type ShowcaseSlide } from "@/features/user/home/utils/spin-showcase";
 import { generateFaqSchema } from "@/lib/seo-schema";
-import { listAllFaqs, type Faq } from "@/services/user/content.service";
+import {
+  CONTENT_REVALIDATE_SECONDS,
+  getHomeContent,
+  listAllFaqs,
+  type Faq,
+} from "@/services/user/content.service";
+import { getYacht, type YachtDetail } from "@/services/user/yachts.service";
 
 /**
  * Published content (FAQs) is read again at most every minute, so changes made in
@@ -26,6 +33,28 @@ export const revalidate = 60; // the same minute as the content service's cache
 async function loadFaqs(): Promise<Faq[]> {
   try {
     return await listAllFaqs();
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * The "Featured yacht." carousel: the yachts the admin chose for the 360°
+ * showcase (GET /content/home), with each one's length, suites and text (GET
+ * /yachts/{slug}). None chosen, or the backend unreachable, hides the section.
+ */
+async function loadShowcase(): Promise<ShowcaseSlide[]> {
+  try {
+    const { spin_showcase: showcase } = await getHomeContent();
+    const details = await Promise.all(
+      showcase.map(({ slug }) =>
+        getYacht(slug, undefined, { revalidate: CONTENT_REVALIDATE_SECONDS }).then(
+          (yacht): [string, YachtDetail | null] => [slug, yacht],
+          (): [string, YachtDetail | null] => [slug, null],
+        ),
+      ),
+    );
+    return toShowcaseSlides(showcase, Object.fromEntries(details));
   } catch {
     return [];
   }
@@ -53,7 +82,7 @@ export const metadata: Metadata = {
 };
 
 export default async function HomePage() {
-  const faqs = await loadFaqs();
+  const [faqs, showcase] = await Promise.all([loadFaqs(), loadShowcase()]);
 
   return (
     <>
@@ -62,7 +91,7 @@ export default async function HomePage() {
       <BrandTextSection />
       <AboutSection />
       <KeralaLineArt />
-      <FeaturedYachtSection />
+      <FeaturedYachtSection slides={showcase} />
       <DestinationsSection />
       <AstraWaySection />
       <GuestsSection />

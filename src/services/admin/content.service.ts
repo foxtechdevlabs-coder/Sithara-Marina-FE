@@ -152,3 +152,53 @@ export function updateContent<K extends ContentKind>(
 export async function deleteContent(kind: ContentKind, id: string): Promise<void> {
   await adminApiClient.delete(`/admin/${kind}/${encodeURIComponent(id)}`);
 }
+
+/* 360° showcase -------------------------------------------------------- */
+
+/** SpinShowcaseItemDto: a yacht in the home page's 360° carousel. */
+export const spinShowcaseItemSchema = z.object({
+  yacht: z.object({
+    id: z.string(),
+    name: z.string(),
+    slug: z.string(),
+    partner: z.object({ id: z.string(), name: z.string() }).nullable(),
+  }),
+  is_active: z.boolean(),
+  is_visible: z.boolean(),
+  /** Has a completed 360° view. */
+  has_spin: z.boolean(),
+  /** The website shows it now: active, visible, with a 360° view, and within `max`. */
+  shown_on_site: z.boolean(),
+  /** The first small frame, for the admin list. */
+  preview_url: z.string().nullable(),
+});
+export type SpinShowcaseItem = z.infer<typeof spinShowcaseItemSchema>;
+
+/** SpinShowcaseResponseDto */
+export const spinShowcaseSchema = z.object({
+  /** In saved order: the home page order. */
+  items: z.array(spinShowcaseItemSchema),
+  /** The `home_spin_showcase_max` setting: the most yachts the carousel takes. */
+  max: z.number(),
+  /** Last save; null if never saved. */
+  updated_at: z.string().nullable(),
+  updated_by: z.object({ id: z.string(), full_name: z.string() }).nullable(),
+});
+export type SpinShowcase = z.infer<typeof spinShowcaseSchema>;
+
+/** GET /admin/content/spin-showcase */
+export function getSpinShowcase(signal?: AbortSignal): Promise<SpinShowcase> {
+  return adminApiClient.get("/admin/content/spin-showcase", { schema: spinShowcaseSchema, signal });
+}
+
+/**
+ * PUT /admin/content/spin-showcase — replaces the list, in home page order. Each
+ * yacht must be active, visible and have a completed 360° view; at most `max`.
+ * An empty list clears the showcase. 400 INVALID_SHOWCASE otherwise.
+ */
+export function updateSpinShowcase(yachtIds: string[]): Promise<SpinShowcase> {
+  return adminApiClient.put("/admin/content/spin-showcase", {
+    body: { yacht_ids: yachtIds },
+    schema: spinShowcaseSchema,
+  });
+}
