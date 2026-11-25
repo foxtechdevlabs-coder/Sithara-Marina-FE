@@ -195,7 +195,7 @@ export function NotificationBell({ inbox, onOpen, focusRingClass }: Notification
           // Phones: a bare icon in the header's text colour, beside Menu (narrower under 360px).
           // From `sm`: the header's square bordered button, beside "Book yachts".
           "relative inline-flex size-10 items-center justify-center max-[359px]:w-8",
-          "sm:h-[3.3125rem] sm:w-11 sm:border sm:border-[#0d1b2a] sm:bg-white sm:text-[#0d1b2a] sm:transition-colors sm:duration-300 sm:hover:bg-[#0d1b2a] sm:hover:text-white",
+          "sm:h-12 sm:w-12 lg:h-[3.25rem] lg:w-[3.25rem] sm:border sm:border-[#0d1b2a] sm:bg-white sm:text-[#0d1b2a] sm:transition-colors sm:duration-300 sm:hover:bg-[#0d1b2a] sm:hover:text-white",
           focusRingClass,
         )}
       >
@@ -224,9 +224,8 @@ export function NotificationBell({ inbox, onOpen, focusRingClass }: Notification
             "text-navy-ink motion-safe:animate-menu-in z-50 flex flex-col bg-white outline-none",
             compact
               ? "fixed inset-0 h-dvh"
-              : // Just under the header's buttons (28px padding + 53px button + 8px), right-aligned
-                // with "Book yachts".
-                "border-rule absolute top-[5.5625rem] right-7 max-h-[min(34rem,calc(100dvh-7rem))] w-[24rem] border shadow-[0_18px_40px_rgba(6,26,43,0.14)]",
+              : // Just under the header (8px gap), right-aligned with "Book yachts".
+                "border-rule absolute top-[calc(100%+0.5rem)] right-7 max-h-[min(34rem,calc(100dvh-var(--site-header-h)-1.5rem))] w-[24rem] border shadow-[0_18px_40px_rgba(6,26,43,0.14)]",
           )}
         >
           <div className="border-rule border-b px-5 pt-4 pb-3">
