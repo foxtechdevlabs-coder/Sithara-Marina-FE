@@ -200,3 +200,42 @@ export function safeBannerLink(linkUrl: string | null): string | null {
     return null;
   }
 }
+
+// ── Guest videos ────────────────────────────────────────────────────────────
+
+/** PublicGuestVideoResponseDto: a published guest video for the Guests section. */
+const guestVideoSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  description: z.string().nullable(),
+  location: z.string().nullable(),
+  /** Signed link, valid for about an hour; null only if storage can't link the file. */
+  video_url: z.string().nullable(),
+  video_content_type: z.string().nullable(),
+});
+export type GuestVideo = z.infer<typeof guestVideoSchema>;
+
+const guestVideoListSchema = pagedSchema(guestVideoSchema);
+export type GuestVideoList = z.infer<typeof guestVideoListSchema>;
+
+/**
+ * GET /content/guest-videos: one page of published guest videos, in the admin's
+ * order. The video links expire after an hour, so the answer is never cached:
+ * call it each time the section loads.
+ */
+export function listGuestVideos(
+  params: PageParams = {},
+  signal?: AbortSignal,
+): Promise<GuestVideoList> {
+  return apiClient.get("/content/guest-videos", {
+    ...PUBLIC,
+    init: { cache: "no-store" },
+    query: { ...params },
+    signal,
+    schema: guestVideoListSchema,
+  });
+}
+
+/** The videos that can be played: those without a link are left out. */
+export const playableGuestVideos = (items: GuestVideo[]) =>
+  items.filter((v): v is GuestVideo & { video_url: string } => Boolean(v.video_url));

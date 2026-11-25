@@ -32,6 +32,7 @@ import {
   TAB_LABEL,
   type ContentTab,
 } from "../utils/content-format";
+import { GuestVideoList } from "./guest-video-list";
 import { SpinShowcasePanel } from "./spin-showcase-panel";
 
 const PAGE_SIZE = 20;
@@ -49,7 +50,7 @@ function Status({ published }: { published: boolean }) {
 
 /**
  * Content: website banners, pages and FAQs (GET /admin/banners, /admin/pages,
- * /admin/faqs), and the home page 360° carousel on its own tab.
+ * /admin/faqs), and guest videos and the home page 360° carousel on their own tabs.
  */
 export function ContentList({
   initialKind = "banners",
@@ -59,16 +60,20 @@ export function ContentList({
   notice?: string;
 }) {
   const [tab, setTab] = useState<ContentTab>(initialKind);
-  // The 360° tab has no content kind; the list below isn't loaded while it's open.
+  // The 360° and guest video tabs have no content kind; the list below isn't loaded while one is open.
   const kind: ContentKind = isContentKind(tab) ? tab : "banners";
   const spin = tab === "spin";
+  const videos = tab === "guest-videos";
+  const other = spin || videos;
   const [status, setStatus] = useState<"" | "published" | "draft">("");
   const [page, setPage] = useState(1);
   const query = { page, limit: PAGE_SIZE, ...(status ? { status } : {}) };
   const list = useAdminQuery(
     (signal) =>
-      spin ? Promise.resolve(null) : listContent(kind, query, signal).then((r) => ({ kind, ...r })),
-    spin ? "content:spin" : `content:${kind}:${JSON.stringify(query)}`,
+      other
+        ? Promise.resolve(null)
+        : listContent(kind, query, signal).then((r) => ({ kind, ...r })),
+    other ? `content:${tab}` : `content:${kind}:${JSON.stringify(query)}`,
   );
   // The hook keeps the last answer while loading: only show a list under its own tab.
   const data = list.data?.kind === kind && !list.error ? list.data : null;
@@ -78,11 +83,16 @@ export function ContentList({
     <div className={pagePadding}>
       <PageHeader
         title="Words and images, considered."
-        subtitle="Content editor · Website banners, pages, FAQs and the 360° carousel."
+        subtitle="Content editor · Website banners, pages, FAQs, guest videos and the 360° carousel."
       />
       {notice === "deleted" && <Notice className="mt-[18px] lg:max-w-[880px]">Deleted.</Notice>}
       {notice === "published" && (
         <Notice className="mt-[18px] lg:max-w-[880px]">Published. It’s live on the website.</Notice>
+      )}
+      {notice === "draft" && (
+        <Notice className="mt-[18px] lg:max-w-[880px]">
+          Draft saved. It isn’t on the website yet.
+        </Notice>
       )}
 
       <div className="mt-[24px] flex flex-wrap items-end justify-between gap-[14px] lg:mt-[30px]">
@@ -97,17 +107,19 @@ export function ContentList({
         />
         {!spin && (
           <Link
-            href={adminRoutes.contentNew(kind)}
+            href={videos ? adminRoutes.guestVideoNew : adminRoutes.contentNew(kind)}
             className={cx(smallPrimary, "min-w-[150px]")}
             style={PRIMARY_STYLE}
           >
-            + New {KIND_LABEL[kind].one.toLowerCase()}
+            + New {videos ? "guest video" : KIND_LABEL[kind].one.toLowerCase()}
           </Link>
         )}
       </div>
 
       {spin ? (
         <SpinShowcasePanel />
+      ) : videos ? (
+        <GuestVideoList />
       ) : (
         <>
           <div className="mt-[18px] w-full sm:w-[240px]">

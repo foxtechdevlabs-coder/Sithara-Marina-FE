@@ -123,8 +123,11 @@ export function formFromYacht(yacht: Yacht): YachtFormState {
 
 /** "Duplicate as new yacht": same details, new name, no slug, hidden. */
 export function formFromTemplate(yacht: Yacht): YachtFormState {
+  const copy = formFromYacht(yacht);
   return {
-    ...formFromYacht(yacht),
+    ...copy,
+    // New yachts aren't offered "Enquiry only"; the nearest option still takes enquiries.
+    mode: copy.mode === "enquiry" ? "slots" : copy.mode,
     name: `${yacht.name} (copy)`.slice(0, 100),
     slug: "",
     // Registration numbers are unique per yacht.
@@ -310,12 +313,23 @@ export function validateYachtForm(form: YachtFormState, editing: boolean): Recor
 }
 
 /** What "Publish yacht" needs beyond a valid form; a draft can leave these empty. */
-export function validateForPublish(form: YachtFormState): Record<string, string> {
+export function validateForPublish(
+  form: YachtFormState,
+  photoCount: number,
+): Record<string, string> {
   const errors: Record<string, string> = {};
   if (!form.regions.length) errors["cruising-regions"] = "Add at least one cruising region.";
   if (!form.tagline.trim()) errors["tagline"] = "Enter the card tagline.";
+  Object.assign(errors, photoRequiredError(photoCount));
   return errors;
 }
+
+/** The website shows only yachts with a photo (the backend refuses to make one visible without). */
+export const PHOTO_REQUIRED =
+  "Add at least one photo to publish this yacht. You can save it as a draft without one.";
+
+export const photoRequiredError = (photoCount: number): Record<string, string> =>
+  photoCount > 0 ? {} : { gallery: PHOTO_REQUIRED };
 
 /** Longest item each list accepts (departure points 200, others 100). */
 export const LIST_ITEM_MAX = {

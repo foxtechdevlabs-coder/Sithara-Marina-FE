@@ -173,6 +173,10 @@ export const adminRoutes = {
   contentNew: (kind: string) => `/admin/content/${id(kind)}/new` as Route,
   /** Edit a banner, page or FAQ. */
   contentItem: (kind: string, itemId = "") => `/admin/content/${id(kind)}/${id(itemId)}` as Route,
+  /** New guest video (Content, "Guest videos" tab). */
+  guestVideoNew: "/admin/content/guest-videos/new" as Route,
+  /** Edit a guest video. */
+  guestVideo: (videoId: string) => `/admin/content/guest-videos/${id(videoId)}` as Route,
   /** "Ready for your public view": preview, then publish. */
   contentPreview: (kind: string, itemId = "") =>
     `/admin/content/${id(kind)}/${id(itemId)}/preview` as Route,

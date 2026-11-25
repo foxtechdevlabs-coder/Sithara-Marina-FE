@@ -5,7 +5,14 @@ import Link from "next/link";
 import { Fragment, useEffect, useState } from "react";
 
 import { BODY, SAND } from "@/components/admin/admin-theme";
-import { input, Label, LoadState, Notice } from "@/components/admin/form-parts";
+import {
+  errorProps,
+  FieldError,
+  input,
+  Label,
+  LoadState,
+  Notice,
+} from "@/components/admin/form-parts";
 import { SearchSelect } from "@/components/admin/search-select";
 import { adminRoutes } from "@/constants/routes";
 import {
@@ -13,6 +20,7 @@ import {
   PageHeader,
   pagePadding,
 } from "@/features/admin/bookings/components/booking-ui";
+import { marinaToday } from "@/features/admin/bookings/utils/booking-format";
 import { useAdminQuery } from "@/features/admin/fleet/hooks/use-admin-query";
 import { fleetErrorMessage } from "@/features/admin/fleet/utils/fleet-error-message";
 import { Pager } from "@/features/admin/reports/components/report-parts";
@@ -146,6 +154,9 @@ function Changes({ id }: { id: string }) {
   );
 }
 
+/** Under a From or To date after today. */
+const FUTURE_DATE = "The history only goes up to today. Choose today or an earlier date.";
+
 /**
  * Audit history: "A clear history of changes." (admin Figma A42). GET
  * /admin/audit-logs with staff, date and record filters; a row opens what
@@ -166,7 +177,13 @@ export function AuditHistory({
   const [page, setPage] = useState(1);
   const [open, setOpen] = useState<string | null>(null);
 
+  // Audit entries only exist up to now: a future date (typed, as the calendar
+  // doesn't offer one) is refused and not sent. "Today" is the marina's.
+  const today = marinaToday();
+  const futureFrom = Boolean(from) && from > today;
+  const futureTo = Boolean(to) && to > today;
   const badRange = Boolean(from && to && to < from);
+  const invalid = badRange || futureFrom || futureTo;
   const query: AuditQuery = {
     page,
     limit: PAGE_SIZE,
@@ -177,8 +194,8 @@ export function AuditHistory({
     ...(record.id ? { entity_id: record.id } : {}),
   };
   const list = useAdminQuery(
-    (signal) => (badRange ? Promise.resolve(null) : listAuditLogs(query, signal)),
-    `audit:${JSON.stringify(query)}:${badRange}`,
+    (signal) => (invalid ? Promise.resolve(null) : listAuditLogs(query, signal)),
+    `audit:${JSON.stringify(query)}:${invalid}`,
   );
   const rows = list.data?.items ?? [];
   const reset = () => {
@@ -229,12 +246,15 @@ export function AuditHistory({
             id="audit-from"
             type="date"
             value={from}
+            max={to && to < today ? to : today}
             onChange={(e) => {
               setFrom(e.currentTarget.value);
               reset();
             }}
             className={input}
+            {...errorProps("audit-from", futureFrom ? FUTURE_DATE : undefined)}
           />
+          <FieldError id="audit-from" message={futureFrom ? FUTURE_DATE : undefined} />
         </div>
         <div>
           <Label htmlFor="audit-to">To</Label>
@@ -243,12 +263,15 @@ export function AuditHistory({
             type="date"
             value={to}
             min={from || undefined}
+            max={today}
             onChange={(e) => {
               setTo(e.currentTarget.value);
               reset();
             }}
             className={input}
+            {...errorProps("audit-to", futureTo ? FUTURE_DATE : undefined)}
           />
+          <FieldError id="audit-to" message={futureTo ? FUTURE_DATE : undefined} />
         </div>
       </div>
 
@@ -273,7 +296,9 @@ export function AuditHistory({
       )}
 
       <div className="mt-[24px]">
-        {badRange ? (
+        {futureFrom || futureTo ? (
+          <Notice tone="error">Choose today or an earlier date to see the history.</Notice>
+        ) : badRange ? (
           <Notice tone="error">The “To” date is before the “From” date.</Notice>
         ) : !list.data ? (
           <LoadState

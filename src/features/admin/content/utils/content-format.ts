@@ -13,17 +13,18 @@ export const KIND_LABEL: Record<ContentKind, { one: string; many: string }> = {
 export const isContentKind = (value: string): value is ContentKind =>
   value === "banners" || value === "pages" || value === "faqs";
 
-/** The Content page's tabs: the three content kinds, then the home page 360° carousel. */
-export const CONTENT_TABS = ["banners", "pages", "faqs", "spin"] as const;
+/** The Content page's tabs: the three content kinds, guest videos, then the home page 360° carousel. */
+export const CONTENT_TABS = ["banners", "pages", "faqs", "guest-videos", "spin"] as const;
 export type ContentTab = (typeof CONTENT_TABS)[number];
 export const TAB_LABEL: Record<ContentTab, string> = {
   banners: KIND_LABEL.banners.many,
   pages: KIND_LABEL.pages.many,
   faqs: KIND_LABEL.faqs.many,
+  "guest-videos": "Guest videos",
   spin: "360° Carousel",
 };
 export const isContentTab = (value: string): value is ContentTab =>
-  isContentKind(value) || value === "spin";
+  isContentKind(value) || value === "guest-videos" || value === "spin";
 
 /** "terms and conditions" → "terms-and-conditions" */
 export const slugify = (value: string) =>

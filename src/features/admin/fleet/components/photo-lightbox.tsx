@@ -1,7 +1,10 @@
 "use client";
 
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type TouchEvent } from "react";
+
+/** Minimum horizontal travel (px) for a swipe to change the photo. */
+const SWIPE = 50;
 
 export interface LightboxPhoto {
   src: string;
@@ -9,8 +12,9 @@ export interface LightboxPhoto {
 }
 
 /**
- * Full-screen photo viewer. Esc or the backdrop closes it; the arrow keys
- * and buttons move between photos.
+ * Full-screen photo viewer. Esc or the backdrop closes it; the arrow keys,
+ * buttons and a swipe move between photos, and the thumbnail strip shows every
+ * photo and jumps to any of them.
  */
 export function PhotoLightbox({
   photos,
@@ -24,6 +28,8 @@ export function PhotoLightbox({
   onClose: () => void;
 }) {
   const closeRef = useRef<HTMLButtonElement>(null);
+  const activeThumb = useRef<HTMLButtonElement>(null);
+  const touchX = useRef<number | null>(null);
   const photo = photos[index];
   const many = photos.length > 1;
   const go = (by: number) => onIndexChange((index + by + photos.length) % photos.length);
@@ -52,6 +58,22 @@ export function PhotoLightbox({
       opener?.focus();
     };
   }, []);
+
+  // Keeps the current photo's thumbnail in view.
+  useEffect(() => {
+    activeThumb.current?.scrollIntoView({ block: "nearest", inline: "center" });
+  }, [index]);
+
+  const onTouchStart = (e: TouchEvent) => {
+    touchX.current = e.touches[0]?.clientX ?? null;
+  };
+  const onTouchEnd = (e: TouchEvent) => {
+    const start = touchX.current;
+    const end = e.changedTouches[0]?.clientX;
+    touchX.current = null;
+    if (!many || start === null || end === undefined) return;
+    if (Math.abs(end - start) >= SWIPE) go(end < start ? 1 : -1);
+  };
 
   if (!photo) return null;
 
@@ -83,8 +105,10 @@ export function PhotoLightbox({
       </div>
 
       <div
-        className="relative flex min-h-0 flex-1 items-center justify-center px-[16px] pb-[24px] sm:px-[72px]"
+        className="relative flex min-h-0 flex-1 items-center justify-center px-[16px] pb-[16px] sm:px-[72px]"
         onClick={(e) => e.target === e.currentTarget && onClose()}
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
       >
         {/* eslint-disable-next-line @next/next/no-img-element -- storage URLs and local previews */}
         <img
@@ -113,6 +137,33 @@ export function PhotoLightbox({
           </>
         )}
       </div>
+
+      {many && (
+        <ul
+          aria-label="All photos"
+          className="flex shrink-0 gap-[8px] overflow-x-auto px-[16px] pb-[16px] [scrollbar-width:thin] sm:justify-center"
+        >
+          {photos.map((p, i) => (
+            <li key={`${i}-${p.src}`} className="shrink-0">
+              <button
+                ref={i === index ? activeThumb : undefined}
+                type="button"
+                onClick={() => onIndexChange(i)}
+                aria-label={`Photo ${i + 1} of ${photos.length}`}
+                aria-current={i === index ? "true" : undefined}
+                className={`block size-[56px] overflow-hidden border-2 transition-opacity focus-visible:outline-2 focus-visible:outline-white sm:size-[64px] ${
+                  i === index
+                    ? "border-white opacity-100"
+                    : "border-transparent opacity-55 hover:opacity-90"
+                }`}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element -- storage URLs and local previews */}
+                <img src={p.src} alt="" className="size-full object-cover" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

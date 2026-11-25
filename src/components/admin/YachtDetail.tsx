@@ -395,8 +395,13 @@ export default function YachtDetail({ yachtId }: { yachtId: string }) {
               <button
                 key={p.id}
                 type="button"
-                onClick={() => setViewing(i)}
-                aria-label={`View photo ${i + 1} of ${yacht.photos.length} full screen`}
+                // "+N more" opens on the first photo the grid doesn't show.
+                onClick={() => setViewing(more > 0 ? 4 : i)}
+                aria-label={
+                  more > 0
+                    ? `View the other ${more} photos full screen`
+                    : `View photo ${i + 1} of ${yacht.photos.length} full screen`
+                }
                 className={cx(
                   "relative block cursor-zoom-in focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0d1b2a]",
                   i === 0 && "col-span-3 md:col-span-1",
