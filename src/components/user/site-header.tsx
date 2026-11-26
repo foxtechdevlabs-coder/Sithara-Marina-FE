@@ -119,12 +119,12 @@ export function SiteHeader() {
       >
         <div
           className={cx(
-            "relative flex h-24 items-start justify-between px-4 pt-5 sm:h-[7.5rem] sm:px-7 sm:pt-7 lg:pl-10",
-            // Figma pages: the header block is 112px tall on the 1728px frame.
-            isOverlay ? "lg:h-[8.5rem]" : "lg:h-[7rem]",
+            // One balanced height everywhere (72 / 80 / 96px, as `--site-header-h`), with Menu,
+            // logo and "Book yachts" all centred in it.
+            "relative flex h-[4.5rem] items-center justify-between px-4 sm:h-20 sm:px-7 lg:h-24 lg:pl-10",
           )}
         >
-          <div className="flex items-start">
+          <div className="flex items-center">
             <button
               ref={menuButtonRef}
               type="button"
@@ -163,7 +163,7 @@ export function SiteHeader() {
             href={userRoutes.home}
             onClick={closeMenu}
             className={cx(
-              "absolute top-4 left-1/2 flex -translate-x-1/2 flex-col items-center sm:top-7",
+              "absolute top-1/2 left-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center",
               focusRing,
             )}
           >
@@ -173,9 +173,9 @@ export function SiteHeader() {
               width={81}
               height={39}
               priority
-              className="h-auto w-12 sm:w-16 lg:w-[4.875rem]"
+              className="h-auto w-10 sm:w-11 lg:w-14"
             />
-            <span className="mt-2 text-center text-[0.625rem] leading-[1.15] font-semibold tracking-[0.1em] uppercase sm:mt-3 sm:text-xs lg:mt-4 lg:text-sm">
+            <span className="mt-1.5 text-center text-[0.625rem] leading-[1.1] font-semibold tracking-[0.1em] uppercase sm:text-[0.6875rem] lg:mt-2 lg:text-xs">
               {BRAND_NAME.split(" ").map((word) => (
                 <span key={word} className="block">
                   {word}
@@ -184,7 +184,7 @@ export function SiteHeader() {
             </span>
           </Link>
 
-          <div className="flex gap-1.5 md:gap-2.5 lg:gap-[1.125rem]">
+          <div className="flex items-center gap-1.5 md:gap-2.5 lg:gap-[1.125rem]">
             {/* From xl only: narrower headers would run into the logo; the menu shows it there. */}
             {session && userName ? (
               <span
@@ -208,7 +208,7 @@ export function SiteHeader() {
               href={bookingNav.href}
               onClick={closeMenu}
               className={cx(
-                "inline-flex h-10 items-center gap-6 px-2.5 text-[0.625rem] font-normal tracking-[0.1em] uppercase transition-colors duration-300 min-[380px]:px-3.5 min-[380px]:tracking-[0.16em] sm:h-[3.3125rem] sm:px-[1.875rem] sm:text-[0.6875rem] sm:tracking-[0.2em]",
+                "inline-flex h-10 items-center gap-6 px-2.5 text-[0.625rem] font-normal tracking-[0.1em] uppercase transition-colors duration-300 min-[380px]:px-3.5 min-[380px]:tracking-[0.16em] sm:h-12 sm:px-7 sm:text-[0.6875rem] sm:tracking-[0.2em] lg:h-[3.25rem] lg:px-8",
                 isOverlay
                   ? "bg-surface text-brand-950 hover:bg-pearl active:bg-pearl/90"
                   : "bg-brand-950 text-white hover:bg-[#0d2c47]",
@@ -250,9 +250,9 @@ export function SiteHeader() {
           id={menuId}
           aria-label="Main"
           hidden={!isMenuOpen}
-          // Compact dropdown just below the Menu button, aligned with its left edge. The header is
-          // fixed, so on short screens the menu scrolls itself rather than with the page.
-          className="bg-brand-950 motion-safe:animate-menu-in absolute top-[4.25rem] left-4 max-h-[calc(100dvh-5.25rem)] w-[min(17rem,calc(100vw-2rem))] overflow-y-auto overscroll-contain px-6 py-3 text-white shadow-2xl sm:top-[3.75rem] sm:left-7 sm:max-h-[calc(100dvh-4.75rem)] lg:left-10"
+          // Compact dropdown just below the header, aligned with the Menu button's left edge. The
+          // header is fixed, so on short screens the menu scrolls itself rather than with the page.
+          className="bg-brand-950 motion-safe:animate-menu-in absolute top-full left-4 max-h-[calc(100dvh-var(--site-header-h)-1rem)] w-[min(17rem,calc(100vw-2rem))] overflow-y-auto overscroll-contain px-6 py-3 text-white shadow-2xl sm:left-7 lg:left-10"
         >
           <ul className="flex flex-col divide-y divide-white/10">
             {primaryNav.map((item) => (

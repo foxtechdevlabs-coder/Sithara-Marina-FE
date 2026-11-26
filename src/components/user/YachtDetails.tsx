@@ -132,18 +132,15 @@ function Hero({ yacht }: { yacht: YachtDetailsData }) {
           style={{ backgroundColor: CARD }}
         />
       )}
+      {/* The 360° view fills the hero box and covers the photo once its frames are ready. */}
+      {yacht.hasSpin && <YachtSpinSection slug={yacht.slug} name={yacht.name} />}
       {yacht.region && (
         <span
-          className="absolute top-[24px] left-5 flex h-[35px] items-center bg-white px-[20px] text-[14px] lg:top-[34px] lg:left-[100px]"
+          className="pointer-events-none absolute top-[24px] left-5 z-10 flex h-[35px] items-center bg-white px-[20px] text-[14px] lg:top-[34px] lg:left-[100px]"
           style={{ color: INK }}
         >
           {yacht.region}
         </span>
-      )}
-      {yacht.hasSpin && (
-        <div className="absolute top-[24px] right-5 z-10 lg:top-[34px] lg:right-[100px]">
-          <YachtSpinSection slug={yacht.slug} name={yacht.name} />
-        </div>
       )}
     </section>
   );

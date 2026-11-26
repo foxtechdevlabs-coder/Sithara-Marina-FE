@@ -98,16 +98,16 @@
 
   /* Height of the fixed customer header (`SiteHeader`): its spacer and sticky offsets use it. */
   :root {
-    --site-header-h: 6rem;
+    --site-header-h: 4.5rem;
   }
   @media (width >= 40rem) {
     :root {
-      --site-header-h: 7.5rem;
+      --site-header-h: 5rem;
     }
   }
   @media (width >= 64rem) {
     :root {
-      --site-header-h: 7rem;
+      --site-header-h: 6rem;
     }
   }
   /* Anchor jumps and scrollIntoView stop below the fixed header (customer pages only). */

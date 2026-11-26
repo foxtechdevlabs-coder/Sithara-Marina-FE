@@ -166,6 +166,40 @@ export async function listAllFaqs(signal?: AbortSignal): Promise<Faq[]> {
   return faqs;
 }
 
+// ── Guest videos ────────────────────────────────────────────────────────────
+
+const guestVideoSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  description: z.string().nullable(),
+  location: z.string().nullable(),
+  /** Signed link, valid for one hour; null while the upload is unavailable. */
+  video_url: z.string().nullable(),
+  video_content_type: z.string().nullable().optional(),
+});
+export type GuestVideo = z.infer<typeof guestVideoSchema>;
+
+const guestVideoListSchema = pagedSchema(guestVideoSchema);
+export type GuestVideoList = z.infer<typeof guestVideoListSchema>;
+
+/**
+ * GET /content/guest-videos: one page of published guest videos, in the
+ * admin's order. Never cached, here or by Next.js: each `video_url` is a
+ * signed link that expires after an hour, so every load asks again.
+ */
+export function listGuestVideos(
+  params: PageParams = {},
+  signal?: AbortSignal,
+): Promise<GuestVideoList> {
+  return apiClient.get("/content/guest-videos", {
+    ...PUBLIC,
+    init: { cache: "no-store" },
+    query: { ...params },
+    signal,
+    schema: guestVideoListSchema,
+  });
+}
+
 // ── Banners ─────────────────────────────────────────────────────────────────
 
 const bannerListSchema = pagedSchema(bannerSchema);

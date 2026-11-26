@@ -118,6 +118,65 @@ describe("content service", () => {
     await expect(listBanners()).rejects.toMatchObject({ status: 503 });
   });
 
+  it("lists guest videos publicly and never caches their signed links", async () => {
+    const { listGuestVideos } = await load();
+    const page = {
+      items: [
+        {
+          id: "v1",
+          title: "Sunset cruise",
+          description: null,
+          location: "Kochi",
+          video_url: "https://files.test/v1.mp4?sig=abc",
+          video_content_type: "video/mp4",
+        },
+      ],
+      total: 1,
+      page: 1,
+      limit: 20,
+    };
+    const seen: { path: string; query: string; bearer: string | null; cache: unknown; next: unknown }[] = [];
+    vi.stubGlobal("fetch", async (input: string, init: RequestInit & { next?: unknown }) => {
+      const url = new URL(input);
+      seen.push({
+        path: url.pathname,
+        query: url.search,
+        bearer: new Headers(init.headers).get("Authorization"),
+        cache: init.cache,
+        next: init.next,
+      });
+      return json(page);
+    });
+
+    await expect(listGuestVideos({ page: 1, limit: 20 })).resolves.toEqual(page);
+    expect(seen).toEqual([
+      { path: "/content/guest-videos", query: "?page=1&limit=20", bearer: null, cache: "no-store", next: undefined },
+    ]);
+  });
+
+  it("rejects a guest video answer that breaks the contract", async () => {
+    const { listGuestVideos } = await load();
+    stub(() => json({ items: [{ id: "v1" }], total: 1, page: 1, limit: 20 }));
+    await expect(listGuestVideos()).rejects.toMatchObject({ kind: "validation" });
+  });
+
+  it("skips guest videos without a link", async () => {
+    vi.resetModules();
+    const { playableGuestVideos } = await import("@/features/user/home/hooks/use-guest-videos");
+    const video = (id: string, video_url: string | null) => ({
+      id,
+      title: id,
+      description: null,
+      location: null,
+      video_url,
+    });
+    expect(
+      playableGuestVideos([video("a", "https://files.test/a.mp4"), video("b", null), video("c", " ")]).map(
+        (v) => v.id,
+      ),
+    ).toEqual(["a"]);
+  });
+
   it("only treats same-site paths and http(s) addresses as banner links", async () => {
     const { safeBannerLink } = await load();
     expect(safeBannerLink("/yachts")).toBe("/yachts");
