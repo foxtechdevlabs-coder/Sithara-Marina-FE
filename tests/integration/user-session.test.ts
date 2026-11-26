@@ -52,17 +52,25 @@ function stubBackend(handlers: Record<string, Handler>) {
   return calls;
 }
 
-/** Fresh modules per test: the session keeps module-level state. */
-async function load() {
+const storage = (store: Map<string, string>) => ({
+  getItem: (key: string) => store.get(key) ?? null,
+  setItem: (key: string, value: string) => store.set(key, value),
+  removeItem: (key: string) => store.delete(key),
+});
+
+/**
+ * Fresh modules per test: the session keeps module-level state. Passing the
+ * previous `store` reopens the site with the same browser storage (a restart).
+ */
+async function load(
+  store = new Map<string, string>(),
+  tabStore = new Map<string, string>(),
+) {
   vi.resetModules();
-  const store = new Map<string, string>();
-  vi.stubGlobal("sessionStorage", {
-    getItem: (key: string) => store.get(key) ?? null,
-    setItem: (key: string, value: string) => store.set(key, value),
-    removeItem: (key: string) => store.delete(key),
-  });
+  vi.stubGlobal("localStorage", storage(store));
+  vi.stubGlobal("sessionStorage", storage(tabStore));
   const session = await import("@/features/user/auth/session");
-  return { ...session, store };
+  return { ...session, store, tabStore };
 }
 
 beforeEach(() => {
@@ -264,6 +272,104 @@ describe("signing in again while the old session is being revoked", () => {
     await signingOut;
 
     expect(readAuthSession()?.refreshToken).toBe("refresh-new");
+  });
+});
+
+describe("persistence", () => {
+  it("keeps the session in localStorage, so reopening the site restores it", async () => {
+    const first = await load();
+    first.saveAuthSession(tokens("a"));
+    expect(first.store.has(SESSION_KEY)).toBe(true);
+
+    const reopened = await load(first.store); // new page load, same browser storage
+    expect(reopened.readAuthSession()?.refreshToken).toBe("refresh-a");
+  });
+
+  it("forgets the session for good on sign-out", async () => {
+    const first = await load();
+    first.saveAuthSession(tokens("a"));
+    stubBackend({ "/auth/logout": noContent });
+    await first.signOut();
+
+    const reopened = await load(first.store);
+    expect(reopened.readAuthSession()).toBeNull();
+  });
+
+  it("carries over a session left in sessionStorage by the tab-scoped version", async () => {
+    const legacy = JSON.stringify({ accessToken: jwt("access-a", 900), refreshToken: "refresh-a" });
+    const { readAuthSession, store, tabStore } = await load(
+      new Map(),
+      new Map([[SESSION_KEY, legacy]]),
+    );
+
+    expect(readAuthSession()?.refreshToken).toBe("refresh-a");
+    expect(store.get(SESSION_KEY)).toBe(legacy);
+    expect(tabStore.has(SESSION_KEY)).toBe(false);
+  });
+
+  it("prefers the shared session over a stale tab copy", async () => {
+    const shared = JSON.stringify({ accessToken: jwt("access-new", 900), refreshToken: "refresh-new" });
+    const stale = JSON.stringify({ accessToken: jwt("access-old", 900), refreshToken: "refresh-old" });
+    const { readAuthSession, tabStore } = await load(
+      new Map([[SESSION_KEY, shared]]),
+      new Map([[SESSION_KEY, stale]]),
+    );
+
+    expect(readAuthSession()?.refreshToken).toBe("refresh-new");
+    expect(tabStore.has(SESSION_KEY)).toBe(false);
+  });
+});
+
+describe("refreshing with several tabs open", () => {
+  /** A Web Locks stand-in: the task runs once `release` is called. */
+  function stubLocks() {
+    const gate = deferred<void>();
+    const requested: string[] = [];
+    vi.stubGlobal("navigator", {
+      locks: {
+        request: async (name: string, task: () => Promise<unknown>) => {
+          requested.push(name);
+          await gate.promise;
+          return task();
+        },
+      },
+    });
+    return { requested, release: () => gate.resolve() };
+  }
+
+  it("reuses the pair another tab received while this one waited for the lock", async () => {
+    const { saveAuthSession, checkStoredSession, readAuthSession, store } = await load();
+    saveAuthSession(tokens("old", -60));
+    const locks = stubLocks();
+    const calls = stubBackend({});
+
+    checkStoredSession();
+    // Meanwhile another tab spent the shared refresh token and stored the new pair.
+    const renewed = tokens("other-tab");
+    store.set(
+      SESSION_KEY,
+      JSON.stringify({ accessToken: renewed.access_token, refreshToken: renewed.refresh_token }),
+    );
+    locks.release();
+
+    await vi.waitFor(() => expect(locks.requested).toEqual(["sithara-marina:auth-refresh"]));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(calls).toEqual([]); // the used token is never sent again
+    expect(readAuthSession()?.refreshToken).toBe("refresh-other-tab");
+  });
+
+  it("refreshes under the lock when no other tab has", async () => {
+    const { saveAuthSession, checkStoredSession, readAuthSession } = await load();
+    saveAuthSession(tokens("old", -60));
+    const locks = stubLocks();
+    const calls = stubBackend({ "/auth/refresh": () => json(tokens("new")) });
+
+    checkStoredSession();
+    expect(calls).toEqual([]); // waits for the lock first
+    locks.release();
+
+    await vi.waitFor(() => expect(readAuthSession()?.refreshToken).toBe("refresh-new"));
+    expect(calls.map((call) => call.path)).toEqual(["/auth/refresh"]);
   });
 });
 

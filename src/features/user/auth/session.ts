@@ -22,11 +22,18 @@ import { saveAuthFlash } from "./utils/auth-flash";
  * through POST /auth/refresh. Only email verification also returns the user.
  *
  * Storage decision: the backend returns both tokens in the JSON body and sets
- * no cookies, so the frontend must hold them. They are kept in
- * `sessionStorage` — scoped to this tab and cleared when it closes — never in
- * `localStorage`, and never the password. Like any script-readable storage this
- * is exposed to XSS; httpOnly cookies would be stronger but need backend
- * support (see docs/api-integration.md).
+ * no cookies, so the frontend must hold them. They are kept in `localStorage`
+ * (as the admin session is), so a signed-in customer stays signed in across
+ * reloads, new tabs and browser restarts until they sign out or the refresh
+ * token expires; the password is never stored. Because the session is shared
+ * by every tab:
+ *
+ * - Tabs follow each other's sign-in, refresh and sign-out (`storage` events).
+ * - Refresh tokens are single use, so only one tab refreshes at a time (Web
+ *   Locks); a tab that waited reuses the pair another tab just received.
+ *
+ * Like any script-readable storage this is exposed to XSS; httpOnly cookies
+ * would be stronger but need backend support (see docs/api-integration.md).
  */
 
 export interface AuthSession {
@@ -37,6 +44,8 @@ export interface AuthSession {
 }
 
 const STORAGE_KEY = "sithara-marina:auth-session";
+/** Web Lock held while refreshing, shared by every tab of this site. */
+const REFRESH_LOCK = "sithara-marina:auth-refresh";
 
 const listeners = new Set<() => void>();
 let cachedRaw: string | null = null;
@@ -46,28 +55,72 @@ function notify() {
   for (const listener of listeners) listener();
 }
 
+/** Whether the last change to the session came from another tab. */
+let changedElsewhere = false;
+
+/** Another tab signed in, refreshed or signed out. */
+function onStorage(event: StorageEvent) {
+  if (event.key !== STORAGE_KEY && event.key !== null) return; // null: storage cleared
+  changedElsewhere = true;
+  // A sign-in or sign-out elsewhere may change the customer: drop their data here too.
+  if (!event.newValue || !event.oldValue) forgetCustomerData();
+  notify();
+}
+
+/**
+ * True when the customer is signed out because of another tab (a sign-out
+ * there, or an expired session), so this tab did not navigate on its own.
+ */
+export function wasSignedOutElsewhere(): boolean {
+  return changedElsewhere && readAuthSession() === null;
+}
+
 function subscribe(listener: () => void) {
+  if (listeners.size === 0) window.addEventListener("storage", onStorage);
   listeners.add(listener);
   return () => {
     listeners.delete(listener);
+    if (listeners.size === 0) window.removeEventListener("storage", onStorage);
   };
 }
 
-function write(session: AuthSession | null) {
+let legacyMoved = false;
+
+/**
+ * Sessions were once kept in this tab's `sessionStorage`; carry one over so a
+ * customer signed in before this change stays signed in. Runs once per page.
+ */
+function moveLegacySession(): void {
+  if (legacyMoved) return;
+  legacyMoved = true;
   try {
-    if (session) sessionStorage.setItem(STORAGE_KEY, JSON.stringify(session));
-    else sessionStorage.removeItem(STORAGE_KEY);
+    const legacy = sessionStorage.getItem(STORAGE_KEY);
+    if (legacy === null) return;
+    sessionStorage.removeItem(STORAGE_KEY);
+    if (localStorage.getItem(STORAGE_KEY) === null) localStorage.setItem(STORAGE_KEY, legacy);
+  } catch {
+    // Storage unavailable: nothing to carry over.
+  }
+}
+
+function write(session: AuthSession | null) {
+  moveLegacySession(); // so an old copy can't come back after this write
+  try {
+    if (session) localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+    else localStorage.removeItem(STORAGE_KEY);
   } catch {
     // Storage unavailable: the user will need to sign in again.
   }
+  changedElsewhere = false;
   notify();
 }
 
 /** Current session, or `null` when signed out or storage is unavailable. */
 export function readAuthSession(): AuthSession | null {
+  moveLegacySession();
   let raw: string | null;
   try {
-    raw = sessionStorage.getItem(STORAGE_KEY);
+    raw = localStorage.getItem(STORAGE_KEY);
   } catch {
     return null;
   }
@@ -148,12 +201,33 @@ function renewTokens(refreshToken: string): Promise<RefreshResponse> {
 }
 
 /**
+ * Runs `task` while holding the refresh lock, so tabs never spend the same
+ * single-use refresh token twice. Without Web Locks it runs straight away.
+ */
+function withRefreshLock<T>(task: () => Promise<T>): Promise<T> {
+  if (typeof navigator !== "undefined" && navigator.locks) {
+    return navigator.locks.request(REFRESH_LOCK, task);
+  }
+  return task();
+}
+
+/**
  * Renews the session with the stored refresh token (single use, rotated).
  * An invalid/revoked token clears the session; a network failure keeps it.
  */
-async function refreshStoredSession(): Promise<boolean> {
+function refreshStoredSession(): Promise<boolean> {
   const session = readAuthSession();
-  if (!session) return false;
+  if (!session) return Promise.resolve(false);
+  return withRefreshLock(async () => {
+    const latest = readAuthSession();
+    if (!latest) return false; // signed out while waiting
+    // Another tab renewed (or replaced) the session while this one waited: use its tokens.
+    if (latest.refreshToken !== session.refreshToken) return true;
+    return renewStoredSession(session);
+  });
+}
+
+async function renewStoredSession(session: AuthSession): Promise<boolean> {
   try {
     const response = await renewTokens(session.refreshToken);
     // Signed out (or in again) meanwhile: never bring the old session back.
@@ -210,7 +284,9 @@ async function tokensToRevoke(session: AuthSession): Promise<AuthSession | null>
   const isRenewing = renewal?.refreshToken === session.refreshToken;
   if (!isRenewing && !isAccessTokenExpired(session.accessToken)) return session;
   try {
-    const response = await renewTokens(session.refreshToken);
+    const response = await (isRenewing
+      ? renewTokens(session.refreshToken) // already holds the lock
+      : withRefreshLock(() => renewTokens(session.refreshToken)));
     return { accessToken: response.access_token, refreshToken: response.refresh_token };
   } catch (error) {
     if (isApiError(error) && (error.status === 401 || error.status === 400)) return null;

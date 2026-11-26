@@ -226,9 +226,13 @@ one email every 60 s and five in a rolling hour, answering 429 with `Retry-After
 ### Session and refresh
 
 - **Storage:** the backend returns `access_token` and `refresh_token` in the JSON body and sets no
-  cookies. They are kept in `sessionStorage` (tab-scoped, cleared when the tab closes) by
-  `src/features/user/auth/session.ts` (`useAuthSession()`), never in `localStorage`; passwords and
-  reset tokens are never stored. Script-readable storage is exposed to XSS — see below.
+  cookies. They are kept in `localStorage` by `src/features/user/auth/session.ts`
+  (`useAuthSession()`), as the admin session is, so a customer stays signed in across reloads, new
+  tabs and browser restarts until they sign out or the refresh token expires. Passwords and reset
+  tokens are never stored. Tabs follow each other's sign-in, refresh and sign-out (`storage`
+  events), and only one tab refreshes at a time (Web Locks) because refresh tokens are single use;
+  a tab that waited reuses the new pair. A session left in `sessionStorage` by the earlier
+  tab-scoped version is moved over once. Script-readable storage is exposed to XSS — see below.
 - **Bearer + refresh:** the customer session registers handlers (`src/services/http/auth-handlers.ts`,
   mounted on every customer page by `src/app/(user)/layout.tsx`). The shared client attaches
   `Authorization: Bearer` to requests (unless `auth: false`). On a 401 it runs **one** refresh at

@@ -33,6 +33,7 @@ export function YachtSpinViewer({
   fill = false,
   releaseOnUnmount = true,
   showGuide = false,
+  panY = false,
   onReady,
   onUnavailable,
   loading,
@@ -50,6 +51,8 @@ export function YachtSpinViewer({
   releaseOnUnmount?: boolean;
   /** Show the initial guidance animation and hint when opened. */
   showGuide?: boolean;
+  /** Let vertical swipes scroll the page (an inline view); only sideways drags turn the yacht. */
+  panY?: boolean;
   onReady?: () => void;
   onUnavailable?: () => void;
   /** Shown while the frames load, given the percentage. */
@@ -218,9 +221,7 @@ export function YachtSpinViewer({
         className={cx(
           "absolute inset-0 select-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-white",
           dragging
-            ? isPointerDown
-              ? "cursor-grabbing touch-none"
-              : "cursor-grab touch-none"
+            ? cx(isPointerDown ? "cursor-grabbing" : "cursor-grab", panY ? "touch-pan-y" : "touch-none")
             : "pointer-events-none",
         )}
       >
@@ -274,7 +275,7 @@ export function YachtSpinViewer({
               </svg>
             </div>
             <span className="text-[12px] sm:text-[13px] font-medium tracking-[0.03em] whitespace-nowrap text-white/95">
-              Move your mouse to explore the yacht in 360°
+              Drag to explore the yacht in 360°
             </span>
           </div>
           <style>{`

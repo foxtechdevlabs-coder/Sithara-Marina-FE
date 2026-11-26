@@ -36,7 +36,8 @@ function stubBackend(response: () => Response) {
 async function load() {
   vi.resetModules();
   const store = new Map<string, string>();
-  vi.stubGlobal("sessionStorage", {
+  // The customer session lives in localStorage (see auth/session.ts).
+  vi.stubGlobal("localStorage", {
     getItem: (key: string) => store.get(key) ?? null,
     setItem: (key: string, value: string) => store.set(key, value),
     removeItem: (key: string) => store.delete(key),

@@ -4,7 +4,7 @@
 
 **Routes:** `/login`, `/register`, `/verify-email` (emailed link), `/verify-email/success`, `/verify-email/failed`, `/verify-email/pending`, `/forgot-password`, `/reset-password`
 
-**Notes:** Registration, email verification, resend, sign-in, password reset, refresh and logout are connected to the backend. Emailed links are token-based (`#token=<id>.<secret>`; `?token=` is also accepted). The session (tokens + user) lives in `session.ts` (sessionStorage). See [docs/api-integration.md](../../../../docs/api-integration.md#customer-authentication).
+**Notes:** Registration, email verification, resend, sign-in, password reset, refresh and logout are connected to the backend. Emailed links are token-based (`#token=<id>.<secret>`; `?token=` is also accepted). The session (tokens + user) lives in `session.ts` (localStorage, shared by every tab and kept across browser restarts). See [docs/api-integration.md](../../../../docs/api-integration.md#customer-authentication).
 
 Add only the folders you need:
 
