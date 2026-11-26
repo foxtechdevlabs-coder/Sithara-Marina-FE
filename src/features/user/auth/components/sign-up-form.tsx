@@ -76,11 +76,23 @@ const FIELDS: readonly {
   },
 ];
 
+// Letters in any script, plus spaces, apostrophes, hyphens and periods.
+const NAME_PATTERN = /^[\p{L}\p{M}][\p{L}\p{M}\s'’.-]*$/u;
+const NAME_ERROR = "Use letters only. Numbers and special characters aren’t allowed.";
+
+function nameError(value: string): string | undefined {
+  const name = value.trim();
+  if (!name) return "Enter your full name.";
+  if (!NAME_PATTERN.test(name)) return NAME_ERROR;
+  return undefined;
+}
+
 function validate(data: FormData): FieldErrors {
   const text = (name: FieldName) => String(data.get(name) ?? "");
   const errors: FieldErrors = {};
 
-  if (!text("fullName").trim()) errors.fullName = "Enter your full name.";
+  const fullNameError = nameError(text("fullName"));
+  if (fullNameError) errors.fullName = fullNameError;
   const email = emailSchema.safeParse(text("email"));
   if (!email.success)
     errors.email = email.error.issues[0]?.message ?? "Enter a valid email address.";
@@ -299,7 +311,19 @@ export function SignUpForm() {
                   inputMode={field.type === "email" ? "email" : undefined}
                   disabled={isSubmitting}
                   // The limit is per address, so another address is not held back.
-                  onChange={field.name === "email" ? () => setLockedUntil(0) : undefined}
+                  onChange={
+                    field.name === "email"
+                      ? () => setLockedUntil(0)
+                      : field.name === "fullName"
+                        ? (event) => {
+                            const value = event.currentTarget.value;
+                            setErrors((current) => ({
+                              ...current,
+                              fullName: value.trim() ? nameError(value) : undefined,
+                            }));
+                          }
+                        : undefined
+                  }
                   placeholder={field.placeholder}
                   aria-invalid={error ? true : undefined}
                   aria-describedby={error ? errorId : undefined}
