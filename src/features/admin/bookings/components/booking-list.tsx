@@ -25,6 +25,7 @@ import {
 } from "@/services/admin/bookings.service";
 
 import {
+  bookingNames,
   bookingErrorMessage,
   bookingStatusLabel,
   departureText,
@@ -53,7 +54,16 @@ function monthOptions(today: string) {
   });
 }
 
-const customerName = (b: BookingSummary) => b.customer?.full_name ?? b.contact.full_name;
+/** "Booked by Rahul Nair" under the guest, when someone else booked it. */
+function BookedBy({ booking }: { booking: BookingSummary }) {
+  const { bookedBy } = bookingNames(booking);
+  if (!bookedBy) return null;
+  return (
+    <span className="mt-[2px] block text-[11px]" style={{ color: MUTED }}>
+      Booked by {bookedBy}
+    </span>
+  );
+}
 
 /**
  * Bookings ("Every booking, in view."), admin Figma A08: actions, filters and
@@ -236,7 +246,7 @@ export function BookingList({ customer }: { customer?: { id: string; name: strin
               setQuery(e.currentTarget.value);
               resetPage();
             }}
-            placeholder="Booking reference, guest name or email"
+            placeholder="Booking reference, guest name, email or phone"
             className={`${field} mt-[8px]`}
           />
         </div>
@@ -360,8 +370,9 @@ export function BookingList({ customer }: { customer?: { id: string; name: strin
                   >
                     <th scope="row" className="h-[47px] px-[13px] font-normal">
                       <Link href={adminRoutes.booking(b.id)} className="hover:underline">
-                        {b.reference} · {customerName(b)}
+                        {b.reference} · {bookingNames(b).guest}
                       </Link>
+                      <BookedBy booking={b} />
                     </th>
                     <td className="px-[13px]">{departureText(b)}</td>
                     <td className="px-[13px]">{b.yacht.name}</td>
@@ -396,8 +407,9 @@ export function BookingList({ customer }: { customer?: { id: string; name: strin
                 )}
               >
                 <h2 className="text-[20px] leading-[26px]">
-                  {b.reference} · {customerName(b)}
+                  {b.reference} · {bookingNames(b).guest}
                 </h2>
+                <BookedBy booking={b} />
                 <dl className="mt-[10px] text-[14px] leading-[20px]">
                   {[
                     ["Departure", departureText(b)],

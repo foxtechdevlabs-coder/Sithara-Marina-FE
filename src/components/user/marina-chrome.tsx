@@ -2,8 +2,9 @@ import { ArrowRight } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import type { Route } from "next";
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
+import { SectionLink } from "@/components/user/section-link";
 import { userRoutes } from "@/constants/routes";
 
 /*
@@ -18,20 +19,38 @@ export const SANS: CSSProperties = {
 };
 export const SERIF: CSSProperties = { fontFamily: "'Instrument Serif', Georgia, serif" };
 
-// Footer items link only where a page exists; the rest render as plain text
-// (same styling) until their destinations are published.
+// Footer items link to a page, or to the home page section that covers them
+// (by its heading's id). Items with neither render as plain text (same styling)
+// until their destination is published: Life on board, and the destinations the
+// home page does not show yet.
 const exploreLinks: { label: string; href?: Route }[] = [
   { label: "Our yachts", href: userRoutes.yachts },
   { label: "Life on board" },
-  { label: "Our story" },
-  { label: "The journal" },
+  { label: "Our story", href: userRoutes.homeSection("about-heading") },
+  { label: "The journal", href: userRoutes.homeSection("journal-heading") },
   { label: "Get in touch", href: userRoutes.planCharter },
 ];
-const placeLinks = [
-  "Kerala Backwaters",
-  "Lakshadweep Islands",
-  "The Malabar Coast",
-  "The Maldives",
+/** A footer link: home page sections scroll into place; anything else is a normal link. */
+function FooterLink({ href, className, children }: { href: Route; className?: string; children: ReactNode }) {
+  return href.startsWith("/#") ? (
+    <SectionLink href={href} className={className}>
+      {children}
+    </SectionLink>
+  ) : (
+    <Link href={href} className={className}>
+      {children}
+    </Link>
+  );
+}
+
+/** The home page's "Places that stay with you" section. */
+const DESTINATIONS_SECTION = userRoutes.homeSection("destinations-heading");
+const placeLinks: { label: string; href?: Route }[] = [
+  // The destination the home page's Destinations section features.
+  { label: "Kerala Backwaters", href: DESTINATIONS_SECTION },
+  { label: "Lakshadweep Islands" },
+  { label: "The Malabar Coast" },
+  { label: "The Maldives" },
 ];
 
 /** Switzer (Fontshare) and Instrument Serif (Google Fonts). React 19 hoists these into <head>. */
@@ -83,14 +102,18 @@ export function MarinaFooter() {
 
         <div className="mt-[60px] grid grid-cols-2 items-start gap-x-6 gap-y-14 text-center lg:flex lg:flex-row lg:items-center lg:justify-center lg:gap-[90px]">
           <nav aria-label="Explore" className="order-2 lg:order-1 lg:w-[200px]">
-            <p className="text-[13px] leading-[18px]">Explore Astra</p>
+            <p className="text-[13px] leading-[18px]">
+              <FooterLink href={userRoutes.homeSection("astra-way-heading")} className="hover:text-white/80">
+                Explore Astra
+              </FooterLink>
+            </p>
             <ul className="mt-[28px] space-y-[16.5px] text-[14px] leading-[20px] text-white/75">
               {exploreLinks.map(({ label, href }) => (
                 <li key={label}>
                   {href ? (
-                    <Link href={href} className="hover:text-white">
+                    <FooterLink href={href} className="hover:text-white">
                       {label}
-                    </Link>
+                    </FooterLink>
                   ) : (
                     label
                   )}
@@ -120,10 +143,22 @@ export function MarinaFooter() {
           </div>
 
           <nav aria-label="Destinations" className="order-3 lg:w-[200px]">
-            <p className="text-[13px] leading-[18px]">Find your place</p>
+            <p className="text-[13px] leading-[18px]">
+              <FooterLink href={DESTINATIONS_SECTION} className="hover:text-white/80">
+                Find your place
+              </FooterLink>
+            </p>
             <ul className="mt-[28px] space-y-[16.5px] text-[14px] leading-[20px] text-white/75">
-              {placeLinks.map((label) => (
-                <li key={label}>{label}</li>
+              {placeLinks.map(({ label, href }) => (
+                <li key={label}>
+                  {href ? (
+                    <FooterLink href={href} className="hover:text-white">
+                      {label}
+                    </FooterLink>
+                  ) : (
+                    label
+                  )}
+                </li>
               ))}
             </ul>
           </nav>
@@ -147,9 +182,11 @@ export function MarinaFooter() {
 
         <div className="mt-[60px] flex flex-col gap-3 border-t border-white/10 pt-[31px] pb-[30px] text-[13px] leading-[18px] text-white/75 sm:flex-row sm:justify-between">
           <p>© 2026 Sithara Marina. All rights reserved.</p>
-          {/* Plain text until the policy pages are published again. */}
+          {/* Terms stay plain text until that page is published. */}
           <div className="flex gap-[19px]">
-            <span>Privacy policy</span>
+            <Link href={userRoutes.privacy} className="hover:text-white">
+              Privacy policy
+            </Link>
             <span>Terms &amp; conditions</span>
           </div>
         </div>

@@ -48,7 +48,8 @@ const TILES: readonly Tile[] = [
     alt: "A couple relaxing on the sun deck of a yacht off a palm-lined coast",
     position: "50% 20%",
   },
-  { kind: "feature", title: "Skilled Crew", icon: Ship },
+  // Each yacht's page introduces its crew ("Your crew."); Our yachts leads to them.
+  { kind: "feature", title: "Skilled Crew", icon: Ship, href: userRoutes.yachts },
   {
     kind: "image",
     src: "/images/home/astra-houseboat-deck.jpg",

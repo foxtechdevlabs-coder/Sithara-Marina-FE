@@ -3,59 +3,15 @@
 import { ArrowLeft, ArrowRight, ArrowUpRight } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { useRef, useState, type CSSProperties, type TouchEvent } from "react";
+import { useRef, useState, type TouchEvent } from "react";
 
 import { userRoutes } from "@/constants/routes";
 import { YachtSpinViewer } from "@/features/user/yachts/components/yacht-spin-viewer";
 import { cx } from "@/lib/cx";
-import { dummyFleet } from "../data/dummy-fleet";
+
+import type { ShowcaseSlide } from "../utils/spin-showcase";
 import { ROUND_BUTTON_GRADIENT } from "./round-button";
 import { Reveal } from "@/components/shared/reveal";
-
-// Carousel photos that show the fleet at different times of day. `focusX` is
-// the horizontal crop point. Yachts without an entry here use their photo
-// from /yachts.
-const SLIDE_PHOTOS: Record<string, { image: string; imageAlt: string; focusX: string }> = {
-  // Early morning: sunrise over still Kerala backwaters.
-  "astra-one": {
-    image: "/images/home/featured-yacht-astra-one.png",
-    imageAlt: "Astra One, a white motor cruiser, on still backwaters at sunrise with palms behind",
-    focusX: "50%",
-  },
-  // Night: moonlit harbour, underwater lights glowing red on the water.
-  malabar: {
-    image: "/images/home/featured-malabar-night.png",
-    imageAlt:
-      "Malabar, a red-hulled motor cruiser, lit up at night beneath a full moon off a glowing hillside town",
-    focusX: "50%",
-  },
-  // Golden hour. Carousel visual chosen by the client; not a photo of the
-  // yacht itself, so the alt text describes the scene only.
-  neelam: {
-    image: "/images/home/featured-neelam-golden-hour.png",
-    imageAlt: "A grey-hulled motor cruiser anchored in a turquoise bay at golden hour",
-    focusX: "48%",
-  },
-  // Evening sunset. Carousel visual chosen by the client (see note above).
-  ananta: {
-    image: "/images/home/featured-ananta-sunset.png",
-    imageAlt: "A navy-hulled motor cruiser on calm water at sunset below a hillside town",
-    focusX: "50%",
-  },
-};
-
-// Slides come from the fleet shown on /yachts (replace with API data together).
-const FEATURED_YACHTS = dummyFleet.map((yacht) => ({
-  id: yacht.id,
-  name: yacht.name,
-  specs: [`${yacht.lengthMetres} metres`, `${yacht.guests} guests`, `${yacht.suites} suites`],
-  description: yacht.description,
-  ...(SLIDE_PHOTOS[yacht.id] ?? {
-    image: yacht.image.src,
-    imageAlt: yacht.image.alt,
-    focusX: "50%",
-  }),
-}));
 
 /** Minimum horizontal travel (px) for a touch swipe to change slides. */
 const SWIPE_THRESHOLD = 50;
@@ -75,14 +31,18 @@ const roundControl =
  * shorter ones the photo, still full width, is shifted up by the scale
  * difference so the yacht and its reflection stay aligned with the overlays.
  * Small text and round buttons have readable / tappable minimum sizes.
+ *
+ * The slides are the yachts the admin chose for the 360° showcase (Content →
+ * 360° Carousel), in that order. Each shows its first 360° frame until the
+ * frames load, then turns when dragged. With none chosen the section is hidden.
  */
-export function FeaturedYachtSection() {
+export function FeaturedYachtSection({ slides }: { slides: ShowcaseSlide[] }) {
   const [activeIndex, setActiveIndex] = useState(0);
   /** The slide whose 360° view has finished loading (its photo then sits underneath). */
   const [spinReady, setSpinReady] = useState<string | null>(null);
   const touchStartX = useRef<number | null>(null);
-  const count = FEATURED_YACHTS.length;
-  const yacht = FEATURED_YACHTS[activeIndex] ?? FEATURED_YACHTS[0];
+  const count = slides.length;
+  const yacht = slides[activeIndex] ?? slides[0];
   const hasMultiple = count > 1;
 
   // Loops: next on the last yacht returns to the first, and vice versa.
@@ -117,28 +77,30 @@ export function FeaturedYachtSection() {
       >
         {/* Phones: a 27rem photo band below the heading, with the card under it. From `md` the photo fills the panel. */}
         <div className="absolute inset-x-0 top-[3.5rem] h-[27rem] md:inset-0 md:h-auto">
-          {/* All photos are stacked; the active one fades in over the others. */}
-          {FEATURED_YACHTS.map((item, index) => (
-            <Image
-              key={item.id}
-              src={item.image}
-              alt={index === activeIndex ? item.imageAlt : ""}
-              aria-hidden={index === activeIndex ? undefined : true}
-              fill
-              priority={index === 0}
-              unoptimized={item.image.startsWith("http")}
-              sizes="(min-width: 1024px) 98vw, 100vw"
-              style={{ "--focus-x": item.focusX } as CSSProperties}
-              className={cx(
-                "object-cover object-[var(--focus-x)_55%] transition-opacity md:object-[var(--focus-x)_40%] duration-700 ease-out motion-reduce:transition-none lg:object-[var(--focus-x)_calc((var(--r)-var(--rw))*500)]",
-                index === activeIndex ? "opacity-100" : "opacity-0",
-              )}
-            />
-          ))}
+          {/* Each yacht's first 360° frame, stacked; the active one fades in over the others. */}
+          {slides.map((item, index) =>
+            item.posterUrl ? (
+              <Image
+                key={item.id}
+                src={item.posterUrl}
+                alt={index === activeIndex ? `${item.name}, the first view of its 360° tour` : ""}
+                aria-hidden={index === activeIndex ? undefined : true}
+                fill
+                priority={index === 0}
+                // A signed storage link that changes every hour: loaded as is.
+                unoptimized
+                sizes="(min-width: 1024px) 98vw, 100vw"
+                className={cx(
+                  "object-cover object-[50%_55%] transition-opacity duration-700 ease-out motion-reduce:transition-none md:object-[50%_40%] lg:object-[50%_calc((var(--r)-var(--rw))*500)]",
+                  index === activeIndex ? "opacity-100" : "opacity-0",
+                )}
+              />
+            ) : null,
+          )}
           {/* The active yacht's 360° view, when it has one; it covers the photo once every frame is ready. */}
           <YachtSpinViewer
             key={yacht.id}
-            slug={yacht.id}
+            slug={yacht.slug}
             name={yacht.name}
             fit="cover"
             onReady={() => setSpinReady(yacht.id)}
@@ -168,7 +130,8 @@ export function FeaturedYachtSection() {
           <p className="text-[0.6875rem] tracking-[0.2em] uppercase lg:text-[max(calc(var(--r)*11),10px)]">
             The yacht collection
           </p>
-          <Reveal as="h2"
+          <Reveal
+            as="h2"
             id="featured-heading"
             className="mt-4 text-[2.75rem] leading-none font-normal tracking-[-0.03em] lg:mt-[calc(var(--r)*19)] lg:text-[calc(var(--r)*72.9)]"
           >
@@ -233,7 +196,7 @@ export function FeaturedYachtSection() {
 
         <div className="pointer-events-none relative flex flex-col items-center gap-4 px-4 pt-[24rem] pb-4 *:pointer-events-auto md:absolute md:inset-x-8 md:bottom-8 md:gap-[1.375rem] md:p-0 lg:inset-x-auto lg:bottom-[calc(var(--r)*107)] lg:left-1/2 lg:w-[max(calc(var(--r)*810),40rem)] lg:-translate-x-1/2 lg:gap-[calc(var(--r)*22)]">
           <div className="flex">
-            {FEATURED_YACHTS.map((item, index) => (
+            {slides.map((item, index) => (
               // Small visible dot inside a larger, tappable button.
               <button
                 key={item.id}
@@ -277,7 +240,7 @@ export function FeaturedYachtSection() {
             </div>
 
             <Link
-              href={userRoutes.yacht(yacht.id)}
+              href={userRoutes.yacht(yacht.slug)}
               aria-label={`View ${yacht.name}`}
               className={cx(
                 "order-last flex size-14 items-center justify-center self-end rounded-full text-white transition-transform duration-300 hover:scale-105 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0C2269] motion-reduce:transition-none lg:size-[max(calc(var(--r)*56),2.75rem)] lg:self-center",
@@ -292,9 +255,11 @@ export function FeaturedYachtSection() {
             </Link>
 
             <div>
-              <p className="text-sage max-w-[18.75rem] text-[0.8125rem] leading-[1.9] lg:max-w-none lg:text-[max(calc(var(--r)*13),10px)]">
-                {yacht.description}
-              </p>
+              {yacht.description && (
+                <p className="text-sage max-w-[18.75rem] text-[0.8125rem] leading-[1.9] lg:max-w-none lg:text-[max(calc(var(--r)*13),10px)]">
+                  {yacht.description}
+                </p>
+              )}
               <Link
                 href={userRoutes.yachts}
                 className="text-brand-950 border-brand-950 mt-3 inline-block border-b pb-1 text-[0.6875rem] tracking-[0.2em] uppercase transition-opacity duration-300 hover:opacity-70 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-current lg:mt-[calc(var(--r)*12)] lg:pb-[calc(var(--r)*4)] lg:text-[max(calc(var(--r)*11),10px)]"

@@ -7,6 +7,7 @@ import {
 } from "@/features/admin/fleet/utils/fleet-error-message";
 import {
   EMPTY_FORM,
+  formFromTemplate,
   formFromYacht,
   toCreateInput,
   feetToMetres,
@@ -107,6 +108,9 @@ describe("yacht form → API", () => {
     expect(formFromYacht(saved).mode).toBe("slots");
     expect(formFromYacht({ ...saved, booking_mode: "enquiry_only" }).mode).toBe("enquiry");
     expect(formFromYacht({ ...saved, enquiry_enabled: false }).mode).toBe("instant");
+    // A copy of an enquiry-only yacht becomes "Slots + concierge": new yachts aren't offered enquiry only.
+    expect(formFromTemplate({ ...saved, booking_mode: "enquiry_only" }).mode).toBe("slots");
+    expect(formFromTemplate({ ...saved, enquiry_enabled: false }).mode).toBe("instant");
   });
 
   it("patches only changed fields; emptied fields become null", () => {
@@ -226,11 +230,17 @@ describe("registration, regions, years, speed, tagline and rate", () => {
       "registration",
     );
     expect(validateYachtForm({ ...filled, registration: "x".repeat(50) }, false)).toEqual({});
-    expect(Object.keys(validateForPublish(EMPTY_FORM)).sort()).toEqual([
+    expect(Object.keys(validateForPublish(EMPTY_FORM, 0)).sort()).toEqual([
       "cruising-regions",
+      "gallery",
       "tagline",
     ]);
-    expect(validateForPublish(filled)).toEqual({});
+    expect(validateForPublish(filled, 1)).toEqual({});
+    // Publishing needs a photo; the rest being filled in isn't enough.
+    expect(validateForPublish(filled, 0)).toEqual({
+      gallery:
+        "Add at least one photo to publish this yacht. You can save it as a draft without one.",
+    });
   });
 });
 

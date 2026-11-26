@@ -65,8 +65,27 @@ export type HomeSection = z.infer<typeof homeSectionSchema>;
 const pageLinkSchema = z.object({ slug: z.string(), title: z.string() });
 export type ContentPageLink = z.infer<typeof pageLinkSchema>;
 
+/** HomeSpinShowcaseDto: a yacht the admin chose for the home page 360° carousel. */
+const homeSpinShowcaseSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  slug: z.string(),
+  /** Maximum guests. */
+  capacity: z.number(),
+  /** Load the frames from GET /yachts/{slug}/spin. */
+  frame_count: z.number(),
+  /** The first frame (1600 px), to show until the frames load; a one-hour link. */
+  poster_url: z.string().nullable(),
+});
+export type HomeSpinShowcase = z.infer<typeof homeSpinShowcaseSchema>;
+
 const homeContentSchema = z.object({
   featured_yachts: z.array(featuredYachtSchema),
+  /**
+   * The 360° carousel, in the admin's order. Hidden, inactive and spin-less
+   * yachts are already left out, and the list stops at the showcase limit.
+   */
+  spin_showcase: z.array(homeSpinShowcaseSchema).default([]),
   banners: z.array(bannerSchema),
   sections: z.array(homeSectionSchema),
   /** Every published content page. */
@@ -74,9 +93,17 @@ const homeContentSchema = z.object({
 });
 export type HomeContent = z.infer<typeof homeContentSchema>;
 
-/** GET /content/home: the home page's featured yachts, banners, sections and published pages. */
+/**
+ * GET /content/home: the home page's featured yachts, 360° carousel, banners,
+ * sections and published pages.
+ */
 export function getHomeContent(signal?: AbortSignal): Promise<HomeContent> {
-  return apiClient.get("/content/home", { ...PUBLIC, ...CACHED, signal, schema: homeContentSchema });
+  return apiClient.get("/content/home", {
+    ...PUBLIC,
+    ...CACHED,
+    signal,
+    schema: homeContentSchema,
+  });
 }
 
 // ── Pages ───────────────────────────────────────────────────────────────────
@@ -137,6 +164,40 @@ export async function listAllFaqs(signal?: AbortSignal): Promise<Faq[]> {
     if (items.length === 0 || faqs.length >= total) break;
   }
   return faqs;
+}
+
+// ── Guest videos ────────────────────────────────────────────────────────────
+
+const guestVideoSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  description: z.string().nullable(),
+  location: z.string().nullable(),
+  /** Signed link, valid for one hour; null while the upload is unavailable. */
+  video_url: z.string().nullable(),
+  video_content_type: z.string().nullable().optional(),
+});
+export type GuestVideo = z.infer<typeof guestVideoSchema>;
+
+const guestVideoListSchema = pagedSchema(guestVideoSchema);
+export type GuestVideoList = z.infer<typeof guestVideoListSchema>;
+
+/**
+ * GET /content/guest-videos: one page of published guest videos, in the
+ * admin's order. Never cached, here or by Next.js: each `video_url` is a
+ * signed link that expires after an hour, so every load asks again.
+ */
+export function listGuestVideos(
+  params: PageParams = {},
+  signal?: AbortSignal,
+): Promise<GuestVideoList> {
+  return apiClient.get("/content/guest-videos", {
+    ...PUBLIC,
+    init: { cache: "no-store" },
+    query: { ...params },
+    signal,
+    schema: guestVideoListSchema,
+  });
 }
 
 // ── Banners ─────────────────────────────────────────────────────────────────

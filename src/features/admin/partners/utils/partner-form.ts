@@ -118,6 +118,19 @@ export const newestFirst = (documents: PartnerDocument[]) =>
 /** Today in the marina's time zone, YYYY-MM-DD. */
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
 
+/** The agreement's last day has passed (in the marina's time zone). No end date never expires. */
+export function agreementExpired(
+  partner: Pick<Partner, "agreement_valid_till">,
+  now = today(),
+): boolean {
+  const till = partner.agreement_valid_till?.slice(0, 10);
+  return Boolean(till && till < now);
+}
+
+/** Why a partner can't take a new yacht. */
+export const expiredAgreementMessage = (partner: Pick<Partner, "name" | "agreement_valid_till">) =>
+  `${partner.name}’s agreement ended on ${formatDate(partner.agreement_valid_till!)}. Renew it on the partner’s page before adding a yacht for them.`;
+
 /** The list's Agreement column, from the agreement's dates. */
 export function agreementText(
   partner: Pick<Partner, "agreement_effective_from" | "agreement_valid_till">,

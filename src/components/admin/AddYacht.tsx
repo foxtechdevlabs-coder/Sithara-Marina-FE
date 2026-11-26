@@ -7,6 +7,11 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { resolvePartner, searchPartners } from "@/components/admin/lookups";
+import {
+  agreementExpired,
+  expiredAgreementMessage,
+} from "@/features/admin/partners/utils/partner-form";
+import { getPartner } from "@/services/admin/partners.service";
 import { SearchSelect } from "@/components/admin/search-select";
 import { adminRoutes } from "@/constants/routes";
 import { BookingSetupFields } from "@/features/admin/fleet/components/booking-setup-fields";
@@ -39,6 +44,7 @@ import {
   formFromYacht,
   toCreateInput,
   toPatch,
+  photoRequiredError,
   validateForPublish,
   validateYachtForm,
   type YachtFormState,
@@ -152,6 +158,7 @@ const FIELD_ORDER = [
   "booking-first-start",
   "booking-last-return",
   ...PACKAGES.map((p) => packagePriceId(String(p.hours))),
+  "gallery",
 ];
 
 const digits = (v: string) => v.replace(/\D/g, "");
@@ -517,7 +524,7 @@ function YachtEditor({
     const code = isApiError(err) ? err.code : undefined;
     if (code === "NOT_PUBLISHABLE" && editing) {
       setProblem(
-        "This yacht is visible on the website, so it needs at least one package that is on and has a price. Keep one, or hide the yacht first.",
+        "A yacht on the website needs operating hours, at least one package that is on and has a price, and at least one photo. Add what’s missing, or hide the yacht first.",
       );
       return;
     }
@@ -560,7 +567,9 @@ function YachtEditor({
     if (submittingRef.current) return;
     const found = {
       ...validateYachtForm(form, editing),
-      ...(intent === "publish" ? validateForPublish(form) : {}),
+      ...(intent === "publish" ? validateForPublish(form, photoCount) : {}),
+      // Making an existing yacht visible needs a photo too.
+      ...(editing && patch.is_visible === true ? photoRequiredError(photoCount) : {}),
       ...bookingSetupErrors(booking, bookingBase),
     };
     if (Object.keys(found).length) return showErrors(found);
@@ -573,6 +582,15 @@ function YachtEditor({
       setProblem("");
       setNotice("No changes to save.");
       return;
+    }
+    // A new yacht, or a new partner for one, needs a partner whose agreement is still valid.
+    // A yacht that already has the partner keeps it. The backend doesn't check this.
+    const partnerId = form.ownership === "partner" ? form.partnerId : "";
+    if (partnerId && saved?.partner?.id !== partnerId) {
+      const partner = await getPartner(partnerId).catch(() => null);
+      if (partner && agreementExpired(partner)) {
+        return showErrors({ partner: expiredAgreementMessage(partner) });
+      }
     }
 
     submittingRef.current = true;
@@ -851,7 +869,7 @@ function YachtEditor({
                       set("partnerId", v);
                       clearError("partner");
                     }}
-                    load={searchPartners({ status: "active" })}
+                    load={searchPartners({ status: "active" }, { blockExpired: true })}
                     resolve={resolvePartner}
                     selectedLabel={
                       saved?.partner && saved.partner.id === form.partnerId
@@ -1080,12 +1098,23 @@ function YachtEditor({
                   mode="live"
                   yachtId={saved.id}
                   photos={photos}
-                  onPhotosChange={setPhotos}
+                  onPhotosChange={(next) => {
+                    setPhotos(next);
+                    if (next.length) clearError("gallery");
+                  }}
                   onBusyChange={setPhotosBusy}
                 />
               ) : (
-                <YachtGallery mode="queued" queued={queued} onQueuedChange={setQueued} />
+                <YachtGallery
+                  mode="queued"
+                  queued={queued}
+                  onQueuedChange={(next) => {
+                    setQueued(next);
+                    if (next.length) clearError("gallery");
+                  }}
+                />
               )}
+              <FieldError id="gallery" message={errors["gallery"]} />
               {saved ? (
                 <YachtSpinSection mode="live" yachtId={saved.id} slug={saved.slug} />
               ) : (
@@ -1100,7 +1129,12 @@ function YachtEditor({
                   <Label as="p">Booking mode</Label>
                 </legend>
                 <div className="grid gap-[14px] md:grid-cols-3">
-                  {BOOKING_MODES.map((m) => {
+                  {BOOKING_MODES.filter(
+                    // "Enquiry only" is no longer offered. A yacht already set that way
+                    // still shows it, so editing doesn't change its mode unasked.
+                    (m) =>
+                      m.value !== "enquiry" || (editing && saved?.booking_mode === "enquiry_only"),
+                  ).map((m) => {
                     const on = form.mode === m.value;
                     return (
                       <label

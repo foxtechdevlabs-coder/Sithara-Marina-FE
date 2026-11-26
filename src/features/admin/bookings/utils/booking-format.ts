@@ -159,6 +159,23 @@ export function marinaToday(now = new Date()): string {
   return now.toLocaleDateString("en-CA", { timeZone: MARINA_TIME_ZONE });
 }
 
+/**
+ * The names a booking row shows. The guest is the booking's contact: the name
+ * the bookings search matches (GET /admin/bookings `search`). The account
+ * holder is named too when someone else booked it.
+ */
+export function bookingNames(b: {
+  contact: { full_name: string };
+  customer: { full_name: string } | null;
+}): { guest: string; bookedBy: string | null } {
+  const guest = b.contact.full_name.trim() || b.customer?.full_name || "Guest";
+  const holder = b.customer?.full_name.trim() ?? "";
+  return {
+    guest,
+    bookedBy: holder && holder.toLowerCase() !== guest.toLowerCase() ? holder : null,
+  };
+}
+
 /** "4 hours", "90 minutes" from two "HH:mm" times. */
 export function durationText(start: string, end: string): string {
   const minutes =

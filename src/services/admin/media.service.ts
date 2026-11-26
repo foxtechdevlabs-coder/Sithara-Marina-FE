@@ -45,6 +45,32 @@ export function spinVideoProblem(file: File): string | null {
   return null;
 }
 
+/** What the backend accepts for a guest video (guest_video): MP4 or WebM, up to 100 MB. */
+export const GUEST_VIDEO_TYPES = ["video/mp4", "video/webm"] as const;
+export const GUEST_VIDEO_MAX_BYTES = 100 * 1024 * 1024;
+const GUEST_VIDEO_EXTENSIONS: Record<string, (typeof GUEST_VIDEO_TYPES)[number]> = {
+  mp4: "video/mp4",
+  m4v: "video/mp4",
+  webm: "video/webm",
+};
+
+/** The guest video's type; from its extension when the browser leaves it blank. */
+export function guestVideoType(file: File): string {
+  return (
+    file.type || (GUEST_VIDEO_EXTENSIONS[file.name.split(".").pop()?.toLowerCase() ?? ""] ?? "")
+  );
+}
+
+/** Why this file can't be a guest video, or null. */
+export function guestVideoProblem(file: File): string | null {
+  if (!(GUEST_VIDEO_TYPES as readonly string[]).includes(guestVideoType(file))) {
+    return `${file.name} isn’t an MP4 or WebM video. Choose an MP4 or WebM file.`;
+  }
+  if (file.size > GUEST_VIDEO_MAX_BYTES) return `${file.name} is larger than 100 MB.`;
+  if (file.size === 0) return `${file.name} is empty.`;
+  return null;
+}
+
 /** Why this file can't be a yacht photo, or null. */
 export function yachtPhotoProblem(file: File): string | null {
   if (!(YACHT_PHOTO_TYPES as readonly string[]).includes(file.type)) {
@@ -64,6 +90,9 @@ export function partnerDocumentProblem(file: File): string | null {
   if (file.size === 0) return `${file.name} is empty.`;
   return null;
 }
+
+/** Code of the error thrown when storage refuses the PUT (e.g. an expired upload link). */
+export const UPLOAD_REFUSED = "UPLOAD_REFUSED";
 
 const uploadTicketSchema = z.object({
   media_id: z.string(),
@@ -89,7 +118,12 @@ function putFile(
       xhr.status >= 200 && xhr.status < 300
         ? resolve()
         : reject(
-            new ApiError(`Upload failed (${xhr.status})`, { kind: "http", status: xhr.status }),
+            new ApiError(`Upload failed (${xhr.status})`, {
+              kind: "http",
+              status: xhr.status,
+              // Storage refused the file: usually the signed link expired (`expires_in`).
+              body: xhr.status < 500 ? { code: UPLOAD_REFUSED } : undefined,
+            }),
           );
     xhr.onerror = () => reject(new ApiError("Upload failed: network error", { kind: "network" }));
     xhr.send(file);
@@ -101,7 +135,7 @@ function putFile(
  * POST /admin/media/uploads, then PUT to the signed `upload_url`.
  */
 async function uploadFile(
-  purpose: "yacht_photo" | "partner_document" | "banner_image" | "yacht_spin_video",
+  purpose: "yacht_photo" | "partner_document" | "banner_image" | "yacht_spin_video" | "guest_video",
   file: File,
   onProgress?: (fraction: number) => void,
   contentType = file.type,
@@ -130,6 +164,10 @@ export const uploadBannerImage = (file: File, onProgress?: (fraction: number) =>
 /** A 360° video (purpose yacht_spin_video), then attached with PUT /admin/yachts/{id}/spin. */
 export const uploadSpinVideo = (file: File, onProgress?: (fraction: number) => void) =>
   uploadFile("yacht_spin_video", file, onProgress, spinVideoType(file));
+
+/** A guest video (purpose guest_video), then saved with POST or PATCH /admin/guest-videos. */
+export const uploadGuestVideo = (file: File, onProgress?: (fraction: number) => void) =>
+  uploadFile("guest_video", file, onProgress, guestVideoType(file));
 
 export const uploadPartnerDocument = (file: File, onProgress?: (fraction: number) => void) =>
   uploadFile("partner_document", file, onProgress);

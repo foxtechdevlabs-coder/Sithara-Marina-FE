@@ -7,6 +7,8 @@ import {
 } from "@/services/admin/fleet.service";
 import { getPartner, listPartners, type Partner } from "@/services/admin/partners.service";
 
+import { agreementExpired, formatDate } from "@/features/admin/partners/utils/partner-form";
+
 import type { SearchOption, SearchResult } from "./search-select";
 
 /*
@@ -55,14 +57,33 @@ export const partnerOption = (p: Partner): SearchOption<Partner> => ({
   data: p,
 });
 
-/** Partners by name, contact or email (GET /admin/partners?search=). */
-export function searchPartners(filter: { status?: "active" | "inactive" } = {}) {
+/** A partner whose agreement has ended: shown, but it can't be chosen for a new yacht. */
+const expiredPartnerOption = (p: Partner): SearchOption<Partner> => ({
+  ...partnerOption(p),
+  label: `${p.name} (agreement expired)`,
+  description: `Agreement ended ${formatDate(p.agreement_valid_till!)}`,
+  disabled: true,
+});
+
+/**
+ * Partners by name, contact or email (GET /admin/partners?search=).
+ * `blockExpired`: partners whose agreement has ended can't be chosen.
+ */
+export function searchPartners(
+  filter: { status?: "active" | "inactive" } = {},
+  { blockExpired = false }: { blockExpired?: boolean } = {},
+) {
   return async (search: string, signal: AbortSignal): Promise<SearchResult<Partner>> => {
     const list = await listPartners(
       { ...filter, limit: PAGE, ...(search ? { search: search.slice(0, 100) } : {}) },
       signal,
     );
-    return { options: list.items.map(partnerOption), hasMore: list.total > list.items.length };
+    return {
+      options: list.items.map((p) =>
+        blockExpired && agreementExpired(p) ? expiredPartnerOption(p) : partnerOption(p),
+      ),
+      hasMore: list.total > list.items.length,
+    };
   };
 }
 

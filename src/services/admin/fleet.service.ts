@@ -113,6 +113,8 @@ export interface YachtListQuery {
   visibility?: "visible" | "hidden";
   /** Matches name or slug. */
   search?: string;
+  /** true: only yachts with a completed 360° view; false: only those without. */
+  has_spin?: boolean;
 }
 
 /** Fields of CreateYachtDto / UpdateYachtDto. Nullable ones accept null to clear. */
