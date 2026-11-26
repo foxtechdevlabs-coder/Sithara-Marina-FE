@@ -92,11 +92,6 @@ export function AboutSection() {
               className="object-cover"
             />
           </div>
-          <ArrowRight
-            aria-hidden="true"
-            strokeWidth={2}
-            className="text-sage-muted mt-4 size-3.5"
-          />
         </article>
       </div>
     </section>

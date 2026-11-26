@@ -34,7 +34,9 @@ async function loadOverview(signal: AbortSignal) {
     listMyBookings("upcoming", signal),
     listMyBookings("past", signal),
     listMyEnquiries(signal).catch((err) => {
-      console.warn("Could not load enquiries for account overview:", err);
+      if (!signal.aborted) {
+        console.warn("Could not load enquiries for account overview:", err);
+      }
       return [];
     }),
   ]);
