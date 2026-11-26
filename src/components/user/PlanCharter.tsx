@@ -1226,11 +1226,12 @@ export default function PlanCharter({
               onToggle={setContactMethod}
             />
 
-            <label
+            <div
               className="mt-[28px] flex items-start gap-[10px] text-[14px] leading-[20px]"
               style={{ color: BODY }}
             >
               <input
+                id="consent"
                 type="checkbox"
                 name="consent"
                 required
@@ -1238,10 +1239,10 @@ export default function PlanCharter({
                 onChange={() => clearError("consent")}
                 className="mt-[3px] size-[14px] shrink-0 cursor-pointer accent-[#0d1b2a]"
               />
-              <span>
+              <label htmlFor="consent" className="cursor-pointer">
                 I agree to the privacy policy and consent to being contacted about my enquiry.
-              </span>
-            </label>
+              </label>
+            </div>
             {errorText("consent")}
             {formError && (
               <p
