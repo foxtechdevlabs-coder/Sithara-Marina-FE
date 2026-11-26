@@ -158,6 +158,8 @@ describe("public guest videos", () => {
     expect(calls[0]?.url).toBe(`${API}/content/guest-videos?page=1&limit=20`);
     expect(calls[0]?.auth).toBeNull();
     expect(calls[0]?.cache).toBe("no-store");
-    expect(site.playableGuestVideos(list.items)).toEqual([]);
+    expect(
+      (await import("@/features/user/home/hooks/use-guest-videos")).playableGuestVideos(list.items),
+    ).toEqual([]);
   });
 });

@@ -14,7 +14,7 @@ import {
 import { isContentTab, TAB_LABEL } from "@/features/admin/content/utils/content-format";
 import type { GuestVideo } from "@/services/admin/guest-videos.service";
 import { guestVideoProblem, guestVideoType, UPLOAD_REFUSED } from "@/services/admin/media.service";
-import { playableGuestVideos } from "@/services/user/content.service";
+import { playableGuestVideos } from "@/features/user/home/hooks/use-guest-videos";
 import { ApiError } from "@/services/http/api-error";
 
 const saved: GuestVideo = {
