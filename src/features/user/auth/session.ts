@@ -206,7 +206,8 @@ function renewTokens(refreshToken: string): Promise<RefreshResponse> {
  */
 function withRefreshLock<T>(task: () => Promise<T>): Promise<T> {
   if (typeof navigator !== "undefined" && navigator.locks) {
-    return navigator.locks.request(REFRESH_LOCK, task);
+    // The lock resolves with what `task` resolves to; the DOM typing nests the promise.
+    return navigator.locks.request(REFRESH_LOCK, task) as Promise<T>;
   }
   return task();
 }
