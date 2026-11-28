@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { INK, SANS, SERIF } from "@/components/user/marina-chrome";
 import { userRoutes } from "@/constants/routes";
+import { CheckoutFlashNotice } from "@/features/user/checkout/components/checkout-flash-notice";
 import { BODY, FRAME, MUTED } from "@/features/user/checkout/components/checkout-ui";
 
 import { YachtReservation, type YachtReservationProps } from "./yacht-reservation";
@@ -47,6 +48,7 @@ export function YachtAvailability(props: YachtReservationProps) {
         <p className="mt-[20px] max-w-[560px] text-[16px] leading-[26px]" style={{ color: BODY }}>
           Choose a date to see the charters open on {name}.
         </p>
+        <CheckoutFlashNotice />
       </section>
 
       <div className={`${FRAME} mt-[64px]`}>
