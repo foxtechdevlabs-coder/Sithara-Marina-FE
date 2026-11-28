@@ -79,8 +79,11 @@ const yachtFacts = (yacht: YachtDetail | undefined) => {
 
 export function charterFromSession(session: CheckoutSession, yacht?: YachtDetail): CharterView {
   const { slot } = session;
+  // A custom proposal carries its agreed length; a package's comes from the yacht.
   const duration =
-    yacht?.slot_types.find((type) => type.id === slot.slot_type_id)?.duration_minutes ?? null;
+    slot.duration_minutes ??
+    yacht?.slot_types.find((type) => type.id === slot.slot_type_id)?.duration_minutes ??
+    null;
   const end =
     duration !== null
       ? addMinutesToLocalTime(slot.date, slot.start_time, duration)
@@ -95,7 +98,8 @@ export function charterFromSession(session: CheckoutSession, yacht?: YachtDetail
     startTime: slot.start_time,
     endDate: end.date,
     endTime: end.time,
-    packageName: slot.slot_type_name,
+    // A custom proposal has no package: its agreed duration is shown instead.
+    packageName: slot.duration_minutes !== null ? null : slot.slot_type_name,
     durationMinutes: duration,
     guests: session.guests,
   };

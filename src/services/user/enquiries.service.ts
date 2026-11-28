@@ -88,11 +88,19 @@ const proposalSchema = z.object({
   }),
   slot_type_id: z.string().nullable().optional(),
   slot_type_name: z.string().nullable().optional().default(""),
+  /**
+   * Minutes, for a charter with a length of its own (a custom proposal: no
+   * package); null for a package.
+   */
+  duration_minutes: z.number().nullable().optional().default(null),
   date: z.string(),
   start_time: z.string(),
   end_time: z.string(),
   guests: z.number().default(1),
-  inclusions: z.array(z.string()).nullish().transform((v) => v ?? []),
+  inclusions: z
+    .array(z.string())
+    .nullish()
+    .transform((v) => v ?? []),
   message: z.string().nullable(),
   terms: z.string().nullable(),
   /** As last sent; re-checked when accepted and at checkout. */
@@ -191,7 +199,10 @@ export const createEnquiryRequestSchema = z.strictObject({
   /** Other choices the customer made, stored as sent (at most 4 KB). */
   context: z
     .record(z.string(), z.unknown())
-    .refine((value) => new TextEncoder().encode(JSON.stringify(value)).length <= ENQUIRY_CONTEXT_MAX_BYTES)
+    .refine(
+      (value) =>
+        new TextEncoder().encode(JSON.stringify(value)).length <= ENQUIRY_CONTEXT_MAX_BYTES,
+    )
     .optional(),
 });
 export type CreateEnquiryRequest = z.input<typeof createEnquiryRequestSchema>;
@@ -238,7 +249,10 @@ export async function listMyEnquiries(signal?: AbortSignal): Promise<Enquiry[]> 
 const enquiryDetailSchema = z.object({
   ...enquiryFields,
   /** Newest version first; drafts never show. */
-  proposals: z.array(proposalSchema).nullish().transform((v) => v ?? []),
+  proposals: z
+    .array(proposalSchema)
+    .nullish()
+    .transform((v) => v ?? []),
 });
 export type EnquiryDetail = z.infer<typeof enquiryDetailSchema>;
 

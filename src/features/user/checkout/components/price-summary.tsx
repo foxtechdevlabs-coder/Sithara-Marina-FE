@@ -71,7 +71,10 @@ export function SessionRows({ session }: { session: CheckoutSession }) {
     { label: "Yacht", value: session.yacht.name },
     { label: "Date", value: formatDay(slot.date) },
     {
-      label: slot.slot_type_name ? `${slot.slot_type_name} charter` : "Charter",
+      label:
+        slot.duration_minutes === null && slot.slot_type_name
+          ? `${slot.slot_type_name} charter`
+          : "Charter",
       value: timeRange(slot.start_time, slot.end_time),
     },
     { label: "Guests", value: guestCount(session.guests) },

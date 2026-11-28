@@ -37,6 +37,8 @@ interface SessionEditorProps {
 /** Changes what PATCH /checkout/sessions/{id} allows: guests, add-ons and contact details. */
 export function SessionEditor({ session, checkoutToken, onSaved, onCancel }: SessionEditorProps) {
   const [guests, setGuests] = useState(session.guests);
+  // An accepted custom proposal: the guest count was agreed and isn't sent again.
+  const agreedProposal = session.slot.duration_minutes !== null;
   const [quantities, setQuantities] = useState<Record<string, number>>(() =>
     Object.fromEntries(session.addons.map((addon) => [addon.addon_id, addon.quantity])),
   );
@@ -69,7 +71,7 @@ export function SessionEditor({ session, checkoutToken, onSaved, onCancel }: Ses
         await updateCheckoutSession(
           session.id,
           {
-            guests,
+            ...(agreedProposal ? {} : { guests }),
             addons: Object.entries(quantities)
               .filter(([, quantity]) => quantity > 0)
               .map(([addon_id, quantity]) => ({ addon_id, quantity })),
@@ -93,7 +95,13 @@ export function SessionEditor({ session, checkoutToken, onSaved, onCancel }: Ses
     <form onSubmit={handleSubmit} noValidate className="grid max-w-[640px] gap-[28px]">
       <div className="flex flex-wrap items-center justify-between gap-[16px]">
         <span className={labelClass}>Guests</span>
-        <QuantityStepper label="guests" value={guests} min={1} onChange={setGuests} />
+        {agreedProposal ? (
+          <span className="text-[16px]">
+            {guests} {guests === 1 ? "guest" : "guests"} · as agreed in your proposal
+          </span>
+        ) : (
+          <QuantityStepper label="guests" value={guests} min={1} onChange={setGuests} />
+        )}
       </div>
 
       {addons.loading ? (

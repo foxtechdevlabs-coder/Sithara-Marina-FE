@@ -57,9 +57,7 @@ const enquiry = {
   reference: "ENQ-2026-0208",
   status: "new",
   yacht: { id: "y-1", name: "Astra One", slug: "astra-one" },
-  slot_type: { id: "s-4", name: "4 hours" },
   preferred_date: "2026-11-12",
-  preferred_start_time: "09:00",
   guests: 8,
   message: "Seasonal dining please",
   created_at: "2026-11-01T10:00:00.000Z",
@@ -122,8 +120,6 @@ describe("enquiries service", () => {
   it("reads the current backend shape: destinations, occasion, budget, no slot or start time", async () => {
     const { svc } = await load();
     const current: Record<string, unknown> = { ...enquiry };
-    delete current.slot_type;
-    delete current.preferred_start_time;
     stub(() =>
       json({
         items: [
@@ -147,7 +143,7 @@ describe("enquiries service", () => {
       "₹2–3 lakh",
       "Vegetarian menu",
     ]);
-    expect(item?.slot_type).toBeUndefined();
+    expect(item).not.toHaveProperty("slot_type");
   });
 
   it("assigns, drafts, edits, sends and revises a proposal", async () => {

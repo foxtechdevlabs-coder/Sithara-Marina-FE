@@ -132,11 +132,45 @@ describe("staff", () => {
 });
 
 describe("roles", () => {
+  it("reads every page of roles (the backend answers in pages)", async () => {
+    const api = await load();
+    const many = (from: number, count: number) =>
+      Array.from({ length: count }, (_, i) => ({
+        ...role,
+        id: `r-${from + i}`,
+        name: `R${from + i}`,
+      }));
+    stub((url) =>
+      json(
+        url.includes("page=1")
+          ? { items: many(1, 100), total: 101, page: 1, limit: 100 }
+          : { items: many(101, 1), total: 101, page: 2, limit: 100 },
+      ),
+    );
+    const roles = await api.staff.listRoles();
+    expect(roles).toHaveLength(101);
+    expect(sent().map(([, url]) => url)).toEqual([
+      "/admin/roles?page=1&limit=100",
+      "/admin/roles?page=2&limit=100",
+    ]);
+  });
+
+  it("fails clearly if the answer isn't a page of roles", async () => {
+    const api = await load();
+    stub(() => json([role]));
+    await expect(api.staff.listRoles()).rejects.toMatchObject({ kind: "validation" });
+  });
+
   it("lists built-in roles with no id, and changes custom ones", async () => {
     const api = await load();
     stub((_url, method) =>
       method === "GET"
-        ? json([{ ...role, id: null, key: "super_admin", name: "Super Admin" }, role])
+        ? json({
+            items: [{ ...role, id: null, key: "super_admin", name: "Super Admin" }, role],
+            total: 2,
+            page: 1,
+            limit: 100,
+          })
         : method === "DELETE"
           ? json(undefined, 204)
           : json(role),
@@ -147,7 +181,7 @@ describe("roles", () => {
     await api.staff.updateRole("r-1", { permissions: [] });
     await api.staff.deleteRole("r-1");
     expect(sent()).toEqual([
-      ["GET", "/admin/roles", undefined],
+      ["GET", "/admin/roles?page=1&limit=100", undefined],
       ["POST", "/admin/roles", { name: "Desk", description: null, permissions: ["cms:read"] }],
       ["PATCH", "/admin/roles/r-1", { permissions: [] }],
       ["DELETE", "/admin/roles/r-1", undefined],

@@ -25,11 +25,7 @@ import { getYacht } from "@/services/user/yachts.service";
 
 import { useCountdown } from "../hooks/use-countdown";
 import { checkoutErrorMessage, codeMessage } from "../utils/checkout-error-message";
-import {
-  clearCheckoutState,
-  updateCheckoutState,
-  useCheckoutState,
-} from "../utils/checkout-store";
+import { clearCheckoutState, updateCheckoutState, useCheckoutState } from "../utils/checkout-store";
 import { contactSchema } from "../utils/contact-schema";
 import { CheckoutPage, Loading, Notice, textLinkClass } from "./checkout-ui";
 import { GuestCountField } from "./guest-count-field";
@@ -355,21 +351,31 @@ export function ReviewStep({ sessionId, checkoutToken }: ReviewStepProps) {
   }
 
   const charter = charterFromSession(data, yacht.data);
+  // An accepted custom proposal: its length, price and guest count were agreed, so they can't change here.
+  const agreedProposal = data.slot.duration_minutes !== null;
   const price = priceFromSession(data, settings.data?.tax_label ?? "GST");
   const values = guestValues ?? {
     full_name: data.contact.full_name,
     phone: data.contact.phone,
     special_requests: data.contact.special_requests ?? "",
   };
-  const chooseAgain = (
+  // A custom proposal can't be re-chosen on the yacht page (that would leave the
+  // agreed terms): the customer asks the concierge for a revised proposal instead.
+  const chooseAgain = agreedProposal ? (
+    <Link href={userRoutes.accountEnquiries} className={textLinkClass}>
+      Ask our concierge for a revised proposal
+    </Link>
+  ) : (
     <Link href={userRoutes.yachtAvailability(data.yacht.slug)} className={textLinkClass}>
       Choose another time
     </Link>
   );
   const pricingProblem = !canBook ? (
     <>
-      {codeMessage(data.pricing_problem) ??
-        "We can’t work out the final price for this charter just now."}{" "}
+      {agreedProposal
+        ? "Your accepted proposal can’t be priced or booked just now."
+        : (codeMessage(data.pricing_problem) ??
+          "We can’t work out the final price for this charter just now.")}{" "}
       {chooseAgain}
     </>
   ) : null;
@@ -408,8 +414,8 @@ export function ReviewStep({ sessionId, checkoutToken }: ReviewStepProps) {
     : pricePending && !guestError
       ? "Updating price…"
       : total
-      ? `Proceed to payment – ${total}`
-      : "Proceed to payment";
+        ? `Proceed to payment – ${total}`
+        : "Proceed to payment";
   // Never pay on a price that doesn't match the chosen guest count.
   const payDisabled = !canBook || hold.kind !== "active" || pricePending || busy;
   const card = (withPay: boolean) => (
@@ -418,7 +424,11 @@ export function ReviewStep({ sessionId, checkoutToken }: ReviewStepProps) {
       price={price}
       settings={settings.data}
       unavailable={pricingProblem}
-      pay={withPay ? { label: payLabel, disabled: payDisabled, onPay: () => void handlePay() } : undefined}
+      pay={
+        withPay
+          ? { label: payLabel, disabled: payDisabled, onPay: () => void handlePay() }
+          : undefined
+      }
     />
   );
 
@@ -436,14 +446,14 @@ export function ReviewStep({ sessionId, checkoutToken }: ReviewStepProps) {
             </div>
           )}
           {holdNotice ? (
-          <div className="mb-[32px]">
-            <PayNotice>{holdNotice}</PayNotice>
-          </div>
-        ) : hold.kind === "placing" ? (
-          <div className="mb-[24px]">
-            <Loading label="Holding your charter" />
-          </div>
-        ) : null}
+            <div className="mb-[32px]">
+              <PayNotice>{holdNotice}</PayNotice>
+            </div>
+          ) : hold.kind === "placing" ? (
+            <div className="mb-[24px]">
+              <Loading label="Holding your charter" />
+            </div>
+          ) : null}
         </>
       }
       aside={card(true)}
@@ -459,27 +469,39 @@ export function ReviewStep({ sessionId, checkoutToken }: ReviewStepProps) {
         >
           <CharterDetails
             charter={charter}
-            changeHref={userRoutes.yachtAvailability(data.yacht.slug)}
+            changeHref={agreedProposal ? undefined : userRoutes.yachtAvailability(data.yacht.slug)}
             guestControl={
-              <span className="flex flex-col gap-[8px]">
-                <GuestCountField
-                  value={guests}
-                  min={1}
-                  max={capacity}
-                  disabled={busy}
-                  onChange={changeGuests}
-                />
-                {pricePending && !guestError && (
-                  <span role="status" className="text-[13px] leading-[18px] text-[#4a4f55]">
-                    Updating the price…
+              agreedProposal ? (
+                <span className="flex flex-col gap-[4px]">
+                  <span>
+                    {data.guests} {data.guests === 1 ? "guest" : "guests"}
                   </span>
-                )}
-                {guestError && (
-                  <span role="alert" className="text-[13px] leading-[18px] text-[#b42318]">
-                    {guestError}
+                  <span className="text-[13px] leading-[18px] text-[#4a4f55]">
+                    As agreed in your proposal. To change it, reply to us and we’ll send a revised
+                    proposal.
                   </span>
-                )}
-              </span>
+                </span>
+              ) : (
+                <span className="flex flex-col gap-[8px]">
+                  <GuestCountField
+                    value={guests}
+                    min={1}
+                    max={capacity}
+                    disabled={busy}
+                    onChange={changeGuests}
+                  />
+                  {pricePending && !guestError && (
+                    <span role="status" className="text-[13px] leading-[18px] text-[#4a4f55]">
+                      Updating the price…
+                    </span>
+                  )}
+                  {guestError && (
+                    <span role="alert" className="text-[13px] leading-[18px] text-[#b42318]">
+                      {guestError}
+                    </span>
+                  )}
+                </span>
+              )
             }
           />
           <NextSectionButton onClick={() => sections.advance("charter", "payment")}>
@@ -558,13 +580,9 @@ export function ReviewStep({ sessionId, checkoutToken }: ReviewStepProps) {
               </PayNotice>
             )}
             {guestError && (
-              <PayNotice>
-                {guestError} Change the number of guests before paying.
-              </PayNotice>
+              <PayNotice>{guestError} Change the number of guests before paying.</PayNotice>
             )}
-            {guestInvalid && (
-              <PayNotice>Please check the lead guest details above.</PayNotice>
-            )}
+            {guestInvalid && <PayNotice>Please check the lead guest details above.</PayNotice>}
             {priceNotice && <PayNotice>{priceNotice}</PayNotice>}
             {bookingError && <PayNotice>{bookingError}</PayNotice>}
           </>

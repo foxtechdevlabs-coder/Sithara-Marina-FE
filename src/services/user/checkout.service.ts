@@ -180,6 +180,11 @@ const sessionSchema = z.object({
   slot: z.object({
     slot_type_id: z.string().nullable(),
     slot_type_name: z.string().nullable(),
+    /**
+     * Minutes, for a charter with a length of its own (an accepted custom
+     * proposal); null for a package. Its length, price and guests are fixed.
+     */
+    duration_minutes: z.number().nullable().default(null),
     date: z.string(),
     start_time: z.string(),
     end_time: z.string().nullable(),

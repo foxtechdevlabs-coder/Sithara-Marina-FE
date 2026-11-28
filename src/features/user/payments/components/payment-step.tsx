@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Spinner } from "@/components/ui/spinner";
@@ -35,6 +36,7 @@ import {
 } from "@/features/user/checkout/components/review-pay";
 import { useCountdown } from "@/features/user/checkout/hooks/use-countdown";
 import { checkoutErrorMessage } from "@/features/user/checkout/utils/checkout-error-message";
+import { saveCheckoutFlash } from "@/features/user/checkout/utils/checkout-flash";
 import { clearCheckoutState } from "@/features/user/checkout/utils/checkout-store";
 import { formatMinorUnits } from "@/features/user/yachts/utils/yacht-view";
 import { useApiQuery } from "@/hooks/use-api-query";
@@ -57,6 +59,14 @@ import {
   processingSecondaryClass,
   type ProcessingKind,
 } from "./payment-processing";
+import {
+  checkoutWindow,
+  HOLD_ENDED_MESSAGE,
+  holdDeadline,
+  holdEndedOnDismiss,
+  isHoldExpiredError,
+  PAYMENT_NOT_COMPLETED_MESSAGE,
+} from "../utils/hold-timer";
 import { takePaymentRequest } from "../utils/pay-intent";
 import { DISMISS_CHECK_MS } from "../utils/poll-booking-status";
 import { openRazorpay } from "../utils/razorpay";
@@ -90,8 +100,8 @@ type Stage =
 
 const FAILED_MESSAGE =
   "Your payment could not be completed. You can try again or check your booking details.";
-const CANCELLED_MESSAGE =
-  "You closed the payment window before paying, so you haven’t been charged. You can try again when you’re ready.";
+/** Closed without paying while the hold still has time. */
+const CANCELLED_MESSAGE = PAYMENT_NOT_COMPLETED_MESSAGE;
 
 /** Customer text for a failed POST /payments, and whether paying again can help. */
 function startProblem(error: unknown): { message: string; retry: boolean; expired?: boolean } {
@@ -191,6 +201,25 @@ export function PaymentStep({ bookingId, checkoutToken }: PaymentStepProps) {
     if (mounted.current) setStage(next);
   };
 
+  const router = useRouter();
+  /** Set once the customer is being sent back to choose a slot: nothing else may change the page. */
+  const leaving = useRef(false);
+
+  /**
+   * The time to pay has ended (by the backend's deadline, or its 409
+   * `HOLD_EXPIRED`): back to slot selection with the message. `busy` stays set,
+   * so no further payment can start from this page.
+   */
+  function holdEnded(slug: string) {
+    if (leaving.current) return;
+    leaving.current = true;
+    saveCheckoutFlash(HOLD_ENDED_MESSAGE);
+    setExpiredByServer(true);
+    if (mounted.current) setStage({ kind: "ready" }); // shows the time-ended state meanwhile
+    router.replace(userRoutes.yachtAvailability(slug));
+    clearCheckoutState();
+  }
+
   /** Razorpay says it succeeded: the backend checks the signature and decides. */
   async function handleSuccess(result: RazorpayPaymentResult) {
     setStage({ kind: "verifying" });
@@ -229,7 +258,13 @@ export function PaymentStep({ bookingId, checkoutToken }: PaymentStepProps) {
    * goes on to confirmation. Only when Razorpay did not report a failure is a
    * `processing` payment waited on; a failure Razorpay reported is shown at once.
    */
-  async function handleDismiss() {
+  async function handleDismiss(deadline: number | null, slug: string) {
+    if (leaving.current) return;
+    // Closed by its timeout, or so late that the actual hold has effectively ended.
+    if (holdEndedOnDismiss(deadline)) {
+      holdEnded(slug);
+      return;
+    }
     setStage({ kind: "checking" });
     const failure = razorpayFailure.current;
     try {
@@ -277,7 +312,7 @@ export function PaymentStep({ bookingId, checkoutToken }: PaymentStepProps) {
   }
 
   async function pay() {
-    if (busy.current || !data) return;
+    if (busy.current || leaving.current || !data) return;
     busy.current = true;
     setReviewing(false);
     razorpayFailure.current = null;
@@ -294,8 +329,18 @@ export function PaymentStep({ bookingId, checkoutToken }: PaymentStepProps) {
         });
         return;
       }
+      // Recalculated for every attempt from the deadline this answer carries
+      // (the booking's own as a fallback): never a fixed timer or an old value.
+      const deadline = holdDeadline(payment.hold_expires_at, data.hold_expires_at);
+      const checkoutTime = checkoutWindow(deadline);
+      if (!checkoutTime.open) {
+        holdEnded(data.yacht.slug); // too little time left to pay safely
+        return;
+      }
+      const slug = data.yacht.slug;
       await openRazorpay({
         payment,
+        timeoutSeconds: checkoutTime.timeoutSeconds,
         description: `Booking ${data.reference}`,
         prefill: {
           name: data.contact.full_name,
@@ -308,10 +353,14 @@ export function PaymentStep({ bookingId, checkoutToken }: PaymentStepProps) {
         onFailure: (reason) => {
           razorpayFailure.current = reason ?? "";
         },
-        onDismiss: () => void handleDismiss(),
+        onDismiss: () => void handleDismiss(deadline, slug),
       });
       setStage({ kind: "open" });
     } catch (error) {
+      if (isHoldExpiredError(error)) {
+        holdEnded(data.yacht.slug);
+        return;
+      }
       const problem = startProblem(error);
       if (problem.expired) setExpiredByServer(true);
       if (getBackendErrorDetails(error).code === "PAYMENT_NOT_ALLOWED") booking.reload();
@@ -539,7 +588,7 @@ export function PaymentStep({ bookingId, checkoutToken }: PaymentStepProps) {
               className={processingPrimaryClass}
               style={processingPrimaryStyle}
             >
-              Try again – {total}
+              {processing === "cancelled" ? "Pay now" : "Try again"} – {total}
             </button>
           )}
           <button

@@ -24,12 +24,14 @@ import { QueryFallback } from "@/features/user/account/components/query-fallback
 import { accountErrorMessage } from "@/features/user/account/utils/account-error";
 import {
   formatAmount,
+  formatHours,
   formatInstantDate,
   formatLongDate,
   formatTimeRange,
   guests,
+  minutesBetween,
 } from "@/features/user/account/utils/account-format";
-import { updateCheckoutState } from "@/features/user/checkout/utils/checkout-store";
+import { continueProposalCheckout } from "@/features/user/checkout/utils/checkout-store";
 import { useYachtInfo } from "@/features/user/customer-bookings/hooks/use-yacht-info";
 import { userRoutes } from "@/constants/routes";
 import { useApiQuery } from "@/hooks/use-api-query";
@@ -84,7 +86,20 @@ type Decision =
   | { kind: "confirm-reject" }
   | { kind: "sending"; action: "accept" | "reject" }
   | { kind: "error"; message: string }
-  | { kind: "follow-up"; priceChanged: boolean };
+  | { kind: "follow-up"; priceChanged: boolean }
+  | { kind: "declined" };
+
+/**
+ * The charter's length as the customer should see it: a custom proposal has a
+ * length of its own (no package), a package has its name. "5 hours" etc.
+ */
+export function proposalLength(p: Proposal): { name: string; duration: string | null } {
+  const minutes = p.duration_minutes ?? (minutesBetween(p.start_time, p.end_time) || null);
+  return {
+    name: p.duration_minutes !== null || !p.slot_type_name ? "Custom charter" : p.slot_type_name,
+    duration: minutes ? formatHours(minutes) : null,
+  };
+}
 
 function ProposalBody({
   proposal,
@@ -104,6 +119,9 @@ function ProposalBody({
   const { pricing } = proposal;
   const amount = (value: number) => formatAmount(value, pricing.currency);
   const isOpen = proposal.status === "sent";
+  // Accepted, with the checkout the backend started: the customer can go back to it to pay.
+  const resumable = proposal.status === "accepted" && proposal.checkout_session_id !== null;
+  const length = proposalLength(proposal);
   const commentError =
     comment.length > PROPOSAL_COMMENT_MAX
       ? `Please keep your comment under ${PROPOSAL_COMMENT_MAX} characters.`
@@ -116,21 +134,15 @@ function ProposalBody({
     try {
       if (action === "reject") {
         onChange(await rejectProposal(proposal.id, comment));
-        setDecision({ kind: "idle" });
+        setDecision({ kind: "declined" });
         return;
       }
       const result = await acceptProposal(proposal.id, comment);
       onChange(result.proposal);
       if (result.next_step === "checkout" && result.checkout_session_id) {
-        // Continue in the existing checkout, on the session the backend started.
-        updateCheckoutState({
-          draft: null,
-          contact: null,
-          sessionId: result.checkout_session_id,
-          awaitingVerification: false,
-          checkoutToken: null,
-          bookingId: null,
-        });
+        // Continue in the existing checkout, on the session the backend started; a
+        // changed price is announced there before paying.
+        continueProposalCheckout(result.checkout_session_id, result.price_changed);
         router.push(userRoutes.checkout);
         return;
       }
@@ -168,9 +180,11 @@ function ProposalBody({
             rows={[
               { label: "Yacht", value: proposal.yacht?.name ?? "Charter" },
               { label: "Date", value: formatLongDate(proposal.date) },
+              { label: "Charter", value: length.name },
+              ...(length.duration ? [{ label: "Duration", value: length.duration }] : []),
               {
                 label: "Charter time",
-                value: `${formatTimeRange(proposal.start_time, proposal.end_time)} · ${proposal.slot_type_name}`,
+                value: formatTimeRange(proposal.start_time, proposal.end_time),
               },
               { label: "Your company", value: guests(proposal.guests) },
               ...(proposal.expires_at && isOpen
@@ -211,11 +225,12 @@ function ProposalBody({
           <CharterSummaryCard
             tone="dark"
             yachtName={proposal.yacht?.name ?? "Charter"}
-            subtitle={[yacht?.departureCity, proposal.slot_type_name].filter(Boolean).join(" · ")}
+            subtitle={[yacht?.departureCity, length.name].filter(Boolean).join(" · ")}
             imageUrl={yacht?.imageUrl}
             facts={[
               { label: "Departure", value: formatLongDate(proposal.date) },
               { label: "Time", value: formatTimeRange(proposal.start_time, proposal.end_time) },
+              ...(length.duration ? [{ label: "Duration", value: length.duration }] : []),
               { label: "Your company", value: guests(proposal.guests) },
             ]}
             prices={[
@@ -245,6 +260,33 @@ function ProposalBody({
           {decision.priceChanged
             ? " Today’s price differs from the proposal; we will confirm it with you."
             : ""}
+        </AccountNotice>
+      ) : null}
+
+      {decision.kind === "declined" ? (
+        <AccountNotice label="You’ve declined this proposal" className="mt-8">
+          Thank you for letting us know. No booking has been made. Our concierge can prepare another
+          proposal for you: reply to them or send a new enquiry.
+        </AccountNotice>
+      ) : null}
+
+      {resumable ? (
+        <AccountNotice label="Proposal accepted" className="mt-8">
+          If you haven’t completed payment yet, continue to checkout to hold the charter and pay.
+          <span className="mt-4 block">
+            <button
+              type="button"
+              onClick={() => {
+                continueProposalCheckout(proposal.checkout_session_id as string, false);
+                router.push(userRoutes.checkout);
+              }}
+              className={primaryButtonClass}
+              style={primaryButtonStyle}
+            >
+              Continue to checkout
+              <ArrowRight aria-hidden="true" strokeWidth={1.5} className="size-3.5" />
+            </button>
+          </span>
         </AccountNotice>
       ) : null}
 

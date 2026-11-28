@@ -12,6 +12,7 @@ import { isApiError } from "@/services/http/api-error";
 import { getBackendErrorDetails } from "@/services/http/backend-error";
 import { registerUser, VERIFICATION_EMAIL_COOLDOWN_SECONDS } from "@/services/user/auth.service";
 import { emailSchema } from "@/validation/email";
+import { PASSWORD_LENGTH_MESSAGE, registrationPasswordProblem } from "@/validation/password";
 
 import {
   fieldErrorClass,
@@ -34,10 +35,9 @@ type FieldErrors = Partial<Record<FieldName, string>>;
 
 type Status = { kind: "idle" } | { kind: "submitting" } | { kind: "error"; message: ReactNode };
 
-/** Password length documented by POST /auth/register. */
-const PASSWORD_MIN = 8;
-const PASSWORD_MAX = 128;
-const PASSWORD_RULE = `Use between ${PASSWORD_MIN} and ${PASSWORD_MAX} characters.`;
+/** The backend refused the password for something other than its length (e.g. too common). */
+const PASSWORD_REFUSED =
+  "This password can’t be used. Choose one that’s harder to guess, with a letter, a number and a special character.";
 
 const FIELDS: readonly {
   name: FieldName;
@@ -85,9 +85,8 @@ function validate(data: FormData): FieldErrors {
   if (!email.success)
     errors.email = email.error.issues[0]?.message ?? "Enter a valid email address.";
   const password = text("password");
-  if (!password) errors.password = "Choose a password.";
-  else if (password.length < PASSWORD_MIN || password.length > PASSWORD_MAX)
-    errors.password = PASSWORD_RULE;
+  const passwordError = registrationPasswordProblem(password);
+  if (passwordError) errors.password = passwordError;
   if (!text("confirmPassword")) errors.confirmPassword = "Re-enter your password.";
   else if (text("confirmPassword") !== password) errors.confirmPassword = "Passwords don’t match.";
 
@@ -105,15 +104,19 @@ function fieldErrorsFromBackend(messages: string[]): { fields: FieldErrors; unma
     const property = message.split(" ")[0];
     if (property === "fullName") fields.fullName ??= "Enter your full name.";
     else if (property === "email") fields.email ??= "Enter a valid email address.";
-    else if (property === "password") fields.password ??= PASSWORD_RULE;
+    else if (property === "password")
+      fields.password ??= isLengthMessage(message) ? PASSWORD_LENGTH_MESSAGE : PASSWORD_REFUSED;
     else if (property === "confirmPassword")
       fields.confirmPassword ??= message.includes("match")
         ? "Passwords don’t match."
-        : PASSWORD_RULE;
+        : PASSWORD_LENGTH_MESSAGE;
     else unmapped = true;
   }
   return { fields, unmapped };
 }
+
+/** class-validator's length messages: "password must be longer than or equal to 8 characters". */
+const isLengthMessage = (message: string) => /longer|shorter|characters/i.test(message);
 
 /**
  * Customer registration form → POST /auth/register. On 201 the account is
@@ -284,6 +287,23 @@ export function SignUpForm() {
                   name={field.name}
                   autoComplete={field.autoComplete}
                   disabled={isSubmitting}
+                  // Once the password's error is showing, keep it in step with what's
+                  // typed, so it goes away as soon as the password meets the rules.
+                  onChange={
+                    field.name === "password"
+                      ? (event) => {
+                          const value = event.currentTarget.value;
+                          setErrors((current) => {
+                            if (!current.password) return current;
+                            const next = { ...current };
+                            const problem = registrationPasswordProblem(value);
+                            if (problem) next.password = problem;
+                            else delete next.password;
+                            return next;
+                          });
+                        }
+                      : undefined
+                  }
                   placeholder={field.placeholder}
                   aria-invalid={error ? true : undefined}
                   aria-describedby={error ? errorId : undefined}

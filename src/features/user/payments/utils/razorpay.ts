@@ -10,11 +10,16 @@ export interface OpenRazorpayOptions {
   payment: PaymentCheckout;
   description: string;
   prefill: { name: string; email: string; contact: string | null };
+  /**
+   * Razorpay's `timeout` (whole seconds): after it Checkout can no longer be
+   * used. Derived from the backend's `hold_expires_at` (see hold-timer.ts).
+   */
+  timeoutSeconds: number;
   /** Razorpay's success result. Not proof of payment: the backend verifies it. */
   onSuccess: (result: RazorpayPaymentResult) => void;
   /** A failed attempt. The modal stays open so the customer can try again. */
   onFailure: (reason: string | undefined) => void;
-  /** The customer closed the modal without a successful payment. */
+  /** The modal closed without a successful payment: by the customer or its timeout. */
   onDismiss: () => void;
 }
 
@@ -36,6 +41,7 @@ export async function openRazorpay(options: OpenRazorpayOptions): Promise<void> 
       ...(prefill.contact ? { contact: prefill.contact } : {}),
     },
     theme: { color: "#0b1a2e" },
+    timeout: options.timeoutSeconds,
     handler: (response: RazorpayPaymentResult) => {
       succeeded = true;
       options.onSuccess({
