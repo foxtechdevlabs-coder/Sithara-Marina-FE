@@ -178,7 +178,11 @@ const paymentCheckoutSchema = z.object({
   /** Paise. The booking's total, never the client's. */
   amount: z.number(),
   currency: z.string(),
-  /** Swagger types it as an object; it is the paying deadline. Not relied on here. */
+  /**
+   * The paying deadline (an ISO date-time in practice; Swagger types it as an
+   * object, so it is read defensively by `holdDeadline`). Sets how long Razorpay
+   * Checkout may stay open.
+   */
   hold_expires_at: z.unknown(),
   /** Public checkout details. Never a secret. */
   checkout: z.object({ key_id: z.string(), order_id: z.string() }),

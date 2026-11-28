@@ -33,6 +33,7 @@ import {
 import { getYacht } from "@/services/user/yachts.service";
 import { emailSchema } from "@/validation/email";
 import { FULL_NAME_INVALID_MESSAGE, isValidFullName } from "@/validation/full-name";
+import { gmailComposeUrl } from "@/lib/gmail-compose";
 import { keepOnly, phoneCharacters } from "@/lib/input-filters";
 
 /* ------------------------------------------------------------------ */
@@ -353,6 +354,8 @@ function ChipsWithOther({
   };
   const startOther = () => {
     // One own entry: "Other" edits it. Several: "Other" adds another.
+    // One choice: choosing Other means none of the suggestions is chosen any more.
+    if (!multiple && selected.length > 0) onSelectedChange([]);
     setDraft(multiple ? "" : (custom[0] ?? ""));
     done.current = false;
     setEditing(true);
@@ -364,7 +367,11 @@ function ChipsWithOther({
     const typed = draft.trim();
     setEditing(false);
     setDraft("");
-    if (!typed) return;
+    if (!typed) {
+      // One choice: the own entry was opened with its text, so emptying it removes it.
+      if (!multiple && custom.length > 0) onCustomChange([]);
+      return;
+    }
     const known = [...options, ...custom].find((item) => same(item, typed));
     if (known) {
       if (!selected.includes(known)) onSelectedChange(multiple ? [...selected, known] : [known]);
@@ -664,7 +671,10 @@ function Sidebar({
           {CONCIERGE_PHONE}
         </a>
         <a
-          href={`mailto:${CONCIERGE_EMAIL}`}
+          href={gmailComposeUrl(CONCIERGE_EMAIL)}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={`Email ${CONCIERGE_EMAIL} in Gmail (opens in a new tab)`}
           className="mt-[20px] flex items-center gap-[14px] text-[16px] break-all hover:underline"
         >
           <Mail aria-hidden="true" strokeWidth={1.5} className="size-[17px] shrink-0" />
@@ -757,9 +767,9 @@ export default function PlanCharter({
   /** Chosen luxuries, suggested and the customer's own, in the order chosen. */
   const [chosenLuxuries, setChosenLuxuries] = useState<string[]>([]);
   const [ownLuxuries, setOwnLuxuries] = useState<string[]>([]);
-  /** Chosen budgets, suggested and the customer's own, in the order chosen. */
+  /** The chosen budget (at most one): a suggestion or the customer's own. */
   const [budget, setBudget] = useState<string[]>([]);
-  /** Every budget the customer added with Other (a list: a new one never replaces another). */
+  /** The budget the customer typed with Other (at most one; a new one replaces it). */
   const [ownBudget, setOwnBudget] = useState<string[]>([]);
   const [contactMethod, setContactMethod] = useState("Email");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
@@ -838,10 +848,10 @@ export default function PlanCharter({
     if (occasionText.length > ENQUIRY_OCCASION_MAX_LENGTH) {
       errors.occasion = `Please choose fewer occasions: together they can be up to ${ENQUIRY_OCCASION_MAX_LENGTH} characters.`;
     }
-    // The same for the budget: one text of up to 100 characters, "₹ 10–25 lakh, Flexible".
+    // The budget: one choice, sent as one text of up to 100 characters.
     const budgetText = budget.join(", ");
     if (budgetText.length > ENQUIRY_BUDGET_MAX_LENGTH) {
-      errors.budget = `Please choose fewer budgets: together they can be up to ${ENQUIRY_BUDGET_MAX_LENGTH} characters.`;
+      errors.budget = `Please keep your budget under ${ENQUIRY_BUDGET_MAX_LENGTH} characters.`;
     }
 
     setFieldErrors(errors);
@@ -1117,8 +1127,7 @@ export default function PlanCharter({
                 setOwnBudget(next);
                 clearError("budget");
               }}
-              // Each Other adds a new budget; earlier ones stay, chosen or not.
-              multiple
+              // One budget: a suggestion or the customer's own amount, never both.
               maxLength={ENQUIRY_BUDGET_MAX_LENGTH}
               placeholder="e.g. Around ₹1 lakh"
             />
