@@ -3,7 +3,7 @@
 import type { Route } from "next";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useId, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 
 import { BODY } from "@/components/admin/admin-theme";
 import {
@@ -20,9 +20,10 @@ import {
 import { searchYachts } from "@/components/admin/lookups";
 import { SearchSelect } from "@/components/admin/search-select";
 import { adminRoutes } from "@/constants/routes";
-import { zonedIso, localParts } from "@/features/admin/availability/utils/availability-format";
+import { useAdminSession } from "@/features/admin/auth/components/admin-session-provider";
 import {
   Card,
+  DetailList,
   formGrid,
   PageHeader,
   pagePadding,
@@ -34,11 +35,10 @@ import {
   formatInstant,
   formatRupees,
   marinaToday,
-  MARINA_TIME_ZONE,
+  parseRupees,
 } from "@/features/admin/bookings/utils/booking-format";
 import { useAdminQuery } from "@/features/admin/fleet/hooks/use-admin-query";
 import { cx } from "@/lib/cx";
-import { quoteOfficeBooking } from "@/services/admin/bookings.service";
 import {
   createProposal,
   getEnquiry,
@@ -46,44 +46,40 @@ import {
   updateEnquiry,
   updateProposal,
   type EnquiryDetail as Detail,
-  type Proposal,
-  type ProposalInput,
 } from "@/services/admin/enquiries.service";
 import { getSlotTypes } from "@/services/admin/fleet.service";
 import { listStaff } from "@/services/admin/staff.service";
+import { isApiError } from "@/services/http/api-error";
 
 import {
-  contextEntries,
   dayText,
+  durationText,
   enquiryErrorMessage,
+  enquiryFacts,
+  enquiryWishes,
   historyText,
   MANUAL_STAGES,
-  parseList,
+  proposalActions,
+  proposalLengthText,
   proposalStatusLabel,
   stageLabel,
 } from "../utils/enquiry-format";
+import {
+  customMinutes,
+  MESSAGE_MAX,
+  proposalDraft,
+  proposalErrors,
+  proposalInput,
+  proposalPatch,
+  returnTime,
+  TERMS_MAX,
+  type ProposalCheckContext,
+  type ProposalDraft,
+} from "../utils/proposal-form";
 
 type Tab = "enquiry" | "proposal" | "history";
 
 const textarea = cx(input, "h-auto min-h-[88px] py-[12px] leading-[20px]");
-
-/** "12 November · 8 guests · Birthday · Budget ₹2–3 lakh" etc. from the enquiry. */
-function preferenceLines(e: Detail): string[] {
-  const first = [
-    e.preferred_date ? dayText(e.preferred_date) : null,
-    e.preferred_start_time ? `from ${e.preferred_start_time}` : null,
-    e.slot_type?.name ?? null,
-    e.guests ? `${e.guests} guests` : null,
-    e.occasion,
-    e.budget ? `Budget ${e.budget}` : null,
-  ].filter(Boolean);
-  const second = [
-    e.yacht ? `${e.yacht.name} preferred` : "Flexible on yacht",
-    ...(e.destinations.length ? [e.destinations.join(", ")] : []),
-    ...contextEntries(e.context),
-  ];
-  return [first.join(" · ") || "No date or size given", second.join(" · ")];
-}
 
 /** Enquiry: "A journey in the making." (admin Figma A29). */
 export function EnquiryDetail({
@@ -148,9 +144,7 @@ export function EnquiryDetail({
       {tab === "enquiry" && (
         <EnquiryTab enquiry={e} onChanged={enquiry.reload} onSaved={(d) => enquiry.setData(d)} />
       )}
-      {tab === "proposal" && (
-        <ProposalsTab enquiry={e} onChanged={enquiry.reload} openForm={() => setTab("enquiry")} />
-      )}
+      {tab === "proposal" && <ProposalsTab enquiry={e} openForm={() => setTab("enquiry")} />}
       {tab === "history" && <HistoryTab enquiry={e} />}
     </div>
   );
@@ -167,7 +161,7 @@ function EnquiryTab({
 }) {
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<{ tone: "success" | "error"; text: string }>();
-  const lines = preferenceLines(e);
+  const facts = enquiryFacts(e);
 
   async function patch(change: Parameters<typeof updateEnquiry>[1], done: string) {
     setBusy(true);
@@ -187,23 +181,65 @@ function EnquiryTab({
 
   return (
     <>
-      <Card title="Customer preferences" className="mt-[24px] lg:max-w-[880px]">
-        {lines[0]}
-        <br />
-        {lines[1]}
-        {e.preferences && (
-          <span className="mt-[8px] block whitespace-pre-line">Preferences: {e.preferences}</span>
-        )}
-        {e.message && (
-          <span className="mt-[8px] block" style={{ color: "#0d1b2a" }}>
-            “{e.message}”
-          </span>
-        )}
-        <span className="mt-[8px] block">
-          {e.contact.full_name} · {e.contact.email}
-          {e.contact.phone ? ` · ${e.contact.phone}` : ""} · received {formatInstant(e.created_at)}
-        </span>
-      </Card>
+      <div className="mt-[24px] grid gap-[18px] lg:max-w-[1000px] lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+        <Card title="Customer’s request">
+          <div className="mt-[6px] flex flex-wrap gap-x-[32px] gap-y-[10px]">
+            <div>
+              <p className="text-[11px]">Expected amount</p>
+              <p className="text-[22px] leading-[30px]" style={{ color: "#0d1b2a" }}>
+                {facts.request.find(([t]) => t === "Expected amount")?.[1] ?? "Not given"}
+              </p>
+            </div>
+            <div>
+              <p className="text-[11px]">Budget / proposed amount</p>
+              <p className="text-[22px] leading-[30px]" style={{ color: "#0d1b2a" }}>
+                {facts.budget ?? "Not given"}
+              </p>
+            </div>
+            <div>
+              <p className="text-[11px]">Requested duration</p>
+              <p className="text-[22px] leading-[30px]" style={{ color: "#0d1b2a" }}>
+                {facts.request.find(([t]) => t === "Requested duration")?.[1] ?? "Not given"}
+              </p>
+            </div>
+            <div>
+              <p className="text-[11px]">Number of days</p>
+              <p className="text-[22px] leading-[30px]" style={{ color: "#0d1b2a" }}>
+                {facts.request.find(([t]) => t === "Number of days")?.[1] ?? "Not given"}
+              </p>
+            </div>
+          </div>
+          <DetailList
+            className="mt-[16px] whitespace-pre-line text-[#0d1b2a]"
+            items={facts.request.filter(
+              ([term]) =>
+                ![
+                  "Budget / proposed amount",
+                  "Expected amount",
+                  "Requested duration",
+                  "Number of days",
+                ].includes(term),
+            )}
+          />
+        </Card>
+        <div className="grid content-start gap-[18px]">
+          <Card title="Contact details">
+            <DetailList className="mt-[10px] text-[#0d1b2a]" items={facts.contact} />
+          </Card>
+          <Card title="Enquiry">
+            <DetailList
+              className="mt-[10px] text-[#0d1b2a]"
+              items={[
+                ["Reference", e.reference],
+                ["Received", formatInstant(e.created_at)],
+                ["Last updated", formatInstant(e.updated_at)],
+                ["Stage", stageLabel(e.status)],
+                ["Assigned concierge", e.assigned_to?.full_name ?? "Unassigned"],
+              ]}
+            />
+          </Card>
+        </div>
+      </div>
 
       <div className={cx(formGrid, "mt-[24px] lg:max-w-[700px]")}>
         <div>
@@ -269,74 +305,36 @@ function EnquiryTab({
   );
 }
 
-interface Draft {
-  yachtId: string;
-  yachtName: string;
-  date: string;
-  slotTypeId: string;
-  startTime: string;
-  guests: string;
-  /** datetime-local in the marina's time zone; empty: 7 days after sending. */
-  expires: string;
-  inclusions: string;
-  terms: string;
-  message: string;
-}
-
-function draftFrom(e: Detail, p: Proposal | undefined): Draft {
-  if (p)
-    return {
-      yachtId: p.yacht.id,
-      yachtName: p.yacht.name,
-      date: p.date,
-      slotTypeId: p.slot_type_id ?? "",
-      startTime: p.start_time,
-      guests: String(p.guests),
-      expires: p.expires_at
-        ? (({ date, time }) => `${date}T${time}`)(localParts(p.expires_at, MARINA_TIME_ZONE))
-        : "",
-      inclusions: p.inclusions.join("\n"),
-      terms: p.terms ?? "",
-      message: p.message ?? "",
-    };
-  return {
-    yachtId: e.yacht?.id ?? "",
-    yachtName: e.yacht?.name ?? "",
-    date: e.preferred_date ?? "",
-    slotTypeId: e.slot_type?.id ?? "",
-    startTime: e.preferred_start_time ?? "",
-    guests: e.guests ? String(e.guests) : "",
-    expires: "",
-    inclusions: "",
-    terms: "",
-    message: "",
-  };
-}
-
-/** A problem with the validity date-time (empty is fine: 7 days after sending). */
-function expiryProblem(expires: string, now: number): string | null {
-  if (!expires) return null;
-  const ms = new Date(
-    zonedIso(expires.slice(0, 10), expires.slice(11, 16), MARINA_TIME_ZONE),
-  ).getTime();
-  if (ms <= now) return "Choose a time in the future.";
-  if (ms > now + 90 * 86_400_000) return "At most 90 days ahead.";
-  return null;
-}
+/** The checks again when saving, with the validity date compared to the clock now. */
+const errorsAtSave = (draft: ProposalDraft, checks: ProposalCheckContext) =>
+  proposalErrors(draft, { ...checks, now: Date.now() });
 
 /** The proposal being worked on: a new one, or the latest draft (POST …/proposals, PATCH /admin/proposals/{id}). */
 function ProposalForm({ enquiry: e, onChanged }: { enquiry: Detail; onChanged: () => void }) {
   const router = useRouter();
-  const startList = useId();
+  const { admin } = useAdminSession();
+  // A custom length and price (every new proposal) is created or edited by a super admin only.
+  const canCustom = admin?.role === "super_admin";
   const latest = e.proposals[0];
   const draftProposal = latest?.status === "draft" ? latest : undefined;
-  const locked = latest && latest.status !== "draft";
   const closed = e.status === "closed";
-  const [draft, setDraft] = useState<Draft>(() => draftFrom(e, draftProposal));
+  const isCustomVersion = (p: { duration_minutes: number | null } | undefined) =>
+    Boolean(p && p.duration_minutes !== null);
+  const [draft, setDraft] = useState<ProposalDraft>(() => proposalDraft(e, draftProposal));
+  const isPackage = draft.length === "package";
+  // Other staff see a custom proposal read-only (they can still review and send a draft);
+  // a package proposal from before stays editable for them, as it has no hand-set price.
+  const customLocked = !canCustom && !isPackage;
+  /**
+   * The draft this form saves to. Set as soon as a new draft is created, so a
+   * second save before the enquiry reloads updates it instead of creating another.
+   */
+  const [draftId, setDraftId] = useState<string | null>(draftProposal?.id ?? null);
   const [submitted, setSubmitted] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<"" | "save" | "preview" | "revise">("");
   const [note, setNote] = useState<{ tone: "success" | "error"; text: string }>();
-  const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setDraft((d) => ({ ...d, [k]: v }));
+  const set = <K extends keyof ProposalDraft>(k: K, v: ProposalDraft[K]) =>
+    setDraft((d) => ({ ...d, [k]: v }));
   // When the form opened: checks the validity date during render without reading the clock.
   const [now] = useState(() => Date.now());
 
@@ -344,119 +342,71 @@ function ProposalForm({ enquiry: e, onChanged }: { enquiry: Detail; onChanged: (
     (signal) => (draft.yachtId ? getSlotTypes(draft.yachtId, signal) : Promise.resolve(null)),
     `proposal-slots:${draft.yachtId}`,
   );
-  const packages = (slots.data?.slot_types ?? []).filter(
-    (t) => t.is_active || t.id === draft.slotTypeId,
-  );
-  const pkg = packages.find((t) => t.id === draft.slotTypeId);
-  const guests = Number(draft.guests);
-  // The package must be one the chosen yacht offers (the enquiry's may not be).
-  const ready =
-    Boolean(
-      draft.yachtId &&
-      pkg &&
-      /^\d{4}-\d{2}-\d{2}$/.test(draft.date) &&
-      /^\d{2}:\d{2}$/.test(draft.startTime),
-    ) &&
-    Number.isInteger(guests) &&
-    guests >= 1;
-  const quote = useAdminQuery(
-    (signal) =>
-      ready
-        ? quoteOfficeBooking(
-            {
-              yacht_id: draft.yachtId,
-              slot_type_id: draft.slotTypeId,
-              date: draft.date,
-              start_time: draft.startTime,
-              guests,
-            },
-            signal,
-          )
-        : Promise.resolve(null),
-    `proposal-quote:${ready}:${draft.yachtId}:${draft.slotTypeId}:${draft.date}:${draft.startTime}:${guests}`,
-  );
+  const checks = {
+    today: marinaToday(),
+    now,
+    // A package draft keeps its saved package; nothing new is chosen.
+    packageFound: isPackage && Boolean(draft.slotTypeId),
+    packagesLoading: slots.loading,
+    packageCount: isPackage ? 1 : 0,
+    canCustom,
+    hours: slots.data ? { opens: slots.data.opens_at, closes: slots.data.closes_at } : undefined,
+  };
+  const problems = proposalErrors(draft, checks);
+  const errors = submitted ? problems : {};
+  const returns = returnTime(draft.startTime, customMinutes(draft));
 
-  const errors: Record<string, string> = {};
-  if (submitted) {
-    if (!draft.yachtId) errors.yacht = "Choose the yacht to propose.";
-    if (!draft.date) errors.date = "Choose the departure date.";
-    else if (draft.date < marinaToday()) errors.date = "The date can’t be in the past.";
-    if (!pkg)
-      errors.slot =
-        packages.length || slots.loading
-          ? "Choose a package."
-          : "This yacht has no packages yet: add one under Pricing & slots.";
-    if (!/^\d{2}:\d{2}$/.test(draft.startTime)) errors.start = "Enter the start time.";
-    if (!Number.isInteger(guests) || guests < 1) errors.guests = "Enter the number of guests.";
-    const expiry = expiryProblem(draft.expires, now);
-    if (expiry) errors.expires = expiry;
-    if (draft.message.length > 4000) errors.message = "Keep it to 4,000 characters.";
-    if (draft.terms.length > 10000) errors.terms = "Keep it to 10,000 characters.";
-  }
-
-  const toInput = (): ProposalInput => ({
-    yacht_id: draft.yachtId,
-    slot_type_id: draft.slotTypeId,
-    date: draft.date,
-    start_time: draft.startTime,
-    guests,
-    inclusions: parseList(draft.inclusions),
-    ...(draft.message.trim() ? { message: draft.message.trim() } : {}),
-    ...(draft.terms.trim() ? { terms: draft.terms.trim() } : {}),
-    ...(draft.expires
-      ? {
-          expires_at: zonedIso(
-            draft.expires.slice(0, 10),
-            draft.expires.slice(11, 16),
-            MARINA_TIME_ZONE,
-          ),
-        }
-      : {}),
-  });
+  // The saved version this form edits (for a package draft's name and last price).
+  const saved = e.proposals.find((x) => x.id === draftId);
+  const wishes = enquiryWishes(e.context);
+  // A custom price is typed (the whole charter before GST, no hourly calculation);
+  // a package draft is re-priced by the backend from the yacht's rates when saved.
+  const charter = parseRupees(draft.charter);
+  const totalText = isPackage
+    ? saved && saved.pricing.total_amount !== null
+      ? `${formatRupees(saved.pricing.total_amount)} incl. GST, as last saved`
+      : "Priced from the yacht’s package rates when saved"
+    : Number.isFinite(charter) && charter > 0
+      ? `${formatRupees(charter)} + GST`
+      : "Enter the charter price";
 
   async function save(then: "stay" | "preview") {
+    if (busy) return;
     setSubmitted(true);
     setNote(undefined);
-    const valid =
-      ready &&
-      draft.date >= marinaToday() &&
-      draft.message.length <= 4000 &&
-      draft.terms.length <= 10000 &&
-      !expiryProblem(draft.expires, Date.now());
-    if (!valid) return;
-    setBusy(true);
+    if (Object.keys(errorsAtSave(draft, checks)).length) return;
+    setBusy(then === "stay" ? "save" : "preview");
     try {
-      const input = toInput();
-      const saved = draftProposal
-        ? await updateProposal(draftProposal.id, {
-            ...input,
-            message: draft.message.trim() || null,
-            terms: draft.terms.trim() || null,
-            expires_at: input.expires_at ?? null,
-          })
-        : await createProposal(e.id, input);
-      if (then === "preview") router.push(adminRoutes.enquiryProposal(e.id, saved.id));
-      else {
-        setNote({
-          tone: "success",
-          text: `Draft v${saved.version} saved. Total ${saved.pricing.total_amount === null ? "set once GST is configured" : formatRupees(saved.pricing.total_amount)}.`,
-        });
-        onChanged();
+      const saved = draftId
+        ? await updateProposal(draftId, proposalPatch(draft))
+        : await createProposal(e.id, proposalInput(draft));
+      setDraftId(saved.id);
+      if (then === "preview") {
+        router.push(adminRoutes.enquiryProposal(e.id, saved.id));
+        return;
       }
+      setNote({
+        tone: "success",
+        text: `Draft v${saved.version} saved. Total ${saved.pricing.total_amount === null ? "shown once the GST rate is set" : `${formatRupees(saved.pricing.total_amount)} incl. GST`}.`,
+      });
+      onChanged();
     } catch (err) {
-      setNote({ tone: "error", text: enquiryErrorMessage(err) });
-    } finally {
-      setBusy(false);
+      setNote({ tone: "error", text: enquiryErrorMessage(err, true) });
+      // A version sent meanwhile (PROPOSAL_NOT_DRAFT) or a closed enquiry: show the current state.
+      if (isApiError(err) && err.status === 409) onChanged();
     }
+    setBusy("");
   }
 
   async function revise() {
-    if (!latest) return;
-    setBusy(true);
+    if (!latest || busy) return;
+    setBusy("revise");
     setNote(undefined);
     try {
       const next = await reviseProposal(latest.id);
-      setDraft(draftFrom(e, next));
+      setDraft(proposalDraft(e, next));
+      setDraftId(next.id);
+      setSubmitted(false);
       setNote({
         tone: "success",
         text: `Version ${next.version} drafted from version ${latest.version}. Change it, then send.`,
@@ -464,12 +414,13 @@ function ProposalForm({ enquiry: e, onChanged }: { enquiry: Detail; onChanged: (
       onChanged();
     } catch (err) {
       setNote({ tone: "error", text: enquiryErrorMessage(err) });
-    } finally {
-      setBusy(false);
+      if (isApiError(err) && err.status === 409) onChanged();
     }
+    setBusy("");
   }
 
-  if (locked) {
+  if (latest && latest.status !== "draft") {
+    const can = proposalActions(latest.status, closed);
     return (
       <section aria-labelledby="proposal-locked" className="mt-[30px] lg:max-w-[880px]">
         <h2 id="proposal-locked" className="text-[20px] leading-[26px]">
@@ -477,7 +428,7 @@ function ProposalForm({ enquiry: e, onChanged }: { enquiry: Detail; onChanged: (
         </h2>
         <p className="mt-[8px] text-[12px] leading-[18px]" style={{ color: BODY }}>
           {latest.yacht.name} · {dayText(latest.date)} · {latest.start_time}–{latest.end_time} ·{" "}
-          {latest.guests} guests ·{" "}
+          {proposalLengthText(latest)} · {latest.guests} guests ·{" "}
           {latest.pricing.total_amount === null
             ? "total pending GST"
             : formatRupees(latest.pricing.total_amount)}
@@ -494,21 +445,34 @@ function ProposalForm({ enquiry: e, onChanged }: { enquiry: Detail; onChanged: (
         )}
         {latest.status === "accepted" ? (
           <Notice className="mt-[14px]">
-            The customer accepted this proposal and was sent to checkout.
+            The customer accepted this proposal and was sent to checkout. It can no longer change.
           </Notice>
-        ) : (
-          <div className="mt-[16px] flex flex-wrap gap-[14px]">
+        ) : can.revise && !canCustom && isCustomVersion(latest) ? (
+          <Notice className="mt-[14px]">
+            Only a super admin can revise this proposal, as its length and price are set by hand.
+          </Notice>
+        ) : can.revise ? (
+          <div className="mt-[16px] flex flex-wrap items-center gap-[14px]">
             <button
               type="button"
-              disabled={busy || closed}
+              disabled={Boolean(busy)}
               onClick={() => void revise()}
               className={cx(smallPrimary, "min-w-[170px]")}
               style={PRIMARY_STYLE}
             >
-              {busy ? "Drafting…" : `Revise into version ${latest.version + 1}`}
+              {busy === "revise" ? "Drafting…" : `Revise into version ${latest.version + 1}`}
             </button>
+            <p className="text-[11px]" style={{ color: BODY }}>
+              A sent version can’t change. Revising copies it into a new draft; this one stays in
+              the history and is replaced once the new version is sent.
+            </p>
           </div>
-        )}
+        ) : closed ? (
+          <Notice className="mt-[14px]">
+            This enquiry is closed. Set the stage back to New or Needs details to revise the
+            proposal.
+          </Notice>
+        ) : null}
       </section>
     );
   }
@@ -526,12 +490,47 @@ function ProposalForm({ enquiry: e, onChanged }: { enquiry: Detail; onChanged: (
       <h2 id="proposal-form" className="text-[20px] leading-[26px]">
         {draftProposal ? `Proposal v${draftProposal.version} · draft` : "New proposal"}
       </h2>
+      {/* What the customer asked for, for reference while proposing. A proposal is one
+          date with a length back the same day, and the API has no days field, so the
+          number of days is shown here, not entered. */}
+      <div
+        aria-label="Customer’s request"
+        className="mt-[12px] flex flex-wrap gap-x-[28px] gap-y-[8px] border border-[#dcdad5] bg-[#fbfaf8] px-[16px] py-[12px] text-[13px] lg:max-w-[700px]"
+      >
+        <p>
+          <span className="block text-[11px]" style={{ color: BODY }}>
+            Customer asked for · number of days
+          </span>
+          {wishes.days !== null
+            ? `${wishes.days} ${wishes.days === 1 ? "day" : "days"}`
+            : "Not given"}
+        </p>
+        <p>
+          <span className="block text-[11px]" style={{ color: BODY }}>
+            Customer asked for · duration
+          </span>
+          {wishes.requestedMinutes !== null ? durationText(wishes.requestedMinutes) : "Not given"}
+        </p>
+        {wishes.days !== null && wishes.days > 1 && (
+          <p className="w-full text-[11px]" style={{ color: BODY }}>
+            A proposal covers one date. For a stay of several days, agree the plan with the customer
+            (for example in the message below) or send one proposal per day.
+          </p>
+        )}
+      </div>
       {closed && (
         <Notice tone="error" className="mt-[12px] lg:max-w-[700px]">
           This enquiry is closed. Set the stage back to New or Needs details to work on a proposal.
         </Notice>
       )}
-      <fieldset disabled={closed || busy} className="contents">
+      {customLocked && !closed && (
+        <Notice className="mt-[12px] lg:max-w-[700px]">
+          {draftProposal
+            ? "Only a super admin can edit this proposal, as its length and price are set by hand. You can still review and send this draft."
+            : "Only a super admin can create a proposal, as its length and price are set by hand."}
+        </Notice>
+      )}
+      <fieldset disabled={closed || customLocked || Boolean(busy)} className="contents">
         <div className={cx(formGrid, "mt-[16px] lg:max-w-[700px]")}>
           <div>
             <Label htmlFor="proposal-yacht" required>
@@ -546,11 +545,12 @@ function ProposalForm({ enquiry: e, onChanged }: { enquiry: Detail; onChanged: (
                   ...d,
                   yachtId: v,
                   yachtName: option?.data?.name ?? "",
-                  slotTypeId: "",
                 }))
               }
               load={searchYachts({ status: "active" })}
               invalid={errors.yacht}
+              // A package belongs to its yacht: switch to a custom length to change the yacht.
+              disabled={isPackage}
               placeholder="Search active yachts"
               noResults="No active yacht matches."
             />
@@ -571,42 +571,96 @@ function ProposalForm({ enquiry: e, onChanged }: { enquiry: Detail; onChanged: (
             />
             <FieldError id="proposal-date" message={errors.date} />
           </div>
-          <div>
-            <Label htmlFor="proposal-slot" required>
-              Package
-            </Label>
-            <SelectBox
-              id="proposal-slot"
-              value={pkg ? draft.slotTypeId : ""}
-              onChange={(v) => {
-                const t = packages.find((x) => x.id === v);
-                setDraft((d) => ({
-                  ...d,
-                  slotTypeId: v,
-                  startTime: d.startTime || t?.start_times[0] || "",
-                }));
-              }}
-              disabled={!draft.yachtId || slots.loading}
-              invalid={errors.slot}
-              options={[
-                {
-                  value: "",
-                  label: !draft.yachtId
-                    ? "Choose a yacht first"
-                    : slots.loading
-                      ? "Loading packages…"
-                      : packages.length
-                        ? "Choose a package"
-                        : "This yacht has no packages",
-                },
-                ...packages.map((t) => ({
-                  value: t.id,
-                  label: `${t.name} · ${t.duration_minutes / 60} h`,
-                })),
-              ]}
-            />
-            <FieldError id="proposal-slot" message={errors.slot} />
-          </div>
+
+          {isPackage ? (
+            <div className="border border-[#dcdad5] bg-[#fbfaf8] px-[16px] py-[14px] lg:col-span-2">
+              <p className="text-[11px]" style={{ color: BODY }}>
+                Charter length
+              </p>
+              <p className="mt-[4px] text-[14px]">
+                Package: {saved?.slot_type_name ?? "the yacht’s package"}
+                {Number.isFinite(customMinutes(draft))
+                  ? ` · ${durationText(customMinutes(draft))}`
+                  : ""}
+              </p>
+              <p className="mt-[4px] text-[11px]" style={{ color: BODY }}>
+                Kept from the original proposal and priced from the yacht’s package rates. It stays
+                a package unless you switch it.
+              </p>
+              {canCustom && (
+                <button
+                  type="button"
+                  onClick={() => set("length", "custom")}
+                  className="mt-[8px] text-[12px] underline underline-offset-2"
+                >
+                  Use a custom length and price instead
+                </button>
+              )}
+            </div>
+          ) : (
+            <>
+              <div>
+                <Label
+                  htmlFor="proposal-hours"
+                  required
+                  hint={
+                    slots.data?.opens_at && slots.data.closes_at
+                      ? `at least 1 hour, within ${slots.data.opens_at}–${slots.data.closes_at}`
+                      : "at least 1 hour"
+                  }
+                >
+                  Length
+                </Label>
+                <div className="grid grid-cols-2 gap-[10px]">
+                  <input
+                    id="proposal-hours"
+                    inputMode="numeric"
+                    aria-label="Hours"
+                    placeholder="Hours"
+                    maxLength={2}
+                    value={draft.hours}
+                    onChange={(ev) => set("hours", ev.currentTarget.value.replace(/\D/g, ""))}
+                    className={input}
+                    {...errorProps("proposal-hours", errors.hours)}
+                  />
+                  <SelectBox
+                    id="proposal-minutes"
+                    value={draft.minutes}
+                    onChange={(v) => set("minutes", v)}
+                    options={[...new Set(["0", "15", "30", "45", draft.minutes])].map((m) => ({
+                      value: m,
+                      label: `${m} min`,
+                    }))}
+                  />
+                </div>
+                <FieldError id="proposal-hours" message={errors.hours} />
+              </div>
+              <div>
+                <Label htmlFor="proposal-charter" required hint="₹, whole charter, before GST">
+                  Charter price
+                </Label>
+                <input
+                  id="proposal-charter"
+                  inputMode="decimal"
+                  placeholder="e.g. 125000"
+                  value={draft.charter}
+                  onChange={(ev) => set("charter", ev.currentTarget.value.replace(/[^\d.,]/g, ""))}
+                  className={input}
+                  {...errorProps("proposal-charter", errors.charter)}
+                />
+                <FieldError id="proposal-charter" message={errors.charter} />
+              </div>
+              {!draftId && (wishes.requestedMinutes !== null || wishes.expectedAmount !== null) && (
+                <p className="text-[11px] lg:col-span-2" style={{ color: BODY }}>
+                  Length and price are pre-filled from the customer’s request
+                  {wishes.expectedAmount !== null
+                    ? " (their expected amount: check whether it included GST)"
+                    : ""}
+                  . Change them as needed.
+                </p>
+              )}
+            </>
+          )}
           <div>
             <Label htmlFor="proposal-start" required hint="any time within charter hours">
               Start time
@@ -614,17 +668,16 @@ function ProposalForm({ enquiry: e, onChanged }: { enquiry: Detail; onChanged: (
             <input
               id="proposal-start"
               type="time"
-              list={startList}
               value={draft.startTime}
               onChange={(ev) => set("startTime", ev.currentTarget.value)}
               className={input}
               {...errorProps("proposal-start", errors.start)}
             />
-            <datalist id={startList}>
-              {(pkg?.start_times ?? []).map((t) => (
-                <option key={t} value={t} />
-              ))}
-            </datalist>
+            {returns && !errors.start && (
+              <p className="mt-[6px] text-[11px]" style={{ color: BODY }}>
+                Returns at {returns}
+              </p>
+            )}
             <FieldError id="proposal-start" message={errors.start} />
           </div>
           <div>
@@ -634,6 +687,7 @@ function ProposalForm({ enquiry: e, onChanged }: { enquiry: Detail; onChanged: (
             <input
               id="proposal-guests"
               inputMode="numeric"
+              maxLength={3}
               value={draft.guests}
               onChange={(ev) => set("guests", ev.currentTarget.value.replace(/\D/g, ""))}
               className={input}
@@ -655,26 +709,17 @@ function ProposalForm({ enquiry: e, onChanged }: { enquiry: Detail; onChanged: (
             />
             <FieldError id="proposal-expires" message={errors.expires} />
           </div>
-          <div>
+          <div className="lg:col-span-2">
             <Label htmlFor="proposal-total">Total proposal amount</Label>
             <input
               id="proposal-total"
               readOnly
-              value={
-                !ready
-                  ? "Choose yacht, date, package, time and guests"
-                  : quote.loading
-                    ? "Pricing…"
-                    : quote.error
-                      ? enquiryErrorMessage(quote.error)
-                      : quote.data
-                        ? `${formatRupees(quote.data.total_amount)} incl. GST`
-                        : ""
-              }
+              value={totalText}
               className={cx(input, "bg-[#fbfaf8]")}
             />
             <p className="mt-[6px] text-[11px]" style={{ color: BODY }}>
-              From the yacht’s prices for that date; checked again when sent and at checkout.
+              The whole charter as you typed it, before GST. GST is added by the server when the
+              draft is saved; the saved total is shown on the Proposal tab.
             </p>
           </div>
         </div>
@@ -694,12 +739,14 @@ function ProposalForm({ enquiry: e, onChanged }: { enquiry: Detail; onChanged: (
             />
           </div>
           <div>
-            <Label htmlFor="proposal-terms">Exclusions and policy</Label>
+            <Label htmlFor="proposal-terms" hint={`${draft.terms.length}/${TERMS_MAX}`}>
+              Exclusions and policy
+            </Label>
             <textarea
               id="proposal-terms"
               value={draft.terms}
               rows={3}
-              maxLength={10000}
+              maxLength={TERMS_MAX}
               placeholder="Attach the agreed charter terms and relevant exclusions."
               onChange={(ev) => set("terms", ev.currentTarget.value)}
               className={textarea}
@@ -708,14 +755,17 @@ function ProposalForm({ enquiry: e, onChanged }: { enquiry: Detail; onChanged: (
             <FieldError id="proposal-terms" message={errors.terms} />
           </div>
           <div>
-            <Label htmlFor="proposal-message" hint="shown to the customer">
+            <Label
+              htmlFor="proposal-message"
+              hint={`shown to the customer · ${draft.message.length}/${MESSAGE_MAX}`}
+            >
               Message to the customer
             </Label>
             <textarea
               id="proposal-message"
               value={draft.message}
               rows={3}
-              maxLength={4000}
+              maxLength={MESSAGE_MAX}
               placeholder="A personal note to go with the proposal."
               onChange={(ev) => set("message", ev.currentTarget.value)}
               className={textarea}
@@ -731,44 +781,47 @@ function ProposalForm({ enquiry: e, onChanged }: { enquiry: Detail; onChanged: (
           </Notice>
         )}
 
-        <div className="mt-[22px] flex flex-wrap gap-[14px]">
-          <button type="submit" className={cx(smallPrimary, "min-w-[150px]")} style={PRIMARY_STYLE}>
-            {busy ? "Saving…" : "Save proposal draft"}
-          </button>
-          <button
-            type="button"
-            onClick={() => void save("preview")}
-            className={cx(smallOutline, "min-w-[170px]")}
-            style={OUTLINE_STYLE}
-          >
-            Preview customer proposal
-          </button>
-        </div>
-        <div className="mt-[14px]">
-          <button
-            type="button"
-            onClick={() => void save("preview")}
-            className={cx(smallPrimary, "min-w-[170px]")}
-            style={PRIMARY_STYLE}
-          >
-            Review & send proposal
-          </button>
-        </div>
+        {!customLocked && (
+          <>
+            <div className="mt-[22px] flex flex-wrap gap-[14px]">
+              <button
+                type="submit"
+                className={cx(smallOutline, "min-w-[150px]")}
+                style={OUTLINE_STYLE}
+              >
+                {busy === "save" ? "Saving…" : "Save proposal draft"}
+              </button>
+              <button
+                type="button"
+                onClick={() => void save("preview")}
+                className={cx(smallPrimary, "min-w-[170px]")}
+                style={PRIMARY_STYLE}
+              >
+                {busy === "preview" ? "Saving…" : "Review & send proposal"}
+              </button>
+            </div>
+            <p className="mt-[8px] text-[11px]" style={{ color: BODY }}>
+              “Review & send” saves the draft and opens the customer’s view; nothing is sent until
+              you confirm there.
+            </p>
+          </>
+        )}
       </fieldset>
+      {customLocked && draftProposal && !closed && (
+        <Link
+          href={adminRoutes.enquiryProposal(e.id, draftProposal.id)}
+          className={cx(smallPrimary, "mt-[22px] w-fit min-w-[170px]")}
+          style={PRIMARY_STYLE}
+        >
+          Review & send proposal
+        </Link>
+      )}
     </form>
   );
 }
 
-function ProposalsTab({
-  enquiry: e,
-  onChanged,
-  openForm,
-}: {
-  enquiry: Detail;
-  onChanged: () => void;
-  openForm: () => void;
-}) {
-  void onChanged;
+/** Every version, newest first, with its price and status. */
+function ProposalsTab({ enquiry: e, openForm }: { enquiry: Detail; openForm: () => void }) {
   if (!e.proposals.length)
     return (
       <p className="mt-[24px] text-[13px]" style={{ color: BODY }}>
@@ -779,44 +832,81 @@ function ProposalsTab({
         .
       </p>
     );
+  const closed = e.status === "closed";
   return (
     <ul className="mt-[24px] grid gap-[14px] lg:max-w-[880px]">
-      {e.proposals.map((p) => (
-        <li key={p.id} className="border border-[#dcdad5] bg-white px-[18px] py-[18px]">
-          <div className="flex flex-wrap items-baseline justify-between gap-[8px]">
-            <p className="text-[18px] leading-[24px]">
-              Version {p.version} · {proposalStatusLabel(p.status)}
+      {e.proposals.map((p, i) => {
+        const can = proposalActions(p.status, closed);
+        const pr = p.pricing;
+        return (
+          <li key={p.id} className="border border-[#dcdad5] bg-white px-[18px] py-[18px]">
+            <div className="flex flex-wrap items-baseline justify-between gap-[8px]">
+              <p className="text-[18px] leading-[24px]">
+                Version {p.version} · {proposalStatusLabel(p.status)}
+              </p>
+              <p className="text-[15px]">
+                {pr.total_amount === null ? "Total pending GST" : formatRupees(pr.total_amount)}
+              </p>
+            </div>
+            <p className="mt-[6px] text-[12px] leading-[18px]" style={{ color: BODY }}>
+              {p.yacht.name} · {dayText(p.date, true)} · {p.start_time}–{p.end_time} ·{" "}
+              {proposalLengthText(p)} · {p.guests} guests
             </p>
-            <p className="text-[15px]">
-              {p.pricing.total_amount === null
-                ? "Total pending GST"
-                : formatRupees(p.pricing.total_amount)}
+            <p className="mt-[4px] text-[12px] leading-[18px]" style={{ color: BODY }}>
+              Charter {formatRupees(pr.charter_amount)}
+              {pr.addons.map((a) => ` · ${a.name} × ${a.quantity} ${formatRupees(a.amount)}`)}
+              {" · "}Subtotal {formatRupees(pr.subtotal)}
+              {pr.tax_amount !== null &&
+                ` · GST${pr.tax_rate !== null ? ` ${pr.tax_rate}%` : ""} ${formatRupees(pr.tax_amount)}`}
             </p>
-          </div>
-          <p className="mt-[6px] text-[12px] leading-[18px]" style={{ color: BODY }}>
-            {p.yacht.name} · {dayText(p.date, true)} · {p.start_time}–{p.end_time} ·{" "}
-            {p.slot_type_name} · {p.guests} guests
-            {p.sent_at ? ` · sent ${formatInstant(p.sent_at)}` : ""}
-            {p.expires_at ? ` · valid until ${formatInstant(p.expires_at)}` : ""}
-            {p.decided_at ? ` · decided ${formatInstant(p.decided_at)}` : ""}
-          </p>
-          {p.inclusions.length > 0 && (
-            <p className="mt-[6px] text-[12px]">Includes: {p.inclusions.join(" · ")}</p>
-          )}
-          {p.decision_comment && (
-            <p className="mt-[6px] text-[12px]">Customer’s comment: “{p.decision_comment}”</p>
-          )}
-          {p.status === "draft" && (
-            <Link
-              href={adminRoutes.enquiryProposal(e.id, p.id)}
-              className={cx(smallOutline, "mt-[12px] h-[36px] w-fit")}
-              style={OUTLINE_STYLE}
-            >
-              Preview & send →
-            </Link>
-          )}
-        </li>
-      ))}
+            <p className="mt-[4px] text-[11px]" style={{ color: BODY }}>
+              Drafted {formatInstant(p.created_at)}
+              {p.sent_at ? ` · sent ${formatInstant(p.sent_at)}` : ""}
+              {p.expires_at
+                ? ` · valid until ${formatInstant(p.expires_at)}`
+                : p.status === "draft"
+                  ? " · valid for 7 days once sent"
+                  : ""}
+              {p.decided_at ? ` · decided ${formatInstant(p.decided_at)}` : ""}
+            </p>
+            {p.inclusions.length > 0 && (
+              <p className="mt-[6px] text-[12px]">Includes: {p.inclusions.join(" · ")}</p>
+            )}
+            {p.message && (
+              <p className="mt-[6px] text-[12px] whitespace-pre-line">Message: {p.message}</p>
+            )}
+            {p.terms && (
+              <p className="mt-[6px] line-clamp-3 text-[12px] whitespace-pre-line">
+                Terms: {p.terms}
+              </p>
+            )}
+            {p.decision_comment && (
+              <p className="mt-[6px] text-[12px]">Customer’s comment: “{p.decision_comment}”</p>
+            )}
+            {i === 0 && (can.edit || can.revise) && (
+              <div className="mt-[12px] flex flex-wrap gap-[12px]">
+                {can.send && (
+                  <Link
+                    href={adminRoutes.enquiryProposal(e.id, p.id)}
+                    className={cx(smallPrimary, "h-[36px] w-fit")}
+                    style={PRIMARY_STYLE}
+                  >
+                    Review & send →
+                  </Link>
+                )}
+                <button
+                  type="button"
+                  onClick={openForm}
+                  className={cx(smallOutline, "h-[36px] w-fit")}
+                  style={OUTLINE_STYLE}
+                >
+                  {can.edit ? "Edit draft" : "Revise on the Enquiry tab"}
+                </button>
+              </div>
+            )}
+          </li>
+        );
+      })}
     </ul>
   );
 }

@@ -21,7 +21,13 @@ import { useAdminQuery } from "@/features/admin/fleet/hooks/use-admin-query";
 import { cx } from "@/lib/cx";
 import { getEnquiry, publishProposal } from "@/services/admin/enquiries.service";
 
-import { dayText, enquiryErrorMessage, proposalStatusLabel } from "../utils/enquiry-format";
+import {
+  dayText,
+  enquiryErrorMessage,
+  proposalActions,
+  proposalLengthText,
+  proposalStatusLabel,
+} from "../utils/enquiry-format";
 
 /**
  * "A proposal ready to share." (admin Figma A44): the customer's view of a
@@ -76,9 +82,13 @@ export function ProposalPreview({
     );
   }
   const total = p.pricing.total_amount;
+  const pr = p.pricing;
   const draft = p.status === "draft";
+  const closed = e.status === "closed";
+  const canSend = proposalActions(p.status, closed).send;
 
   async function send() {
+    if (busy) return;
     setBusy(true);
     setFailure("");
     try {
@@ -108,16 +118,18 @@ export function ProposalPreview({
       >
         {e.contact.full_name} · {e.contact.email}
         <br />
-        {p.yacht.name} · {dayText(p.date)} · {p.start_time}–{p.end_time} · {p.slot_type_name}
+        {p.yacht.name} · {dayText(p.date, true)} · {p.start_time}–{p.end_time} ·{" "}
+        {proposalLengthText(p)}
         <br />
-        {p.guests} guests · {total === null ? "total shown once GST is set" : formatRupees(total)}
-        {p.pricing.tax_amount !== null && (
-          <span className="block text-[11px]">
-            Charter {formatRupees(p.pricing.charter_amount)}
-            {p.pricing.addons_amount ? ` · add-ons ${formatRupees(p.pricing.addons_amount)}` : ""} ·
-            GST {formatRupees(p.pricing.tax_amount)}
-          </span>
-        )}
+        {p.guests} guests ·{" "}
+        {total === null ? "total shown once GST is set" : `${formatRupees(total)} incl. GST`}
+        <span className="block text-[11px]">
+          Charter {formatRupees(pr.charter_amount)}
+          {pr.addons.map((a) => ` · ${a.name} × ${a.quantity} ${formatRupees(a.amount)}`)} ·
+          Subtotal {formatRupees(pr.subtotal)}
+          {pr.tax_amount !== null &&
+            ` · GST${pr.tax_rate !== null ? ` ${pr.tax_rate}%` : ""} ${formatRupees(pr.tax_amount)}`}
+        </span>
         {p.inclusions.length > 0 && (
           <span className="mt-[10px] block" style={{ color: "#0d1b2a" }}>
             Includes: {p.inclusions.join(" · ")}
@@ -131,6 +143,13 @@ export function ProposalPreview({
             : "Valid for 7 days after it is sent"}
         </span>
       </Card>
+
+      {draft && closed && (
+        <Notice tone="error" className="mt-[16px] lg:max-w-[880px]">
+          This enquiry is closed, so the proposal can’t be sent. Set its stage back to New or Needs
+          details first.
+        </Notice>
+      )}
 
       {total === null && draft && (
         <Notice tone="error" className="mt-[16px] lg:max-w-[880px]">
@@ -151,7 +170,7 @@ export function ProposalPreview({
       )}
 
       <div className="mt-[24px] flex flex-wrap gap-[14px]">
-        {draft && (
+        {canSend && (
           <button
             type="button"
             disabled={busy}

@@ -77,6 +77,25 @@ const luxuryOptions = [
   "Ayurvedic spa",
 ];
 const budgetOptions = ["Under ₹ 10 lakh", "₹ 10–25 lakh", "₹ 25 lakh +", "Not sure yet"];
+
+/**
+ * Charter lengths a customer can ask for, in minutes. The enquiry API has no
+ * duration field, so the choice is sent in `context.duration_minutes`, which the
+ * backend stores as sent and the admin enquiry view shows as "Requested duration".
+ */
+const durationOptions = [60, 90, 120, 180, 240, 300, 360, 480, 600, 720];
+const durationLabel = (minutes: number) =>
+  minutes % 60
+    ? `${Math.floor(minutes / 60)} h ${minutes % 60} min`
+    : minutes === 60
+      ? "1 hour"
+      : `${minutes / 60} hours`;
+
+/** The most days a customer can ask for in one enquiry. */
+export const ENQUIRY_DAYS_MAX = 30;
+
+/** The largest expected amount accepted, in rupees (₹ 10 crore). */
+const EXPECTED_AMOUNT_MAX = 100_000_000;
 /** Turns into a small field for the customer's own occasion, luxury or budget. */
 const OTHER = "Other";
 const contactMethods = ["Email", "Phone call", "WhatsApp"];
@@ -107,6 +126,8 @@ type FieldKey =
   | "destinations"
   | "occasion"
   | "budget"
+  | "amount"
+  | "days"
   | "message"
   | "consent";
 type FieldErrors = Partial<Record<FieldKey, string>>;
@@ -762,6 +783,12 @@ export default function PlanCharter({
   /** Every budget the customer added with Other (a list: a new one never replaces another). */
   const [ownBudget, setOwnBudget] = useState<string[]>([]);
   const [contactMethod, setContactMethod] = useState("Email");
+  /** Requested charter length in minutes, as a select value; empty: not sure yet. */
+  const [duration, setDuration] = useState("");
+  /** Optional number of days the yacht is wanted for, as typed (digits). */
+  const [days, setDays] = useState("");
+  /** Expected amount in rupees, as typed (digits and commas). */
+  const [expectedAmount, setExpectedAmount] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
@@ -844,6 +871,26 @@ export default function PlanCharter({
       errors.budget = `Please choose fewer budgets: together they can be up to ${ENQUIRY_BUDGET_MAX_LENGTH} characters.`;
     }
 
+    // An optional expected amount: whole rupees, sent in paise like every other API amount.
+    const amountText = expectedAmount.replace(/[,\s]/g, "");
+    const amountRupees = amountText ? Number(amountText) : null;
+    if (
+      amountRupees !== null &&
+      (!Number.isInteger(amountRupees) || amountRupees < 1 || amountRupees > EXPECTED_AMOUNT_MAX)
+    ) {
+      errors.amount = "Enter an amount in whole rupees, e.g. 150000.";
+    }
+
+    // Optional: how many days the yacht is wanted for. Sent in `context.days`
+    // (the enquiry API has no field of its own for it).
+    const dayCount = days ? Number(days) : null;
+    if (
+      dayCount !== null &&
+      (!Number.isInteger(dayCount) || dayCount < 1 || dayCount > ENQUIRY_DAYS_MAX)
+    ) {
+      errors.days = `Enter a number of days from 1 to ${ENQUIRY_DAYS_MAX}.`;
+    }
+
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0 || !phone.success) {
       setFormError("Please check the highlighted details.");
@@ -864,9 +911,15 @@ export default function PlanCharter({
       adults,
       children,
       contact_method: contactMethod,
+      ...(duration ? { duration_minutes: Number(duration) } : {}),
+      ...(dayCount !== null ? { days: dayCount } : {}),
+      ...(amountRupees !== null ? { expected_amount_paise: amountRupees * 100 } : {}),
     };
-    const fits =
-      new TextEncoder().encode(JSON.stringify(context)).length <= ENQUIRY_CONTEXT_MAX_BYTES;
+    // Never dropped quietly: if the choices were ever too large to store, say so.
+    if (new TextEncoder().encode(JSON.stringify(context)).length > ENQUIRY_CONTEXT_MAX_BYTES) {
+      setFormError("Some of your choices couldn’t be sent. Please shorten them and try again.");
+      return;
+    }
 
     // Only CreateEnquiryDto's own fields, and only those the customer filled in.
     const request: CreateEnquiryRequest = {
@@ -881,7 +934,7 @@ export default function PlanCharter({
       ...(trimmedOccasion ? { occasion: trimmedOccasion } : {}),
       ...(trimmedBudget ? { budget: trimmedBudget } : {}),
       ...(trimmedPreferences ? { preferences: trimmedPreferences } : {}),
-      ...(fits ? { context } : {}),
+      context,
     };
 
     inFlight.current = true;
@@ -1036,6 +1089,53 @@ export default function PlanCharter({
                 />
                 {errorText("start")}
               </div>
+              <div className="min-w-0">
+                <label htmlFor="duration" className={labelClass}>
+                  Charter duration
+                </label>
+                <select
+                  id="duration"
+                  value={duration}
+                  onChange={(event) => setDuration(event.currentTarget.value)}
+                  className={cx(fieldClass, "mt-[8px] cursor-pointer")}
+                  style={{ borderColor: BORDER }}
+                >
+                  <option value="">Not sure yet</option>
+                  {durationOptions.map((minutes) => (
+                    <option key={minutes} value={minutes}>
+                      {durationLabel(minutes)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="min-w-0">
+                <label htmlFor="days" className={labelClass}>
+                  Number of days · optional
+                </label>
+                <input
+                  id="days"
+                  inputMode="numeric"
+                  maxLength={2}
+                  value={days}
+                  placeholder="e.g. 2"
+                  aria-invalid={Boolean(fieldErrors.days)}
+                  aria-describedby={fieldErrors.days ? "days-error" : "days-hint"}
+                  onInput={keepOnly((text) => text.replace(/\D/g, ""))}
+                  onChange={(event) => {
+                    setDays(event.currentTarget.value);
+                    clearError("days");
+                  }}
+                  className={cx(fieldClass, "mt-[8px] aria-[invalid=true]:!border-[#b42318]")}
+                  style={{ borderColor: BORDER }}
+                />
+                {fieldErrors.days ? (
+                  errorText("days")
+                ) : (
+                  <p id="days-hint" className="mt-[6px] text-[13px] leading-[18px] text-[#6b7178]">
+                    How many days you’d like the yacht for.
+                  </p>
+                )}
+              </div>
             </div>
             <button
               type="button"
@@ -1123,6 +1223,28 @@ export default function PlanCharter({
               placeholder="e.g. Around ₹1 lakh"
             />
             {errorText("budget")}
+            <div className="mt-[24px] max-w-[320px]">
+              <label htmlFor="amount" className={labelClass}>
+                Expected amount (₹) · optional
+              </label>
+              <input
+                id="amount"
+                inputMode="numeric"
+                maxLength={14}
+                value={expectedAmount}
+                placeholder="e.g. 1,50,000"
+                aria-invalid={Boolean(fieldErrors.amount)}
+                aria-describedby={fieldErrors.amount ? "amount-error" : undefined}
+                onInput={keepOnly((text) => text.replace(/[^\d,]/g, ""))}
+                onChange={(event) => {
+                  setExpectedAmount(event.currentTarget.value);
+                  clearError("amount");
+                }}
+                className={cx(fieldClass, "mt-[8px] aria-[invalid=true]:!border-[#b42318]")}
+                style={{ borderColor: BORDER }}
+              />
+              {errorText("amount")}
+            </div>
             <div className="mt-[24px]">
               <label htmlFor="message" className={labelClass}>
                 Tell us about your journey

@@ -21,10 +21,7 @@ export const enquirySchema = z.object({
   /** new, in_progress, proposal_sent, accepted, rejected, closed */
   status: z.string(),
   yacht: yachtRef.nullable(),
-  /** No longer sent by the backend; kept for enquiries that still carry them. */
-  slot_type: z.object({ id: z.string(), name: z.string() }).nullable().optional(),
   preferred_date: nullableString,
-  preferred_start_time: nullableString.optional(),
   guests: z.number().nullable(),
   /** Empty when none were given. */
   destinations: z.array(z.string()).default([]),
@@ -56,8 +53,11 @@ export const proposalSchema = z.object({
   /** draft, sent, accepted, rejected, superseded, expired */
   status: z.string(),
   yacht: yachtRef,
+  /** The package; null for a custom length. */
   slot_type_id: nullableString,
   slot_type_name: z.string(),
+  /** Minutes, when staff proposed a length of their own (slot_type_id is then null); null for a package. */
+  duration_minutes: z.number().nullable().default(null),
   date: z.string(),
   start_time: z.string(),
   end_time: z.string(),
@@ -145,11 +145,25 @@ export interface EnquiryPatch {
   assigned_to_id?: string | null;
 }
 
+/**
+ * The charter length: a package of the yacht, or a length of its own with the
+ * price of the whole charter (needs bookings:price_override). Exactly one.
+ */
+export type ProposalLength =
+  | { slot_type_id: string; duration_minutes?: never; charter_amount?: never }
+  | {
+      slot_type_id?: never;
+      /** At least 60, back by the latest return time. */
+      duration_minutes: number;
+      /** Paise, excluding GST, extra guests included; GST and add-ons are added by the server. */
+      charter_amount: number;
+    };
+
 /** CreateProposalDto */
-export interface ProposalInput {
+export type ProposalInput = ProposalLength & ProposalDetails;
+
+interface ProposalDetails {
   yacht_id: string;
-  /** A package of that yacht. */
-  slot_type_id: string;
   /** Local date. */
   date: string;
   /** Any HH:mm within the charter and yacht hours. */
@@ -165,12 +179,17 @@ export interface ProposalInput {
   expires_at?: string;
 }
 
-/** UpdateProposalDto (drafts only); null clears message, terms or expires_at. */
-export type ProposalPatch = Partial<Omit<ProposalInput, "message" | "terms" | "expires_at">> & {
-  message?: string | null;
-  terms?: string | null;
-  expires_at?: string | null;
-};
+/**
+ * UpdateProposalDto (drafts only); null clears message, terms or expires_at.
+ * `slot_type_id` switches the draft to a package; `duration_minutes` with
+ * `charter_amount` switches it to a custom length.
+ */
+export type ProposalPatch = Partial<ProposalLength> &
+  Partial<Omit<ProposalDetails, "message" | "terms" | "expires_at">> & {
+    message?: string | null;
+    terms?: string | null;
+    expires_at?: string | null;
+  };
 
 const enquiry = (id: string) => `/admin/enquiries/${encodeURIComponent(id)}`;
 const proposal = (id: string) => `/admin/proposals/${encodeURIComponent(id)}`;
@@ -194,7 +213,11 @@ export function updateEnquiry(id: string, patch: EnquiryPatch): Promise<Enquiry>
   return adminApiClient.patch(enquiry(id), { body: patch, schema: enquirySchema });
 }
 
-/** POST /admin/enquiries/{id}/proposals (201) — a new draft. */
+/**
+ * POST /admin/enquiries/{id}/proposals (201) — a new draft. 403 for a custom
+ * length without bookings:price_override; 409 when the slot can't be proposed
+ * or the enquiry is closed.
+ */
 export function createProposal(enquiryId: string, input: ProposalInput): Promise<Proposal> {
   return adminApiClient.post(`${enquiry(enquiryId)}/proposals`, {
     body: input,

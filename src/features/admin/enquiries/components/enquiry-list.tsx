@@ -4,13 +4,24 @@ import Link from "next/link";
 import { useId, useState } from "react";
 
 import { BODY, SAND } from "@/components/admin/admin-theme";
-import { input, Label, LoadState, OUTLINE_STYLE, SelectBox } from "@/components/admin/form-parts";
+import {
+  errorProps,
+  FieldError,
+  input,
+  Label,
+  LoadState,
+  OUTLINE_STYLE,
+  SelectBox,
+} from "@/components/admin/form-parts";
+import { searchYachts } from "@/components/admin/lookups";
+import { SearchSelect } from "@/components/admin/search-select";
 import { adminRoutes } from "@/constants/routes";
 import {
   PageHeader,
   pagePadding,
   smallOutline,
 } from "@/features/admin/bookings/components/booking-ui";
+import { formatInstant, marinaToday } from "@/features/admin/bookings/utils/booking-format";
 import { useAdminQuery } from "@/features/admin/fleet/hooks/use-admin-query";
 import { useDebounced } from "@/features/admin/fleet/hooks/use-debounced";
 import { Pager } from "@/features/admin/reports/components/report-parts";
@@ -62,14 +73,22 @@ export function EnquiryList() {
   const [query, setQuery] = useState("");
   const [view, setView] = useState("all");
   const [page, setPage] = useState(1);
+  const [yacht, setYacht] = useState<{ id: string; name: string } | null>(null);
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const search = useDebounced(query.trim());
-
+  // A range the wrong way round isn't sent; the message under "Received to" explains it.
+  const rangeError = from && to && from > to ? "Choose a date on or after “Received from”." : "";
   const request: EnquiryQuery = {
     page,
     limit: PAGE_SIZE,
     ...(VIEWS.find((v) => v.value === view)?.query ?? {}),
     ...(search ? { search: search.slice(0, 100) } : {}),
+    ...(yacht ? { yacht_id: yacht.id } : {}),
+    ...(from && !rangeError ? { from } : {}),
+    ...(to && !rangeError ? { to } : {}),
   };
+  const filtered = Boolean(search || view !== "all" || yacht || from || to);
   const list = useAdminQuery(
     (signal) => listEnquiries(request, signal),
     `enquiries:${JSON.stringify(request)}`,
@@ -90,7 +109,7 @@ export function EnquiryList() {
         subtitle="Enquiry inbox and proposal pipeline."
       />
 
-      <div className="mt-[24px] grid gap-x-[18px] gap-y-[18px] lg:mt-[30px] lg:max-w-[580px] lg:grid-cols-2">
+      <div className="mt-[24px] grid gap-x-[18px] gap-y-[18px] sm:grid-cols-2 lg:mt-[30px] lg:max-w-[880px] lg:grid-cols-3">
         <div>
           <Label htmlFor={searchId}>Search enquiries</Label>
           <input
@@ -102,7 +121,7 @@ export function EnquiryList() {
               setQuery(e.currentTarget.value);
               setPage(1);
             }}
-            placeholder="Reference, customer or yacht"
+            placeholder="Reference, name, email or phone"
             className={input}
           />
         </div>
@@ -117,6 +136,54 @@ export function EnquiryList() {
             }}
             options={VIEWS.map((v) => ({ value: v.value, label: v.label }))}
           />
+        </div>
+        <div>
+          <Label htmlFor="enquiry-yacht">Yacht</Label>
+          <SearchSelect
+            id="enquiry-yacht"
+            value={yacht?.id ?? ""}
+            selectedLabel={yacht?.name}
+            onChange={(v, option) => {
+              setYacht(v ? { id: v, name: option?.data?.name ?? option?.label ?? "" } : null);
+              setPage(1);
+            }}
+            load={searchYachts()}
+            clearable
+            emptyLabel="Any yacht"
+            placeholder="Search yachts"
+            noResults="No yacht matches."
+          />
+        </div>
+        <div>
+          <Label htmlFor="enquiry-from">Received from</Label>
+          <input
+            id="enquiry-from"
+            type="date"
+            max={to || marinaToday()}
+            value={from}
+            onChange={(e) => {
+              setFrom(e.currentTarget.value);
+              setPage(1);
+            }}
+            className={input}
+          />
+        </div>
+        <div>
+          <Label htmlFor="enquiry-to">Received to</Label>
+          <input
+            id="enquiry-to"
+            type="date"
+            min={from || undefined}
+            max={marinaToday()}
+            value={to}
+            onChange={(e) => {
+              setTo(e.currentTarget.value);
+              setPage(1);
+            }}
+            className={input}
+            {...errorProps("enquiry-to", rangeError)}
+          />
+          <FieldError id="enquiry-to" message={rangeError} />
         </div>
       </div>
 
@@ -138,7 +205,7 @@ export function EnquiryList() {
           />
         ) : !rows.length ? (
           <p className="text-[13px]" style={{ color: BODY }}>
-            {search || view !== "all" ? "No enquiries match these filters." : "No enquiries yet."}
+            {filtered ? "No enquiries match these filters." : "No enquiries yet."}
           </p>
         ) : (
           <div className={cx(list.loading && "opacity-60")}>
@@ -146,11 +213,11 @@ export function EnquiryList() {
               <caption className="sr-only">Enquiries</caption>
               <thead>
                 <tr style={{ backgroundColor: SAND }}>
-                  {["Enquiry", "Customer / yacht", "Assignee", "Stage"].map((h) => (
+                  {["Enquiry", "Customer / yacht", "Received", "Assignee", "Stage"].map((h) => (
                     <th
                       key={h}
                       scope="col"
-                      className="w-1/4 px-[12px] py-[12px] font-normal"
+                      className="w-1/5 px-[12px] py-[12px] font-normal"
                       style={{ color: BODY }}
                     >
                       {h}
@@ -172,6 +239,7 @@ export function EnquiryList() {
                     <td className="px-[12px] py-[12px] break-words" title={e.contact.full_name}>
                       {customerYacht(e)}
                     </td>
+                    <td className="px-[12px] py-[12px]">{formatInstant(e.created_at)}</td>
                     <td className="px-[12px] py-[12px]">
                       {e.assigned_to?.full_name ?? "Unassigned"}
                     </td>
@@ -189,6 +257,7 @@ export function EnquiryList() {
                     {(
                       [
                         ["Customer / yacht", customerYacht(e)],
+                        ["Received", formatInstant(e.created_at)],
                         ["Assignee", e.assigned_to?.full_name ?? "Unassigned"],
                         ["Stage", stageLabel(e.status)],
                       ] as const

@@ -112,9 +112,35 @@ export function reactivateStaff(id: string): Promise<Staff> {
   return adminApiClient.post(`${staffPath(id)}/reactivate`, { schema: staffSchema });
 }
 
-/** GET /admin/roles — the built-in roles first, then custom ones by name. */
-export function listRoles(signal?: AbortSignal): Promise<Role[]> {
-  return adminApiClient.get("/admin/roles", { schema: z.array(roleSchema), signal });
+/** RoleListResponseDto: one page of roles. */
+const roleListSchema = z.object({
+  items: z.array(roleSchema),
+  total: z.number(),
+  page: z.number(),
+  limit: z.number(),
+});
+
+/** The most roles read per request (the backend's limit) and pages read at most. */
+const ROLES_PER_PAGE = 100;
+const MAX_ROLE_PAGES = 10;
+
+/**
+ * GET /admin/roles — every role, the built-in ones first, then custom ones by
+ * name. The backend answers in pages ({ items, total, page, limit }), so every
+ * page is read and the roles are returned as one list.
+ */
+export async function listRoles(signal?: AbortSignal): Promise<Role[]> {
+  const roles: Role[] = [];
+  for (let page = 1; page <= MAX_ROLE_PAGES; page++) {
+    const list = await adminApiClient.get("/admin/roles", {
+      query: { page, limit: ROLES_PER_PAGE },
+      schema: roleListSchema,
+      signal,
+    });
+    roles.push(...list.items);
+    if (!list.items.length || roles.length >= list.total) break;
+  }
+  return roles;
 }
 
 /** POST /admin/roles (201) */
